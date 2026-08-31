@@ -1,0 +1,214 @@
+{
+  "application_id": "ugtoms-sclp-reference",
+  "application_version": "0.1.0",
+  "evidence": [
+    {
+      "bytes": 5490,
+      "id": "reference-replay",
+      "path": "substrate/applications/evidence/ugtoms-sclp-reference-v0.1.json",
+      "role": "REPLAY",
+      "sha256": "bd646a3c1eff265abeacab95f843c47fb232fbe55d87cb2904b0f1391911c37e",
+      "title": "Deterministic bounded UGTOMS SCLP reference replay"
+    }
+  ],
+  "failure_modes": [
+    {
+      "condition": "A value lies outside a declared numeric, grammar, generation, or packing domain.",
+      "handling": "Reject the operation before committing state or lineage.",
+      "id": "invalid-domain",
+      "observable": "The responsible primitive raises an explicit bounded-domain error."
+    },
+    {
+      "condition": "A branch, LUT, display, recipe, or generation budget would be exceeded.",
+      "handling": "Stop or retain the bounded prefix; do not materialize unbounded state.",
+      "id": "resource-bound",
+      "observable": "The route is marked unbounded or the codec rejects the request."
+    },
+    {
+      "condition": "Support, compatibility, or guard crossing cannot be certified.",
+      "handling": "Return INDETERMINATE and retain the previous authoritative state.",
+      "id": "indeterminate-event",
+      "observable": "The event decision has status INDETERMINATE."
+    }
+  ],
+  "format": "ugtoms-application-manifest-0.1",
+  "kernel": {
+    "kernel_id": "ugtoms-kernel-v0.1",
+    "path": "substrate/kernel/contract.json",
+    "sha256": "ee4dad2b85c8816ef718b4a9f36c2da090b8b9a14525e17f30d65bf17fba23d7"
+  },
+  "mappings": {
+    "geometry": [
+      {
+        "bound_refs": ["reference-generation-bound"],
+        "codomain": ["signed cone distance", "signed sphere support distance"],
+        "definition": "Evaluate an exact finite filled right-circular cone SDF and a separate sphere support SDF at the causal kinematic state.",
+        "disposition": "IMPLEMENTED",
+        "domain": ["binary64 point", "finite cone parameters", "sphere parameters"],
+        "evidence_refs": ["reference-replay"],
+        "failure_refs": ["invalid-domain"],
+        "id": "reference-geometry",
+        "primitive_refs": ["geometry"]
+      }
+    ],
+    "kinematic": [
+      {
+        "bound_refs": ["reference-generation-bound"],
+        "codomain": ["causally advanced position", "velocity arrow", "acceleration arrow"],
+        "definition": "Use the spatial log-polar metric calculus to construct vectors, then advance one constant-acceleration linear-time step.",
+        "disposition": "IMPLEMENTED",
+        "domain": ["spatial rho and theta", "declared derivatives", "positive linear-time step"],
+        "evidence_refs": ["reference-replay"],
+        "failure_refs": ["invalid-domain"],
+        "id": "reference-kinematic",
+        "primitive_refs": ["kinematic"]
+      }
+    ],
+    "operator": [
+      {
+        "bound_refs": ["reference-generation-bound", "reference-recipe-bound"],
+        "codomain": ["topologically resolved pipeline", "content-addressed operator meanings"],
+        "definition": "Execute a finite content-addressed definition DAG and bind fixed recipe opcodes to hashed meanings.",
+        "disposition": "IMPLEMENTED",
+        "domain": ["typed definitions", "declared dependencies", "fixed operator registry"],
+        "evidence_refs": ["reference-replay"],
+        "failure_refs": ["invalid-domain", "resource-bound"],
+        "id": "reference-operator",
+        "primitive_refs": ["operator"]
+      }
+    ],
+    "packing": [
+      {
+        "bound_refs": ["reference-lut-bound", "reference-recipe-bound", "reference-display-bound"],
+        "codomain": ["canonical pose word", "canonical motion word", "canonical LUT", "canonical recipe"],
+        "definition": "Pack 20/18/14/12 pose fields, four signed16 motion lanes, an optional shared binary16 LUT, and one fixed bounded recipe.",
+        "disposition": "IMPLEMENTED",
+        "domain": ["bounded log-polar pose", "bounded derivatives", "semantic addresses"],
+        "evidence_refs": ["reference-replay"],
+        "failure_refs": ["invalid-domain", "resource-bound"],
+        "id": "reference-packing",
+        "primitive_refs": ["packing"]
+      }
+    ],
+    "predicate": [
+      {
+        "bound_refs": ["reference-generation-bound"],
+        "codomain": ["TRUE", "FALSE", "INDETERMINATE", "verified event status"],
+        "definition": "Keep payload parity, topology parity, jitter control, and branch control distinct; admit events through support, compatibility, and guard certificates.",
+        "disposition": "IMPLEMENTED",
+        "domain": ["typed bit roles", "bounded jitter interval", "guard samples"],
+        "evidence_refs": ["reference-replay"],
+        "failure_refs": ["invalid-domain", "indeterminate-event"],
+        "id": "reference-predicate",
+        "primitive_refs": ["predicate"]
+      }
+    ],
+    "self_reference": [
+      {
+        "bound_refs": ["reference-generation-bound"],
+        "codomain": ["generation one input proposal", "lineage-bound feedback record"],
+        "definition": "Commit one source-grounded observable generation through an explicit FeedbackEdge from n to n+1; no same-generation cycle or fixed-point engine is present.",
+        "disposition": "IMPLEMENTED",
+        "domain": ["generation zero observable", "definition hash", "lineage head"],
+        "evidence_refs": ["reference-replay"],
+        "failure_refs": ["resource-bound", "indeterminate-event"],
+        "id": "reference-self-reference",
+        "primitive_refs": ["self_reference"]
+      }
+    ],
+    "topology": [
+      {
+        "bound_refs": ["reference-branch-bound"],
+        "codomain": ["normalized Klein chart coordinate", "bounded branch paths"],
+        "definition": "Apply the declared reflective Klein gluing and route a separate branch-control bit through a bounded BST-T decision.",
+        "disposition": "IMPLEMENTED",
+        "domain": ["chart coordinate", "sheet", "orientation", "branch control"],
+        "evidence_refs": ["reference-replay"],
+        "failure_refs": ["invalid-domain", "resource-bound"],
+        "id": "reference-topology",
+        "primitive_refs": ["topology"]
+      }
+    ],
+    "typed": [
+      {
+        "bound_refs": ["reference-generation-bound"],
+        "codomain": ["one admitted canonical transition"],
+        "definition": "Compose distinct continuous, discrete, and quality fields through one validated generation with explicit units and failures.",
+        "disposition": "IMPLEMENTED",
+        "domain": ["bounded residual", "typed state", "declared numeric policy"],
+        "evidence_refs": ["reference-replay"],
+        "failure_refs": ["invalid-domain", "indeterminate-event"],
+        "id": "reference-typed",
+        "primitive_refs": ["typed"]
+      }
+    ],
+    "vector": [
+      {
+        "bound_refs": ["reference-generation-bound"],
+        "codomain": ["origin plus directed displacement"],
+        "definition": "Represent velocity and acceleration as explicit VectorArrow3 values in the declared Cartesian frame and metre-based units.",
+        "disposition": "IMPLEMENTED",
+        "domain": ["position in metres", "velocity", "acceleration"],
+        "evidence_refs": ["reference-replay"],
+        "failure_refs": ["invalid-domain"],
+        "id": "reference-vector",
+        "primitive_refs": ["vector"]
+      }
+    ]
+  },
+  "profile_selection_rationale": "NHDF v0.1 supplies the normalized next-generation operator chain, while sclp-foundational supplies the finite-cone, log-polar metric, one-bit guard, and bounded packing semantics exercised by this application.",
+  "profiles": [
+    {
+      "profile_id": "nhdf-v0.1",
+      "sha256": "831977e6542664917d38ff449bed36a60fcce123546d19a6c810d46e2ac70794"
+    },
+    {
+      "profile_id": "sclp-foundational",
+      "sha256": "2a1a6d973a6508caf4def0100354a95becfd41accc58fcad9c9dfeaf9ee7860a"
+    }
+  ],
+  "resource_bounds": [
+    {
+      "enforcement": "FeedbackEdge requires target_generation equals source_generation plus one.",
+      "id": "reference-generation-bound",
+      "limit": 1,
+      "resource": "committed next-generation transitions",
+      "unit": "generation"
+    },
+    {
+      "enforcement": "BSTTRouter refuses bifurcation when either declared branch bound would be exceeded.",
+      "id": "reference-branch-bound",
+      "limit": 8,
+      "resource": "simultaneously active branch paths",
+      "unit": "branches"
+    },
+    {
+      "enforcement": "LogPolarProfile validates the resolution and SharedLogPolarLUT requires canonical bytes.",
+      "id": "reference-lut-bound",
+      "limit": 32,
+      "resource": "shared log-polar samples per lane",
+      "unit": "samples"
+    },
+    {
+      "enforcement": "FixedRecipe validates instance_count before serialization.",
+      "id": "reference-recipe-bound",
+      "limit": 64,
+      "resource": "authored recipe instances including the prototype",
+      "unit": "instances"
+    },
+    {
+      "enforcement": "generated_display_instances returns only the requested deterministic prefix and rejects counts above the recipe.",
+      "id": "reference-display-bound",
+      "limit": 16,
+      "resource": "materialized render-only derivative records in this evidence run",
+      "unit": "display records"
+    }
+  ],
+  "self_reference": {
+    "bounded_generations": 1,
+    "enabled": true,
+    "may_promote_extensions": false,
+    "may_propose_extensions": true,
+    "proposal_disposition": "QUARANTINED"
+  }
+}

@@ -7,7 +7,7 @@ from typing import Any
 
 import pytest
 
-from nhdf_edge import server
+from nhdf_edge import cli, server
 
 
 class _Process:
@@ -111,6 +111,10 @@ def test_start_verifies_once_then_launches_fixed_resident_profile(monkeypatch, t
     assert command[command.index("--temp") + 1] == "0"
     assert command[command.index("--top-k") + 1] == "1"
     assert command[command.index("--seed") + 1] == "2026"
+    assert command[command.index("--alias") + 1] == "local-qwen3-30b-a3b"
+    assert "--jinja" in command
+    assert command[command.index("--reasoning-format") + 1] == "none"
+    assert command[command.index("--cors-origins") + 1] == "localhost"
     assert command[command.index("--prio") + 1] == "2"
     assert command[command.index("--prio-batch") + 1] == "2"
     assert command[command.index("--poll") + 1] == "50"
@@ -184,16 +188,71 @@ def test_only_ipv4_loopback_literal_is_allowed(tmp_path, host) -> None:
         server.HybridServer(tmp_path, host=host)
 
 
-def test_manifest_profile_cannot_weaken_quality_or_residency_settings(
+def test_manifest_profile_rejects_unvalidated_cache_type(
     monkeypatch, tmp_path
 ) -> None:
     root = tmp_path / "artifact"
     root.mkdir()
     manifest = _manifest(root)
-    manifest["execution_profile"]["kv_cache_v"] = "q4_0"
+    manifest["execution_profile"]["kv_cache_v"] = "f16"
     _, _, _, observed = _patch_valid_artifact(monkeypatch, tmp_path, manifest=manifest)
 
-    with pytest.raises(server.HybridServerConfigurationError, match="q8_0"):
+    with pytest.raises(server.HybridServerConfigurationError, match="validated KV cache"):
+        server.HybridServer(root).start(wait_ready=False)
+    assert "popen" not in observed
+
+
+def test_start_uses_manifest_32k_q4_profile_and_quick_verification(
+    monkeypatch, tmp_path
+) -> None:
+    root = tmp_path / "artifact"
+    root.mkdir()
+    manifest = _manifest(root)
+    manifest["execution_profile"].update(
+        maximum_context_tokens=32_768,
+        kv_cache_k="q4_0",
+        kv_cache_v="q4_0",
+    )
+    manifest["resource_contract"]["maximum_validated_context_tokens"] = 32_768
+    _, _, _, observed = _patch_valid_artifact(
+        monkeypatch, tmp_path, manifest=manifest
+    )
+
+    runtime = server.HybridServer(root, verify_payload_hash=False).start(
+        wait_ready=False
+    )
+
+    assert observed["verify"] == (
+        root.resolve(),
+        {"verify_payload_hash": False, "require_validated": True},
+    )
+    assert observed["preflight"] == (manifest, {"context": 32_768})
+    command = observed["popen"][0]
+    assert command[command.index("-c") + 1] == "32768"
+    assert command[command.index("-ctk") + 1] == "q4_0"
+    assert command[command.index("-ctv") + 1] == "q4_0"
+    assert runtime._maximum_context_tokens == 32_768
+
+
+@pytest.mark.parametrize(
+    ("execution_context", "contract_context"),
+    [(4_096, 4_096), (32_768, 8_192)],
+)
+def test_server_refuses_too_small_or_not_fully_validated_context(
+    monkeypatch, tmp_path, execution_context, contract_context
+) -> None:
+    root = tmp_path / "artifact"
+    root.mkdir()
+    manifest = _manifest(root)
+    manifest["execution_profile"]["maximum_context_tokens"] = execution_context
+    manifest["resource_contract"][
+        "maximum_validated_context_tokens"
+    ] = contract_context
+    _, _, _, observed = _patch_valid_artifact(
+        monkeypatch, tmp_path, manifest=manifest
+    )
+
+    with pytest.raises(server.HybridServerConfigurationError, match="context"):
         server.HybridServer(root).start(wait_ready=False)
     assert "popen" not in observed
 
@@ -291,3 +350,33 @@ def test_stop_escalates_after_timeout(monkeypatch, tmp_path) -> None:
     assert process.terminated
     assert process.killed
     assert process.wait_calls == [0.5, 0.5]
+
+
+def test_cli_preserves_default_profile_and_exposes_large_context_quick_mode() -> None:
+    parser = cli.build_parser()
+    defaults = parser.parse_args(
+        ["create-hybrid", "artifact", "--model", "model", "--runtime", "runtime"]
+    )
+    configured = parser.parse_args(
+        [
+            "create-hybrid",
+            "artifact",
+            "--model",
+            "model",
+            "--runtime",
+            "runtime",
+            "--maximum-context",
+            "32768",
+            "--kv-cache-k",
+            "q4_0",
+            "--kv-cache-v",
+            "q4_0",
+        ]
+    )
+    serve = parser.parse_args(["serve", "artifact", "--quick"])
+
+    assert defaults.maximum_context == 8_192
+    assert defaults.kv_cache_k == defaults.kv_cache_v == "q8_0"
+    assert configured.maximum_context == 32_768
+    assert configured.kv_cache_k == configured.kv_cache_v == "q4_0"
+    assert serve.quick is True

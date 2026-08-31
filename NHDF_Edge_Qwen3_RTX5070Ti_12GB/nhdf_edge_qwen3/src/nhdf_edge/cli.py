@@ -116,6 +116,8 @@ def command_create_hybrid(args: argparse.Namespace) -> int:
         target_gpu=args.target_gpu,
         target_vram_mib=args.target_vram_mib,
         maximum_context_tokens=args.maximum_context,
+        kv_cache_k=args.kv_cache_k,
+        kv_cache_v=args.kv_cache_v,
     )
     _json(
         {
@@ -186,6 +188,7 @@ def command_serve(args: argparse.Namespace) -> int:
         threads=args.threads,
         startup_timeout_seconds=args.startup_timeout,
         request_timeout_seconds=args.request_timeout,
+        verify_payload_hash=not args.quick,
     )
     runtime.start()
     _json(
@@ -287,6 +290,65 @@ def command_smoke(args: argparse.Namespace) -> int:
     return 0
 
 
+def command_substrate_verify(args: argparse.Namespace) -> int:
+    from .substrate_contract import load_contract_bundle
+
+    bundle = load_contract_bundle(
+        args.repository,
+        kernel_contract_path=args.kernel,
+        profile_registry_path=args.profiles,
+        verify_sources=not args.skip_source_hashes,
+    )
+    _json(
+        {
+            "ok": True,
+            "kernel_id": bundle.kernel["kernel_id"],
+            "kernel_sha256": bundle.kernel_sha256,
+            "profiles": [
+                {
+                    "profile_id": profile_id,
+                    "sha256": bundle.profile_sha256s[profile_id],
+                }
+                for profile_id in sorted(bundle.profiles)
+            ],
+            "automatic_promotion": False,
+        }
+    )
+    return 0
+
+
+def command_substrate_validate_application(args: argparse.Namespace) -> int:
+    from .substrate_contract import validate_application_manifest
+
+    manifest = json.loads(Path(args.manifest).read_text(encoding="utf-8"))
+    result = validate_application_manifest(
+        manifest,
+        repository_root=args.repository,
+        evidence_root=args.evidence_root,
+        kernel_contract_path=args.kernel,
+        profile_registry_path=args.profiles,
+        verify_files=not args.skip_evidence_hashes,
+    )
+    _json(result)
+    return 0
+
+
+def command_substrate_validate_extension(args: argparse.Namespace) -> int:
+    from .substrate_contract import validate_extension_proposal
+
+    proposal = json.loads(Path(args.proposal).read_text(encoding="utf-8"))
+    result = validate_extension_proposal(
+        proposal,
+        repository_root=args.repository,
+        evidence_root=args.evidence_root,
+        kernel_contract_path=args.kernel,
+        profile_registry_path=args.profiles,
+        verify_files=not args.skip_evidence_hashes,
+    )
+    _json(result)
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="nhdf-edge")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -325,7 +387,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser(
         "create-hybrid",
-        help="create a zero-copy NHDF substrate artifact around an external model codec",
+        help="create a zero-copy sealed transport around an external model codec",
     )
     p.add_argument("output")
     p.add_argument("--model", required=True, help="verified GGUF model payload")
@@ -334,7 +396,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument("--benchmark-runtime", help="matching llama-bench executable")
     p.add_argument("--server-runtime", help="matching llama-server executable")
-    p.add_argument("--specification", help="NHDF v0.3 source specification")
+    p.add_argument("--specification", help="selected substrate grounding contract or source")
     p.add_argument("--source-record", help="immutable upstream provenance JSON")
     p.add_argument(
         "--assurance-evidence",
@@ -357,11 +419,23 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--target-gpu", default="NVIDIA GeForce RTX 5070 Ti Laptop GPU")
     p.add_argument("--target-vram-mib", type=int, default=12_227)
     p.add_argument("--maximum-context", type=int, default=8_192)
+    p.add_argument(
+        "--kv-cache-k",
+        choices=["q8_0", "q4_0"],
+        default="q8_0",
+        help="validated key-cache type recorded in the execution profile",
+    )
+    p.add_argument(
+        "--kv-cache-v",
+        choices=["q8_0", "q4_0"],
+        default="q8_0",
+        help="validated value-cache type recorded in the execution profile",
+    )
     p.set_defaults(func=command_create_hybrid)
 
     p = sub.add_parser(
         "gate-hybrid",
-        help="run fresh functional, 8K-residency, resource, and throughput gates",
+        help="run fresh functional, maximum-context, resource, and throughput gates",
     )
     p.add_argument("artifact")
     p.add_argument("--output")
@@ -401,6 +475,11 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--threads", type=int)
     p.add_argument("--startup-timeout", type=float, default=120.0)
     p.add_argument("--request-timeout", type=float, default=120.0)
+    p.add_argument(
+        "--quick",
+        action="store_true",
+        help="verify sealed metadata/runtime but skip rehashing the large model payload",
+    )
     p.set_defaults(func=command_serve)
 
     p = sub.add_parser(
@@ -424,6 +503,44 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--seed", type=int, default=2026)
     p.add_argument("--output")
     p.set_defaults(func=command_smoke)
+
+    p = sub.add_parser(
+        "substrate-verify",
+        help="verify the compact UGTOMS kernel, source provenance, and selectable profiles",
+    )
+    p.add_argument("--repository", default=".")
+    p.add_argument("--kernel", default="substrate/kernel/contract.json")
+    p.add_argument("--profiles", default="substrate/profiles/registry.json")
+    p.add_argument(
+        "--skip-source-hashes",
+        action="store_true",
+        help="schema-only development check; do not use as release evidence",
+    )
+    p.set_defaults(func=command_substrate_verify)
+
+    p = sub.add_parser(
+        "substrate-validate-app",
+        help="validate a substrate application manifest and its evidence bindings",
+    )
+    p.add_argument("manifest")
+    p.add_argument("--repository", default=".")
+    p.add_argument("--kernel", default="substrate/kernel/contract.json")
+    p.add_argument("--profiles", default="substrate/profiles/registry.json")
+    p.add_argument("--evidence-root")
+    p.add_argument("--skip-evidence-hashes", action="store_true")
+    p.set_defaults(func=command_substrate_validate_application)
+
+    p = sub.add_parser(
+        "substrate-validate-extension",
+        help="validate that an extension proposal remains bounded and quarantined",
+    )
+    p.add_argument("proposal")
+    p.add_argument("--repository", default=".")
+    p.add_argument("--kernel", default="substrate/kernel/contract.json")
+    p.add_argument("--profiles", default="substrate/profiles/registry.json")
+    p.add_argument("--evidence-root")
+    p.add_argument("--skip-evidence-hashes", action="store_true")
+    p.set_defaults(func=command_substrate_validate_extension)
     return parser
 
 

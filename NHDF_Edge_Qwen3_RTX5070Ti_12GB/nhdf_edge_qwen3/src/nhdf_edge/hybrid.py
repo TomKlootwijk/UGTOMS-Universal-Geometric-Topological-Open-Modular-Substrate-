@@ -1,10 +1,9 @@
-"""Fail-closed NHDF substrate profile for an externally encoded model.
+"""Fail-closed local model transport for a substrate-grounded coding agent.
 
-The v0.3 specification is a substrate/resource contract, not a tensor codec.
-This module therefore keeps codec attribution explicit while making integrity,
-capability, resource, validation, and execution policy part of one sealed
-artifact.  The first production profile uses a GGUF/IQ2_M payload and a pinned
-llama.cpp runtime; neither is relabelled as an NHDF-native codec.
+The model transport is not the geometric-topological substrate and its GGUF
+codec is not substrate compression.  This module keeps that boundary explicit
+while sealing integrity, capability, resource, validation, and execution
+policy around a GGUF/IQ2_M payload and pinned llama.cpp runtime.
 """
 from __future__ import annotations
 
@@ -27,6 +26,7 @@ HYBRID_MANIFEST_SHA256 = "NHDF_HYBRID_MANIFEST.sha256"
 HYBRID_VALIDATION_STATUSES = frozenset(
     {"UNCALIBRATED", "QUALITY_FAILED", "RESOURCE_FAILED", "VALIDATED"}
 )
+VALIDATED_KV_CACHE_TYPES = frozenset({"q8_0", "q4_0"})
 
 FUNCTIONAL_PROMPTS: tuple[dict[str, Any], ...] = (
     {
@@ -154,8 +154,29 @@ def create_hybrid_artifact(
     target_gpu: str = "NVIDIA GeForce RTX 5070 Ti Laptop GPU",
     target_vram_mib: int = 12_227,
     maximum_context_tokens: int = 8_192,
+    kv_cache_k: str = "q8_0",
+    kv_cache_v: str = "q8_0",
 ) -> Path:
     """Create a zero-copy hybrid manifest and seal every referenced component."""
+
+    if (
+        isinstance(maximum_context_tokens, bool)
+        or not isinstance(maximum_context_tokens, int)
+        or maximum_context_tokens <= 0
+    ):
+        raise ValueError("maximum context tokens must be a positive integer")
+    invalid_kv_types = [
+        cache_type
+        for cache_type in (kv_cache_k, kv_cache_v)
+        if not isinstance(cache_type, str)
+        or cache_type not in VALIDATED_KV_CACHE_TYPES
+    ]
+    if invalid_kv_types:
+        supported = ", ".join(sorted(VALIDATED_KV_CACHE_TYPES))
+        raise ValueError(
+            "KV cache type must be one of the validated types "
+            f"({supported}); got {invalid_kv_types!r}"
+        )
 
     root = Path(artifact_dir).resolve()
     model_path = Path(model).resolve()
@@ -238,9 +259,10 @@ def create_hybrid_artifact(
             ),
         },
         "substrate": {
-            "name": "NHDF v0.3 hybrid edge profile",
+            "name": "UGTOMS-grounded local-agent transport",
             "role": [
-                "SHA-256-sealed local provenance and verified event/evidence chain",
+                "bind a selected substrate contract without claiming a substrate-native tensor codec",
+                "SHA-256-sealed local provenance and evidence chain",
                 "typed capability and validation state",
                 "bounded GPU/context allocation",
                 "fail-closed execution policy",
@@ -265,8 +287,8 @@ def create_hybrid_artifact(
             "poll": 50,
             "expected_offloaded_layers": [49, 49],
             "maximum_context_tokens": maximum_context_tokens,
-            "kv_cache_k": "q8_0",
-            "kv_cache_v": "q8_0",
+            "kv_cache_k": kv_cache_k,
+            "kv_cache_v": kv_cache_v,
             "flash_attention": True,
             "sampling": {"temperature": 0.0, "top_k": 1, "seed": 2026},
             "prompt_template": "explicit-current-nonthinking-qwen-chatml",
@@ -747,9 +769,9 @@ def _run_benchmark(
             "-r",
             str(repetitions),
             "-ctk",
-            "q8_0",
+            str(manifest["execution_profile"]["kv_cache_k"]),
             "-ctv",
-            "q8_0",
+            str(manifest["execution_profile"]["kv_cache_v"]),
             "-fa",
             "1",
             "-ngl",
@@ -819,6 +841,17 @@ def set_hybrid_validation(
         thresholds = evidence.get("thresholds", {})
         required_generation_tps = thresholds.get("minimum_generation_tokens_per_second")
         measured_generation_tps = generation.get("average_tokens_per_second")
+        if "allocated_context_passed" in aggregate:
+            allocated_context_passed = (
+                aggregate.get("allocated_context_passed") is True
+                and aggregate.get("allocated_context_tokens")
+                == manifest["execution_profile"]["maximum_context_tokens"]
+            )
+        else:
+            # Compatibility for evidence sealed before context-generic names
+            # were introduced. Its execution-profile digest still binds the
+            # evidence to the manifest-selected maximum context.
+            allocated_context_passed = aggregate.get("allocated_8k_passed") is True
         promotion_checks = {
             "passed": evidence.get("passed") is True,
             "gate_kind": evidence.get("experiment")
@@ -837,7 +870,7 @@ def set_hybrid_validation(
             "functional_prompts": int(aggregate.get("functional_prompts_passed", -1))
             == int(aggregate.get("functional_prompts_total", -2))
             and int(aggregate.get("functional_prompts_total", 0)) > 0,
-            "allocated_8k": aggregate.get("allocated_8k_passed") is True,
+            "allocated_context": allocated_context_passed,
             "full_offload": aggregate.get("full_offload_passed") is True,
             "resource": aggregate.get("resource_gate_passed") is True,
             "throughput": aggregate.get("throughput_gate_passed") is True,
@@ -931,18 +964,19 @@ def gate_hybrid_artifact(
         )
         result["id"] = prompt["id"]
         results.append(result)
+    validated_context = int(manifest["execution_profile"]["maximum_context_tokens"])
     residency = run_hybrid_prompt(
         root,
         prompt=FUNCTIONAL_PROMPTS[0]["user"],
         max_tokens=int(FUNCTIONAL_PROMPTS[0]["max_tokens"]),
-        context=int(manifest["execution_profile"]["maximum_context_tokens"]),
+        context=validated_context,
         seed=seed,
         acceptance_rule=FUNCTIONAL_PROMPTS[0]["accept"],
         allow_unvalidated=True,
         verify_payload_hash=False,
         monitor_resources=True,
     )
-    residency["id"] = "allocated_8k_exact_ok"
+    residency["id"] = "allocated_context_exact_ok"
     benchmark = _run_benchmark(
         root,
         manifest,
@@ -980,8 +1014,8 @@ def gate_hybrid_artifact(
         "experiment": "nhdf_hybrid_full_model_functional_gate",
         "generated_at_utc": _utc_now(),
         "scope": (
-            "complete Qwen model through the NHDF hybrid substrate; GGUF/IQ2_M is "
-            "the explicitly attributed tensor codec"
+            "complete Qwen model through a sealed external-codec transport for a "
+            "substrate-grounded agent; GGUF/IQ2_M remains the attributed tensor codec"
         ),
         "artifact": str(root),
         "artifact_format": HYBRID_FORMAT,
@@ -992,11 +1026,12 @@ def gate_hybrid_artifact(
         "runtime_argument_profile": manifest["runtime"].get("argument_profile"),
         "execution_profile_sha256": _execution_profile_sha256(manifest),
         "functional_results": results,
-        "allocated_8k_residency_result": residency,
+        "allocated_context_residency_result": residency,
         "benchmark": benchmark,
         "thresholds": {
             "functional_prompts_required": len(results),
-            "allocated_8k_exact_response_required": True,
+            "allocated_context_tokens": validated_context,
+            "allocated_context_exact_response_required": True,
             "full_offload_required": expected_offload,
             "reserve_vram_mib": reserve_vram_mib,
             "minimum_generation_tokens_per_second": minimum_generation_tokens_per_second,
@@ -1004,7 +1039,8 @@ def gate_hybrid_artifact(
         "aggregate": {
             "functional_prompts_passed": prompts_passed,
             "functional_prompts_total": len(results),
-            "allocated_8k_passed": bool(residency["passed"]),
+            "allocated_context_tokens": validated_context,
+            "allocated_context_passed": bool(residency["passed"]),
             "full_offload_passed": offload_ok,
             "peak_gpu_memory_mib": peak,
             "target_vram_mib": total_vram,
@@ -1016,7 +1052,8 @@ def gate_hybrid_artifact(
         "passed": passed,
         "status": "functional-hybrid-pass" if passed else "functional-hybrid-fail",
         "limitations": [
-            "The 8K run allocates the cache and executes a short prompt; it is not a filled-8K quality test.",
+            "The maximum-context run allocates the cache and executes a short prompt; "
+            "it is not a filled-context quality test.",
             "The weight codec is external GGUF/IQ2_M, not an NHDF-native tensor codec.",
         ],
     }

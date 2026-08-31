@@ -5,6 +5,7 @@ __pycache__/
 build/
 dist/
 .venv/
+.local-coder/
 models/
 packs/
 benchmarks/local/
@@ -14,5 +15,7 @@ tmp/
 tools/
 metrics/local/*.ncu-rep
 metrics/local/coding_benchmark/
+metrics/local/coding_agent_32k/
+metrics/local/substrate_coding_agent_32k/
 *.zip
 .pytest_cache/

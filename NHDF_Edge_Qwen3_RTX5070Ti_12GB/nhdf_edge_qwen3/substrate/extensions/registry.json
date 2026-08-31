@@ -1,0 +1,16 @@
+{
+  "format": "ugtoms-extension-registry-0.1",
+  "kernel_id": "ugtoms-kernel-v0.1",
+  "kernel_sha256": "ee4dad2b85c8816ef718b4a9f36c2da090b8b9a14525e17f30d65bf17fba23d7",
+  "policy": {
+    "automatic_promotion": false,
+    "legacy_repository_mode": "READ_ONLY_SELECTIVE_PROVENANCE",
+    "bulk_import": false,
+    "generated_proposals_start_as": "QUARANTINED",
+    "human_review_required": true,
+    "same_generation_authority_rewrite": false
+  },
+  "required_proposal_fields": ["extension_id", "base_kernel_id", "base_kernel_sha256", "source_provenance", "mapped_kernel_stages", "mapped_primitive_categories", "domain", "codomain", "units", "equations_or_deterministic_algorithm", "numeric_policy", "resource_bounds", "singularities", "failure_modes", "validation_plan", "evidence", "review"],
+  "proposals": [],
+  "promoted_extensions": []
+}

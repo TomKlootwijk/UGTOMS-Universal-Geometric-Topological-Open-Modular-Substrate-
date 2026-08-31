@@ -1,0 +1,35 @@
+{
+  "format": "ugtoms-profile-0.1",
+  "profile_id": "nhdf-v0.1",
+  "title": "NHDF v0.1 normalized base closure",
+  "classification": "SELECTABLE_PROFILE",
+  "kernel_id": "ugtoms-kernel-v0.1",
+  "kernel_sha256": "ee4dad2b85c8816ef718b4a9f36c2da090b8b9a14525e17f30d65bf17fba23d7",
+  "kernel_stage_mapping": {
+    "ELP": "input_residual -> log_polar_address_and_metric",
+    "B0": "cell_local_nondegenerate_zero_set",
+    "P": "typed_parity_jitter_control_predicates",
+    "RBST": "bounded_BST_L_system_or_radix_routing",
+    "K_T_forward": "causal_vector_kinematics",
+    "Scone": "cone_sphere_SDF_sweep_relation_and_projection",
+    "Pi": "observable projection",
+    "U": "explicit_next_generation_feedback"
+  },
+  "mappings": {
+    "typed": "NHDF cell and layer types",
+    "vector": "distributed apex, velocity, acceleration, and cone axis",
+    "kinematic": "causal forward update K_T_forward",
+    "geometry": "cell-local nondegenerate F_i(z,t)=0, cone/circle/sphere/apex relations",
+    "topology": "Klein quotient/chart transition with explicit orientation",
+    "packing": "bounded log-polar LUT cell address and declared payload",
+    "predicate": "separate payload and topology parity plus visible failures",
+    "operator": "ELP -> B0 -> P -> RBST -> K_T_forward -> Scone -> Pi -> U",
+    "self_reference": "observable and residual update L[n+1] across a generation boundary"
+  },
+  "resource_bounds": ["finite cells", "finite branches", "finite history", "monotonic generations"],
+  "failure_modes": ["degenerate global zero field", "parity blind spot", "branch overflow", "apex singularity", "hybrid chattering", "numeric failure"],
+  "evidence_requirements": ["operator mapping", "reference vectors", "bounded resource trace", "next-generation replay"],
+  "source_records": [
+    {"path": "sources/NHDF_Formal_Specification_v0.1.pdf", "sha256": "801576c482b514e02f57942cf0643f2abeee4505f56bf860f4e0084af6e90975", "bytes": 372636, "availability": "COMMITTED"}
+  ]
+}

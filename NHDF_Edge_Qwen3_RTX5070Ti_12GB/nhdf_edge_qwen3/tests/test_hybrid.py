@@ -9,7 +9,7 @@ import pytest
 from nhdf_edge import hybrid
 
 
-def _artifact(tmp_path):
+def _artifact(tmp_path, **profile):
     components = tmp_path / "components"
     components.mkdir()
     model = components / "model.gguf"
@@ -35,6 +35,7 @@ def _artifact(tmp_path):
         assurance_evidence=[assurance],
         total_parameters=100,
         target_vram_mib=12_227,
+        **profile,
     )
     return root, model
 
@@ -46,10 +47,45 @@ def test_hybrid_create_is_zero_copy_and_verifies(tmp_path) -> None:
     assert manifest["validation"]["status"] == "UNCALIBRATED"
     assert manifest["weight_codec"]["nhdf_native_codec"] is False
     assert manifest["payload"]["link_mode"] == "workspace-relative-reference"
+    assert manifest["execution_profile"]["maximum_context_tokens"] == 8_192
+    assert manifest["execution_profile"]["kv_cache_k"] == "q8_0"
+    assert manifest["execution_profile"]["kv_cache_v"] == "q8_0"
     assert not (root / model.name).exists()
     result = hybrid.verify_hybrid_artifact(root)
     assert result["ok"]
     assert not result["deployment_loadable"]
+
+
+def test_hybrid_create_accepts_32k_q4_profile_and_rejects_invalid_values(
+    tmp_path,
+) -> None:
+    root, _ = _artifact(
+        tmp_path,
+        maximum_context_tokens=32_768,
+        kv_cache_k="q4_0",
+        kv_cache_v="q4_0",
+    )
+    manifest = hybrid.load_hybrid_manifest(root)
+
+    assert manifest["execution_profile"]["maximum_context_tokens"] == 32_768
+    assert manifest["resource_contract"]["maximum_validated_context_tokens"] == 32_768
+    assert manifest["execution_profile"]["kv_cache_k"] == "q4_0"
+    assert manifest["execution_profile"]["kv_cache_v"] == "q4_0"
+
+    components = tmp_path / "components"
+    common = {
+        "model": components / "model.gguf",
+        "runtime": components / "llama-cli.exe",
+        "total_parameters": 100,
+    }
+    with pytest.raises(ValueError, match="positive integer"):
+        hybrid.create_hybrid_artifact(
+            tmp_path / "bad-context", maximum_context_tokens=0, **common
+        )
+    with pytest.raises(ValueError, match="validated types"):
+        hybrid.create_hybrid_artifact(
+            tmp_path / "bad-cache", kv_cache_v="f16", **common
+        )
 
 
 def test_hybrid_create_seals_optional_server_entrypoint(tmp_path) -> None:
@@ -292,3 +328,103 @@ def test_current_runtime_requests_trace_logs_only_for_monitored_evidence(
 
     assert "-lv" not in commands[0]
     assert commands[1][commands[1].index("-lv") + 1] == "4"
+
+
+def test_llama_bench_uses_manifest_kv_cache_types(tmp_path, monkeypatch) -> None:
+    root, _ = _artifact(
+        tmp_path,
+        maximum_context_tokens=32_768,
+        kv_cache_k="q4_0",
+        kv_cache_v="q4_0",
+    )
+    manifest = hybrid.load_hybrid_manifest(root)
+    observed = {}
+
+    def fake_run(command, **kwargs):
+        observed["command"] = command
+        return SimpleNamespace(
+            returncode=0,
+            stdout=json.dumps(
+                [
+                    {
+                        "n_prompt": 64,
+                        "n_gen": 0,
+                        "avg_ts": 900.0,
+                        "stddev_ts": 1.0,
+                        "samples_ts": [900.0],
+                    },
+                    {
+                        "n_prompt": 0,
+                        "n_gen": 64,
+                        "avg_ts": 150.0,
+                        "stddev_ts": 1.0,
+                        "samples_ts": [150.0],
+                    },
+                ]
+            ),
+            stderr="",
+        )
+
+    monkeypatch.setattr(hybrid.subprocess, "run", fake_run)
+    hybrid._run_benchmark(
+        root,
+        manifest,
+        repetitions=1,
+        prompt_tokens=64,
+        generation_tokens=64,
+    )
+
+    command = observed["command"]
+    assert command[command.index("-ctk") + 1] == "q4_0"
+    assert command[command.index("-ctv") + 1] == "q4_0"
+
+
+def test_gate_evidence_names_manifest_selected_context_generically(
+    tmp_path, monkeypatch
+) -> None:
+    root, _ = _artifact(
+        tmp_path,
+        maximum_context_tokens=32_768,
+        kv_cache_k="q4_0",
+        kv_cache_v="q4_0",
+    )
+    observed_contexts = []
+
+    def fake_prompt(_root, *, context, **_kwargs):
+        observed_contexts.append(context)
+        return {
+            "passed": True,
+            "context_tokens": context,
+            "peak_gpu_memory_mib": 10_000,
+            "resource_preflight": {"total_mib": 12_227},
+            "llama_metrics": {"offloaded_layers": [49, 49]},
+        }
+
+    monkeypatch.setattr(hybrid, "run_hybrid_prompt", fake_prompt)
+    monkeypatch.setattr(
+        hybrid,
+        "_run_benchmark",
+        lambda *_args, **_kwargs: {
+            "prompt": {"average_tokens_per_second": 900.0},
+            "generation": {"average_tokens_per_second": 150.0},
+        },
+    )
+
+    evidence = hybrid.gate_hybrid_artifact(root)
+
+    assert observed_contexts == [512, 512, 512, 512, 32_768]
+    assert evidence["allocated_context_residency_result"]["context_tokens"] == 32_768
+    assert evidence["thresholds"]["allocated_context_tokens"] == 32_768
+    assert evidence["aggregate"]["allocated_context_tokens"] == 32_768
+    assert evidence["aggregate"]["allocated_context_passed"] is True
+    assert "allocated_8k_passed" not in evidence["aggregate"]
+    assert hybrid.load_hybrid_manifest(root)["validation"]["status"] == "VALIDATED"
+
+    stale_context = json.loads(json.dumps(evidence))
+    stale_context["aggregate"]["allocated_context_tokens"] = 8_192
+    stale_path = tmp_path / "stale-context.json"
+    stale_path.write_text(json.dumps(stale_context), encoding="utf-8")
+    with pytest.raises(ValueError, match="allocated_context"):
+        hybrid.set_hybrid_validation(
+            root, "VALIDATED", evidence_path=stale_path
+        )

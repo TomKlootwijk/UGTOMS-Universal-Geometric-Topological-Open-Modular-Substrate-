@@ -1,0 +1,79 @@
+{
+  "format": "ugtoms-application-proof-registry-0.1",
+  "kernel_id": "ugtoms-kernel-v0.1",
+  "purpose": "Evidence that compact deterministic definitions and representations can reconstruct or store useful application state; payloads are not kernel authority and are not imported.",
+  "proofs": [
+    {
+      "proof_id": "kc3d392-grove-scene",
+      "class": "APPLICATION_EVIDENCE",
+      "artifact_type": "compact game-engine scene",
+      "bytes": 21798,
+      "sha256": "9a81b6e657c1adc5ee2b3a0d9739ba82719266fcac9645ea66e6d6da5880c125",
+      "magic": "KC3D392",
+      "demonstrates": ["deterministic binary scene packing", "shared-resource references", "66 explicit scene nodes"],
+      "reported_comparison": {"versus_authoring_json_ratio": 7.37, "versus_gltf_ratio": 2.85},
+      "does_not_demonstrate": "recipe-generated populations; this scene contains explicit nodes",
+      "does_not_define": "the substrate kernel",
+      "availability": "READ_ONLY_EXTERNAL"
+    },
+    {
+      "proof_id": "kcpr392-ring-1024-display-instances",
+      "class": "APPLICATION_EVIDENCE",
+      "artifact_type": "content-addressed bounded population recipe",
+      "source_records": [
+        {"path": "src/ugts_kc3/packed_kinematics.py", "bytes": 34098, "sha256": "f7fff1cb4d2a927d01438fd6ba327d665e58e744460eadea881888bd73687485"},
+        {"path": "src/ugts_kc3/polarpack.py", "bytes": 16883, "sha256": "955a106cf4a3d40f10663af60f2f426befa215494dac285374fd08e484abb9be"},
+        {"path": "src/ugts_kc3/polar_population_pack.py", "bytes": 21243, "sha256": "2cd7b3353691a38082c2891c282cd5156274909d6eb91b1f0a68a07537a65448"}
+      ],
+      "validation": {
+        "generated_display_instances": 1024,
+        "prototype_and_recipe_runtime_asset_bytes": 4984,
+        "equivalent_real_ecs_mover_bytes": 162274,
+        "size_ratio": 32.56,
+        "reduction_percent": 96.93,
+        "prior_prefix_stability": "exact"
+      },
+      "demonstrates": ["random-access deterministic generation", "content-addressed recipes", "separate lineage and content identity", "compact display populations"],
+      "critical_boundary": "Generated copies are render-only display instances, not independent ECS entities; they cannot acquire separate collider, graph, saved-object, or gameplay identity.",
+      "license_policy": "Semantics were audited read-only; redistribution rights were unclear, so only a clean-room implementation may enter this repository.",
+      "does_not_define": "general semantic compression, arbitrary geometry compression, or independent gameplay entities",
+      "availability": "READ_ONLY_EXTERNAL"
+    },
+    {
+      "proof_id": "clean-room-substrate-packing-1024-display-instances",
+      "class": "CLEAN_ROOM_MEASURED_EVIDENCE",
+      "artifact_type": "bounded content-addressed display recipe and shared packed state",
+      "implementation": {"path": "src/nhdf_edge/substrate_packing.py", "bytes": 50796, "sha256": "81d473c9f3706762b2ed2ec9b2745fb00fba9573a94ff33c0085b97d38986f69"},
+      "validation": {
+        "generated_display_instances": 1024,
+        "shared_lut_bytes": 1596,
+        "one_prototype_component_pack_bytes": 1727,
+        "two_operator_one_recipe_pack_bytes": 272,
+        "combined_derived_representation_bytes": 1999,
+        "real_packed_component_records_bytes": 26279,
+        "versus_real_components_ratio": 13.15,
+        "versus_real_components_reduction_percent": 92.39,
+        "binary32_matrix_baseline_bytes": 65536,
+        "versus_matrices_ratio": 32.78,
+        "versus_matrices_reduction_percent": 96.95,
+        "stable_prefix": "exact from 64 through 1024 instances"
+      },
+      "demonstrates": ["fixed-width pose and motion", "canonical shared binary16 lookup table", "content-addressed bounded recipes", "random-access deterministic display lineage"],
+      "critical_boundary": "The 1,023 derived outputs are render-only display instances, not independent ECS, collider, graph, saved-object, or gameplay entities.",
+      "does_not_define": "compression of exogenous geometry, model weights, textures, observations, or arbitrary semantic state",
+      "availability": "COMMITTED_CLEAN_ROOM"
+    },
+    {
+      "proof_id": "ksgp1-sgp4-gps-7d-1s",
+      "class": "APPLICATION_EVIDENCE",
+      "artifact_type": "seed-based SGP4 state timeline",
+      "bytes": 5793,
+      "sha256": "188c754b69f4d87ba3db077515330c19570718633bab26ead4e0019a63718f7a",
+      "magic": "KSGP1",
+      "demonstrates": ["128-byte source seeds", "64-byte hash-linked timeline tiles", "deterministic compile-at-load", "lineage"],
+      "validation": {"states": 328, "error_mismatches": 0, "maximum_position_delta_km": 2.656269518315808e-7, "maximum_velocity_delta_km_per_s": 7.841169468777989e-10},
+      "does_not_define": "generic SGP4 mathematics inside the kernel",
+      "availability": "READ_ONLY_EXTERNAL"
+    }
+  ]
+}

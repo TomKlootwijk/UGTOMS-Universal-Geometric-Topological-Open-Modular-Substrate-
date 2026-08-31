@@ -1,0 +1,84 @@
+{
+  "format": "ugtoms-kernel-contract-0.1",
+  "kernel_id": "ugtoms-kernel-v0.1",
+  "title": "Compact deterministic geometric-topological generative substrate",
+  "lineage": {
+    "semantic_base": "NHDF v0.1 normalized representation, PCKF dynamics, IHCP runtime, and closed next-generation update",
+    "early_executable_algebra": "UGTS-KC 2.0 typed geometry, patterns, fields, kinematics, dynamics, topology, relations, support, and lineage",
+    "referential_layer": "UGTS-KC 3.6 content-addressed acyclic typed definition graph and explicit pipelines",
+    "foundational_correction": "SCLP 3.6.2 swept-cone log-polar packing profile",
+    "execution_discipline": "UGTS-GN 1.1 local support, compatibility, guard, verified event, transition, and lineage",
+    "later_profiles_do_not_replace_base": true
+  },
+  "identity": {
+    "definition": "A finite typed state-and-operator algebra that compactly generates, transports, classifies, routes, reconstructs, and records geometric-topological state.",
+    "not_a_renderer": true,
+    "not_query_calculus_only": true,
+    "not_general_ai_by_claim": true,
+    "learned_components_are_optional_consumers": true
+  },
+  "state_schema": {
+    "continuous": ["position", "linear_time", "residual_log_radius", "spatial_log_radius", "polar_angle", "phase_or_hinge_angle", "phase_rate", "phase_acceleration", "distributed_apex", "velocity", "acceleration"],
+    "discrete": ["generation", "chart", "sheet", "orientation", "winding", "payload_parity_bit", "topology_parity_bit", "jitter_bit", "branch_bit", "grammar_state", "comparison_key", "radix_or_codec_key", "generative_address", "lineage_head", "mode", "policy"],
+    "quality": ["uncertainty_interval", "numeric_policy", "resource_status", "failure_status"]
+  },
+  "symbol_firewall": [
+    {"symbols": ["T_cone", "t", "X"], "rule": "cone slant length, linear time, and modular tick are distinct"},
+    {"symbols": ["phi_g", "phase_phi"], "rule": "golden ratio and phase or hinge angle are distinct"},
+    {"symbols": ["rho_jitter", "rho_spatial"], "rule": "residual log magnitude and spatial log radius are distinct"},
+    {"symbols": ["epsilon_jitter", "epsilon_guard"], "rule": "jitter amplitude must be strictly below a declared guard margin"},
+    {"symbols": ["payload_parity_bit", "topology_parity_bit", "jitter_bit", "branch_bit"], "rule": "the four bit roles cannot be silently aliased"},
+    {"symbols": ["comparison_BST", "radix_prefix_trie"], "rule": "comparison ordering and packed-prefix refinement are different operators"},
+    {"symbols": ["half_turn_bundle_map", "reflective_Klein_gluing"], "rule": "source twist and non-orientable quotient are separate profiles"},
+    {"symbols": ["cone_implicit_field", "finite_cone_SDF", "sweep_interval"], "rule": "an implicit relation, exact finite SDF, and certified sampled sweep are different claim classes"},
+    {"symbols": ["circle", "sphere", "apex"], "rule": "circle is a base, section, or projection; sphere is a support SDF; apex is a local or distributed anchor"}
+  ],
+  "definition_graph": {
+    "node_fields": ["id", "kind", "domain", "codomain", "dependencies", "evaluation_phase", "equation_or_algorithm", "units", "bounds", "failure_modes", "provenance", "content_hash"],
+    "same_generation": "content-addressed acyclic typed graph",
+    "instance_rule": "instances reference definitions; coordinates are not identity",
+    "pipeline_rule": "execution order is explicit and topologically resolved",
+    "self_reference_rule": "referential closure is source-grounded; feedback enters generation n+1 through an explicit edge",
+    "unproven_claim": "an unrestricted fixed point or same-generation authority cycle is not implemented"
+  },
+  "composed_execution": ["input_residual", "log_polar_address_and_metric", "cell_local_nondegenerate_zero_set", "typed_parity_jitter_control_predicates", "bounded_BST_L_system_or_radix_routing", "causal_vector_kinematics", "cone_sphere_SDF_sweep_relation_and_projection", "event_admission_discipline", "atomic_transition", "lineage_and_novelty", "explicit_next_generation_feedback"],
+  "canonical_chain": [
+    {"id": "local_support", "role": "admit only a declared local domain"},
+    {"id": "compatibility", "role": "check mode, sheet, orientation, type, units, and policy"},
+    {"id": "guard_crossing", "role": "evaluate a deterministic zero or interval guard"},
+    {"id": "verified_event", "role": "certify, conservatively classify, or return INDETERMINATE"},
+    {"id": "route_transition", "role": "apply one bounded declared branch and atomic transition"},
+    {"id": "lineage", "role": "append previous-state and event hashes"},
+    {"id": "novelty_log", "role": "retain exogenous or non-regenerable change under an explicit budget"}
+  ],
+  "mappings": {
+    "typed": {"required": ["domain", "codomain", "units", "bounds", "failure_modes"], "rule": "all operators and relations are typed before execution"},
+    "vector": {"required": ["origin", "directed_displacement", "frame", "units"], "rule": "arrows are compact origin-plus-vector primitives; projections do not become identity"},
+    "kinematic": {"required": ["linear_time", "position", "velocity", "acceleration", "integration_or_closed_form"], "rule": "motion is causal and time never becomes a wrapped phase"},
+    "geometry": {"required": ["local_zero_set", "sphere_SDF", "circle_relation", "cone_relation", "distributed_apex"], "rule": "exact SDF, implicit field, and certified bound are labelled separately"},
+    "topology": {"required": ["chart", "sheet", "orientation", "ports", "transfer_map", "winding"], "rule": "Klein and Mobius motifs are explicit quotient or routing maps, never material magic"},
+    "packing": {"required": ["field_widths", "quantizer", "layout", "inverse_or_error_contract", "finite_capacity"], "rule": "a key or bit is not semantically equivalent to omitted state without reconstruction evidence"},
+    "predicate": {"required": ["support", "compatibility", "guard", "certificate", "indeterminate_path"], "rule": "there is no fuzzy truth; uncertainty is an interval or explicit refusal to classify"},
+    "operator": {"required": ["equation_or_algorithm", "dependencies", "evaluation_phase", "resource_budget"], "rule": "composition uses an explicit typed DAG and bounded pipeline"},
+    "self_reference": {"required": ["definition_hash", "generative_address", "lineage", "feedback_edge", "generation_boundary"], "rule": "generated output may propose the next state or an extension but cannot rewrite its own authority"}
+  },
+  "source_records": [
+    {"source_id": "motif-transcript-30p", "class": "HISTORICAL_MOTIF_SOURCE", "availability": "COMMITTED_PARENT_REPOSITORY", "path": "1bit-parity-bit-lower-case-phi-jitter-log-encoded-polar-LUT-analytic-sweeping-cone-T-a-side-view-of-the-pyramid-a-circle-a-sphere-the-apex-binary-.pdf", "bytes": 382884, "sha256": "ede0fd37504b07fae208d1d7c32ff281b4bdc85661d2ae0b5adb5a9cf9833368", "authority": "provenance only; unsupported performance and stability claims excluded"},
+    {"source_id": "nhdf-v0.1", "class": "NORMALIZED_BASE", "availability": "COMMITTED", "path": "sources/NHDF_Formal_Specification_v0.1.pdf", "bytes": 372636, "sha256": "801576c482b514e02f57942cf0643f2abeee4505f56bf860f4e0084af6e90975"},
+    {"source_id": "ugts-kc-2.0", "class": "EARLY_EXECUTABLE_ALGEBRA", "availability": "READ_ONLY_EXTERNAL", "sha256": "a29dd9959ebd300c32d0e1df8fa2c0d4ee15f428892557b98b5f18cd3e878399", "redistributed": false},
+    {"source_id": "ugts-kc-3.6", "class": "CONTENT_ADDRESSED_REFERENTIAL_LAYER", "availability": "READ_ONLY_EXTERNAL", "sha256": "e21433cd8378368dafe4ae278d3c9c364725e45ae7fd75b743328bd2d6003a46", "redistributed": false},
+    {"source_id": "ugts-gn-1.1", "class": "EXECUTION_ADMISSION_DISCIPLINE", "availability": "READ_ONLY_EXTERNAL", "sha256": "190fe105be1674e58c2baedf784a5731dd08faa0abfee0dc79b6f8794924b4b4", "redistributed": false},
+    {"source_id": "sclp-3.6.2", "class": "FOUNDATIONAL_CORRECTION_PROFILE", "availability": "READ_ONLY_EXTERNAL", "sha256": "6987490a0a7b7ed76b0091057a2e69ab831fee786434a0b4219782923f5ea580", "redistributed": false},
+    {"source_id": "nhdf-v0.3-ccd", "class": "OPTIONAL_LATER_PROFILE", "availability": "COMMITTED", "path": "sources/NHDF_Formal_Specification_v0.3_General_Purpose_CCD_Tom_Klootwijk.pdf", "bytes": 794122, "sha256": "019f7da2b97cd73b169e8133b52f4d4bd4d687f9444281364fdb962977ab0956"}
+  ],
+  "policy": {
+    "determinism": {"required": true, "discrete_state": "fixed-width integer, canonical JSON, SHA-256, declared ordering", "geometric_numeric_backend": "declared IEEE-754 binary64 reference profile or separately validated fixed-point profile", "rounding": "explicit per codec", "uncertainty": "bounded interval or INDETERMINATE, never fuzzy logic", "randomness": "forbidden unless replaced by a recorded content-addressed seed and deterministic generator"},
+    "resource_bounds_required": true,
+    "automatic_extension_promotion": false,
+    "same_generation_cycles": false,
+    "exogenous_events_must_be_logged": true,
+    "legacy_repository_mode": "READ_ONLY_SELECTIVE_PROVENANCE",
+    "bulk_legacy_import": false,
+    "learned_semantics_may_only_rank_or_propose": true
+  }
+}

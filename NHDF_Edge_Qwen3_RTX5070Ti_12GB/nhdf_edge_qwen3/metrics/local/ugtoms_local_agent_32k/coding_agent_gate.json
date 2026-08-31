@@ -1,0 +1,331 @@
+{
+  "all_gates_passed": true,
+  "config_gate": {
+    "mcp_disabled": true,
+    "model": "local-runtime/local-qwen3-30b-a3b",
+    "only_canonical_placeholder_resolved": true,
+    "passed": true,
+    "plugins_disabled": true,
+    "provider": "local-runtime",
+    "resolved_provider_endpoint": "http://127.0.0.1:18084/v1",
+    "source_base_url_placeholder": "{env:UGTOMS_LOCAL_CODER_BASE_URL}/v1"
+  },
+  "finished_at_utc": "2026-08-31T17:28:42.125678Z",
+  "format": "ugtoms-local-coder-agent-gate-0.2",
+  "inputs": {
+    "config_path": "C:\\UGTOMS(Universal Geometric Topological Open Modular Substrate)\\NHDF_Edge_Qwen3_RTX5070Ti_12GB\\nhdf_edge_qwen3\\configs\\opencode_nhdf_local.json",
+    "config_sha256": "66a6e5adcc98fc80921bc4e0386f341c80a4f824597e26309b8499344f440ab1",
+    "opencode_executable": "C:\\UGTOMS(Universal Geometric Topological Open Modular Substrate)\\NHDF_Edge_Qwen3_RTX5070Ti_12GB\\nhdf_edge_qwen3\\.local-coder\\node_modules\\opencode-ai\\bin\\opencode.exe",
+    "opencode_executable_sha256": "ef06e41a35795066e95acde276a42fbbf85d7a683c2787f6a19ed20bcde9b6ff",
+    "output_directory": "C:\\UGTOMS(Universal Geometric Topological Open Modular Substrate)\\NHDF_Edge_Qwen3_RTX5070Ti_12GB\\nhdf_edge_qwen3\\metrics\\local\\coding_agent_32k\\run-20260831T172748.453659Z",
+    "server_url": "http://127.0.0.1:18084"
+  },
+  "long_context_gate": {
+    "api_usage_prompt_tokens": 21997,
+    "apply_template": {
+      "elapsed_seconds": 0.020091800019145012,
+      "request_bytes": 80155,
+      "response_bytes": 80179,
+      "status": 200
+    },
+    "calibration_trace": [
+      {
+        "formatted_prompt_tokens": 137,
+        "record_count": 1
+      },
+      {
+        "formatted_prompt_tokens": 14153,
+        "record_count": 512
+      },
+      {
+        "formatted_prompt_tokens": 21174,
+        "record_count": 768
+      },
+      {
+        "formatted_prompt_tokens": 21613,
+        "record_count": 784
+      },
+      {
+        "formatted_prompt_tokens": 21833,
+        "record_count": 792
+      },
+      {
+        "formatted_prompt_tokens": 21942,
+        "record_count": 796
+      },
+      {
+        "formatted_prompt_tokens": 21997,
+        "record_count": 798
+      },
+      {
+        "formatted_prompt_tokens": 22025,
+        "record_count": 799
+      },
+      {
+        "formatted_prompt_tokens": 22052,
+        "record_count": 800
+      },
+      {
+        "formatted_prompt_tokens": 22930,
+        "record_count": 832
+      },
+      {
+        "formatted_prompt_tokens": 24685,
+        "record_count": 896
+      },
+      {
+        "formatted_prompt_tokens": 28196,
+        "record_count": 1024
+      }
+    ],
+    "completion_tokens": 21,
+    "context_characters": 79001,
+    "exact_formatted_prompt_tokens": 21997,
+    "finish_reason": "stop",
+    "formatted_prompt_characters": 79359,
+    "formatted_prompt_sha256": "03a915bbd0904875d60c92e02466928ee4602631416e0ec906947772953013f6",
+    "inference_request": {
+      "elapsed_seconds": 10.503647200006526,
+      "request_bytes": 80248,
+      "response_bytes": 669,
+      "status": 200
+    },
+    "message_characters": 79279,
+    "needle": "UGTOMS_LOCAL_GATE_KEY_7F3A91C2D8B4",
+    "needle_character_offset": 39493,
+    "needle_position_fraction": 0.49990506449285455,
+    "needle_present": true,
+    "passed": true,
+    "record_count": 798,
+    "response_content": "UGTOMS_LOCAL_GATE_KEY_7F3A91C2D8B4",
+    "response_id": "chatcmpl-Epm1EVCI6xJgljxYT4IIidMMePuv3WfE",
+    "response_model": "local-qwen3-30b-a3b",
+    "synthetic_context_sha256": "93a0644889e54f8bbd958d346752694bc7ab6e332a8ca561819a81f555d37f87",
+    "target_tokens": 22000,
+    "tokenize": {
+      "elapsed_seconds": 0.04001789999892935,
+      "request_bytes": 80241,
+      "response_bytes": 90589,
+      "status": 200
+    },
+    "tolerance_tokens": 500
+  },
+  "model_gate": {
+    "alias": "local-qwen3-30b-a3b",
+    "context_field": "meta.n_ctx",
+    "minimum_context_tokens": 32768,
+    "passed": true,
+    "raw_response": {
+      "data": [
+        {
+          "aliases": [
+            "local-qwen3-30b-a3b"
+          ],
+          "created": 1788197268,
+          "id": "local-qwen3-30b-a3b",
+          "meta": {
+            "ftype": "IQ2_M - 2.7 bpw",
+            "n_ctx": 32768,
+            "n_ctx_train": 262144,
+            "n_embd": 2048,
+            "n_params": 30532122624,
+            "n_vocab": 151936,
+            "size": 9864300544,
+            "vocab_type": true
+          },
+          "object": "model",
+          "owned_by": "llamacpp",
+          "tags": []
+        }
+      ],
+      "models": [
+        {
+          "capabilities": [
+            "completion"
+          ],
+          "description": "",
+          "details": {
+            "families": [
+              ""
+            ],
+            "family": "",
+            "format": "gguf",
+            "parameter_size": "",
+            "parent_model": "",
+            "quantization_level": ""
+          },
+          "digest": "",
+          "model": "local-qwen3-30b-a3b",
+          "modified_at": "",
+          "name": "local-qwen3-30b-a3b",
+          "parameters": "",
+          "size": "",
+          "tags": [
+            ""
+          ],
+          "type": "model"
+        }
+      ],
+      "object": "list"
+    },
+    "reported_context_tokens": 32768,
+    "request": {
+      "elapsed_seconds": 0.027047500014305115,
+      "request_bytes": 0,
+      "response_bytes": 638,
+      "status": 200
+    }
+  },
+  "native_tool_call_gate": {
+    "arguments": {
+      "label": "gate-ready",
+      "nonce": 20260831
+    },
+    "arguments_were_json_string": true,
+    "finish_reason": "tool_calls",
+    "function": "record_local_probe",
+    "passed": true,
+    "request": {
+      "elapsed_seconds": 1.091372599999886,
+      "request_bytes": 768,
+      "response_bytes": 823,
+      "status": 200
+    },
+    "response_id": "chatcmpl-BSO7WIGUh9AxGv751j0PssxVno5oSBxE",
+    "response_model": "local-qwen3-30b-a3b",
+    "usage": {
+      "completion_tokens": 35,
+      "prompt_tokens": 212,
+      "prompt_tokens_details": {
+        "cached_tokens": 0
+      },
+      "total_tokens": 247
+    }
+  },
+  "opencode_agent_gate": {
+    "command_arguments": [
+      "--pure",
+      "run",
+      "--auto",
+      "--model",
+      "local-runtime/local-qwen3-30b-a3b",
+      "--agent",
+      "local-coder",
+      "--format",
+      "json"
+    ],
+    "elapsed_seconds": 36.52475820001564,
+    "fixture": {
+      "baseline_pytest": {
+        "passed": false,
+        "returncode": 1,
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdout_sha256": "0e0a1e213c87d45abb043b687962ab6efbd1f472e832aac640612460cc95ee7c"
+      },
+      "expected_source": "src/intervals.py",
+      "expected_source_sha256_after": "00b2350bbd5265a015727ede196cc83c04d7fc8d8af313d70deae925e4385a6b",
+      "expected_source_sha256_before": "8f4f698e7ae95f3c70a49d1ac413544de128513b1beb3568070f47908a0dacdf",
+      "final_head": "c53cf99dc32ac4807b7240fb20d9da1d3dfd4114",
+      "final_pytest": {
+        "passed": true,
+        "returncode": 0,
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdout_sha256": "c1a72c33e1f82f8c00cb85606b89b2e52ce9d6ef6159d8c7a4febd251bc6db68"
+      },
+      "git_status": [
+        {
+          "path": "src/intervals.py",
+          "status": " M"
+        }
+      ],
+      "head_unchanged": true,
+      "initial_head": "c53cf99dc32ac4807b7240fb20d9da1d3dfd4114",
+      "only_expected_source_changed": true,
+      "tests_sha256_before": "e0374215740ed1c798d9d55535c2cfcf68b61f198c676c451804ffb2d4114c75",
+      "tracked_files": [
+        ".gitignore",
+        "README.md",
+        "src/__init__.py",
+        "src/intervals.py",
+        "tests/test_intervals.py"
+      ]
+    },
+    "isolated_environment": {
+      "autoupdate_disabled": true,
+      "credential_like_environment_inherited": false,
+      "digest_verified_substrate_contract_installed": true,
+      "home": true,
+      "parent_environment_reduced_to_operational_allowlist": true,
+      "project_config_disabled": true,
+      "xdg_cache": true,
+      "xdg_config": true,
+      "xdg_data": true,
+      "xdg_state": true
+    },
+    "json_event_count": 28,
+    "passed": true,
+    "preventive_sandbox": false,
+    "prompt_sha256": "230e31f277cfa269bd74c7d72e0861f6ae83b62a56a40da9db896ad82f926d33",
+    "returncode": 0,
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stdout_sha256": "af46343e027d026687b229e3e4717d6ec525321932beeb5fc35bb3471506c8af",
+    "tool_gate": {
+      "allowed_tool_names": [
+        "bash",
+        "edit",
+        "glob",
+        "grep",
+        "read",
+        "todowrite"
+      ],
+      "audit_timing": "POST_RUN_RETROSPECTIVE",
+      "exact_bash_calls": 1,
+      "exact_edit_calls": 1,
+      "passed": true,
+      "preventive_sandbox": false,
+      "recorded_bash_command_was_exact": true,
+      "recorded_tool_paths_and_patterns_within_fixture": true,
+      "required_categories": {
+        "bash": true,
+        "edit": true,
+        "read": true,
+        "search": true
+      },
+      "scope_note": "This result audits recorded tool events after execution; it is evidence, not a preventive process, filesystem, or network sandbox.",
+      "tool_event_count": 10,
+      "tool_names_in_order": [
+        "glob",
+        "glob",
+        "glob",
+        "todowrite",
+        "read",
+        "read",
+        "read",
+        "todowrite",
+        "edit",
+        "bash"
+      ]
+    },
+    "version": "1.18.25"
+  },
+  "scope": {
+    "classification": "bounded_local_acceptance_gate",
+    "does_not_prove": [
+      "broad coding accuracy",
+      "production safety or universal general-purpose capability",
+      "UGTOMS substrate awareness",
+      "understanding of any legacy or archive material",
+      "preventive process, filesystem, or network sandboxing"
+    ],
+    "legacy_or_archive_material_loaded": false,
+    "post_run_tool_audit_is_retrospective": true,
+    "preventive_sandbox": false,
+    "proves": [
+      "one native OpenAI tool-call JSON exchange",
+      "one synthetic approximately 22K-token needle retrieval",
+      "one disposable Python repository repair with required local tools"
+    ]
+  },
+  "started_at_utc": "2026-08-31T17:27:48.455398Z",
+  "status": "PASSED"
+}

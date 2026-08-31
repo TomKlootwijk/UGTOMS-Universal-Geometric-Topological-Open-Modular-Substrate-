@@ -1,0 +1,11 @@
+{
+  "format": "ugtoms-incubator-record-0.1",
+  "incubator_id": "spatial-evidence-ledger-future",
+  "status": "QUARANTINED_FUTURE_PROFILE",
+  "kernel_id": "ugtoms-kernel-v0.1",
+  "source": {"title": "UGTS-KC 4.0 Spatial Evidence Ledger", "sha256": "fe4a7dfbedb0163d90d22b4e6c5aef7e042f7342199a64eb3db3d76da1bdb1b4", "bytes": 1386710, "pages": 19, "availability": "READ_ONLY_EXTERNAL", "redistributed": false},
+  "retained_principles": ["coordinates are not identity", "stable sparse node and edge identity", "typed observations and relations with uncertainty", "relation surfaces and guarded local geometry rather than ontology triples as root", "atomic verified patches with pre-state and post-state hashes", "checkpoints, replay, repeat-scan deltas, lineage, and novelty", "learned semantics may rank or propose but cannot become geometric authority"],
+  "future_three_graph_model": ["content-addressed definition graph", "instance relation event-lineage graph", "optional spatial index and projection graph"],
+  "excluded_now": ["HGT", "TGN", "teacher models", "H3", "GeoNames", "OpenStreetMap", "GIS adapters", "games", "Android applications", "wallet applications"],
+  "promotion_requirements": ["typed kernel mapping", "deterministic identity", "bounds", "failure modes", "local exact or certified geometry", "replay evidence", "human review"]
+}

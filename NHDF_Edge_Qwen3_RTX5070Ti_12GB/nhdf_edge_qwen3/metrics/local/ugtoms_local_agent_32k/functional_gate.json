@@ -1,0 +1,417 @@
+{
+  "experiment": "nhdf_hybrid_full_model_functional_gate",
+  "generated_at_utc": "2026-08-31T17:14:32.304981Z",
+  "scope": "complete Qwen model through a sealed external-codec transport for a substrate-grounded agent; GGUF/IQ2_M remains the attributed tensor codec",
+  "artifact": "C:\\UGTOMS(Universal Geometric Topological Open Modular Substrate)\\NHDF_Edge_Qwen3_RTX5070Ti_12GB\\nhdf_edge_qwen3\\packs\\qwen3-30b-a3b-iq2m-32k-q4kv",
+  "artifact_format": "nhdf-edge-hybrid-0.1",
+  "payload": {
+    "bytes": 9870270464,
+    "file_size_bits_per_parameter": 2.5861996129260665,
+    "ggml_tensor_bytes": 9864300544,
+    "link_mode": "workspace-relative-reference",
+    "path": "../../models/Qwen3-30B-A3B-Instruct-2507-IQ2_M/Qwen_Qwen3-30B-A3B-Instruct-2507-IQ2_M.gguf",
+    "sha256": "f2dc78edd3ec0171904f1945d8c05a948131b1103172b1710b763db2eb65f52a"
+  },
+  "codec": {
+    "attribution": "The low-bit tensor encoding is GGUF/IQ2_M. NHDF does not claim authorship of this codec.",
+    "container": "GGUF",
+    "nhdf_native_codec": false,
+    "owner": "ggml/Bartowski",
+    "profile": "IQ2_M mixed-bit"
+  },
+  "runtime_revision": "f8dbcd61893702976f9ab03be89c2b9f436d532c",
+  "runtime_build_number": 10720,
+  "runtime_argument_profile": "current-2026",
+  "execution_profile_sha256": "24bfb643603f49c6837abc6d972ce9840d82f84ae9f9692fa1df021284d1651c",
+  "functional_results": [
+    {
+      "prompt": "Reply with exactly the single word OK.",
+      "acceptance_rule": {
+        "kind": "exact",
+        "value": "OK"
+      },
+      "passed": true,
+      "exit_code": 0,
+      "generated_text": "OK",
+      "context_tokens": 512,
+      "max_new_tokens": 8,
+      "elapsed_seconds": 19.418904500023928,
+      "resource_preflight": {
+        "gpu": "NVIDIA GeForce RTX 5070 Ti Laptop GPU",
+        "total_mib": 12227,
+        "used_mib": 401,
+        "free_mib": 11826,
+        "required_mib": 10712
+      },
+      "baseline_gpu_memory_mib": 401,
+      "peak_gpu_memory_mib": 10216,
+      "incremental_peak_gpu_memory_mib": 9815,
+      "peak_gpu_utilization_percent": 38,
+      "resource_monitoring_enabled": true,
+      "samples": 108,
+      "llama_metrics": {
+        "load_ms": 696.48,
+        "prompt_tokens_per_second": 39.27,
+        "decode_tokens_per_second": 35.37,
+        "total_ms": 726.98,
+        "cuda_model_buffer_mib": 9279.83,
+        "cpu_mapped_model_buffer_mib": 127.51,
+        "cuda_kv_buffer_mib": 13.5,
+        "cuda_compute_buffer_mib": 300.75,
+        "offloaded_layers": [
+          49,
+          49
+        ]
+      },
+      "stderr_tail": ": n_ubatch              = 512\n0.16.321.555 I llama_context: causal_attn           = 1\n0.16.321.557 I llama_context: flash_attn            = enabled\n0.16.321.557 I llama_context: kv_unified            = false\n0.16.321.568 I llama_context: freq_base             = 10000000.0\n0.16.321.573 I llama_context: freq_scale            = 1\n0.16.321.573 I llama_context: n_rs_seq              = 0\n0.16.321.573 I llama_context: n_outputs_max         = 512\n0.16.321.573 I llama_context: n_outputs_max_per_seq = 1\n0.16.321.574 I llama_context: n_ctx_seq (512) < n_ctx_train (262144) -- the full capacity of the model will not be utilized\n0.16.341.573 I llama_context:  CUDA_Host  output buffer size =     0.58 MiB\n0.16.343.771 I llama_kv_cache:      CUDA0 KV buffer size =    13.50 MiB\n0.16.362.371 I llama_kv_cache: size =   13.50 MiB (   512 cells,  48 layers,  1/1 seqs), K (q4_0):    6.75 MiB, V (q4_0):    6.75 MiB\n0.16.362.383 I llama_kv_cache: attn_rot_k = 1, n_embd_head_k_all = 128\n0.16.362.383 I llama_kv_cache: attn_rot_v = 1, n_embd_head_k_all = 128\n0.16.362.546 I sched_reserve: reserving ...\n0.16.365.637 I resolve_fused_ops: resolving fused DeepSeek V4 HC support:\n0.16.369.519 I resolve_fused_ops: fused DeepSeek V4 HC pre enabled\n0.16.370.518 I resolve_fused_ops: fused DeepSeek V4 HC comb enabled\n0.16.371.055 I resolve_fused_ops: fused DeepSeek V4 HC post enabled\n0.16.383.719 I sched_reserve:      CUDA0 compute buffer size =   300.75 MiB\n0.16.383.726 I sched_reserve:  CUDA_Host compute buffer size =     8.59 MiB\n0.16.383.726 I sched_reserve: graph nodes  = 3606\n0.16.383.726 I sched_reserve: graph splits = 2\n0.16.383.727 I sched_reserve: reserve took 21.18 ms, sched copies = 1\n0.16.384.388 I cmn          init: llama threadpool init, n_threads = 4\n0.16.405.190 I \n0.16.406.331 I system_info: n_threads = 4 (n_threads_batch = 4) / 20 | CUDA : ARCHS = 1200 | USE_GRAPHS = 1 | BLACKWELL_NATIVE_FP4 = 1 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | \n0.16.406.336 I \n0.16.413.129 I sampler seed: 2026\n0.16.413.151 I sampler params: \n\trepeat_last_n = 64, repeat_penalty = 1.000, frequency_penalty = 0.000, presence_penalty = 0.000\n\tdry_multiplier = 0.000, dry_base = 1.750, dry_allowed_length = 2, dry_penalty_last_n = 64\n\ttop_k = 1, top_p = 0.950, min_p = 0.050, xtc_probability = 0.000, xtc_threshold = 0.100, typical_p = 1.000, top_n_sigma = -1.000, temp = 0.000\n\tmirostat = 0, mirostat_lr = 0.100, mirostat_ent = 5.000, adaptive_target = -1.000, adaptive_decay = 0.900\n0.16.413.630 I sampler chain: logits -> ?penalties -> ?dry -> ?top-n-sigma -> top-k -> ?typical -> top-p -> min-p -> ?xtc -> temp-ext -> dist \n0.16.413.635 I generate: n_ctx = 512, n_batch = 2048, n_predict = 8, n_keep = 0\n0.16.413.636 I \n0.17.131.879 I common_perf_print:    sampling time =       1.96 ms\n0.17.131.881 I common_perf_print:    samplers time =       0.78 ms /    29 tokens\n0.17.131.882 I common_perf_print:        load time =     696.48 ms\n0.17.131.883 I common_perf_print: prompt eval time =     687.54 ms /    27 tokens (   25.46 ms per token,    39.27 tokens per second)\n0.17.131.884 I common_perf_print:        eval time =      28.27 ms /     1 runs   (   28.27 ms per token,    35.37 tokens per second)\n0.17.131.885 I common_perf_print:       total time =     726.98 ms /    28 tokens\n0.17.131.885 I common_perf_print: unaccounted time =       9.21 ms /   1.3 %      (total - sampling - prompt eval - eval) / (total)\n0.17.131.886 I common_perf_print:    graphs reused =          0\n0.17.134.352 I common_memory_breakdown_print: | memory breakdown [MiB]             | total   free    self   model   context   compute    unaccounted |\n0.17.134.355 I common_memory_breakdown_print: |   - CUDA0 (RTX 5070 Ti Laptop GPU) | 12226 = 1190 + (9594 =  9279 +      13 +     300) +        1442 |\n0.17.134.356 I common_memory_breakdown_print: |   - Host                           |                  136 =   127 +       0 +       8                |\n",
+      "id": "exact_ok"
+    },
+    {
+      "prompt": "Compute 17 multiplied by 19. Reply with only the integer.",
+      "acceptance_rule": {
+        "kind": "regex",
+        "value": "^323\\.?$"
+      },
+      "passed": true,
+      "exit_code": 0,
+      "generated_text": "323",
+      "context_tokens": 512,
+      "max_new_tokens": 12,
+      "elapsed_seconds": 15.689451599988388,
+      "resource_preflight": {
+        "gpu": "NVIDIA GeForce RTX 5070 Ti Laptop GPU",
+        "total_mib": 12227,
+        "used_mib": 401,
+        "free_mib": 11826,
+        "required_mib": 10712
+      },
+      "baseline_gpu_memory_mib": 401,
+      "peak_gpu_memory_mib": 10216,
+      "incremental_peak_gpu_memory_mib": 9815,
+      "peak_gpu_utilization_percent": 40,
+      "resource_monitoring_enabled": true,
+      "samples": 78,
+      "llama_metrics": {
+        "load_ms": 673.79,
+        "prompt_tokens_per_second": 52.59,
+        "decode_tokens_per_second": 53.02,
+        "total_ms": 733.88,
+        "cuda_model_buffer_mib": 9279.83,
+        "cpu_mapped_model_buffer_mib": 127.51,
+        "cuda_kv_buffer_mib": 13.5,
+        "cuda_compute_buffer_mib": 300.75,
+        "offloaded_layers": [
+          49,
+          49
+        ]
+      },
+      "stderr_tail": " n_ubatch              = 512\n0.13.662.527 I llama_context: causal_attn           = 1\n0.13.662.528 I llama_context: flash_attn            = enabled\n0.13.662.528 I llama_context: kv_unified            = false\n0.13.662.532 I llama_context: freq_base             = 10000000.0\n0.13.662.534 I llama_context: freq_scale            = 1\n0.13.662.535 I llama_context: n_rs_seq              = 0\n0.13.662.535 I llama_context: n_outputs_max         = 512\n0.13.662.535 I llama_context: n_outputs_max_per_seq = 1\n0.13.662.536 I llama_context: n_ctx_seq (512) < n_ctx_train (262144) -- the full capacity of the model will not be utilized\n0.13.664.148 I llama_context:  CUDA_Host  output buffer size =     0.58 MiB\n0.13.664.721 I llama_kv_cache:      CUDA0 KV buffer size =    13.50 MiB\n0.13.669.005 I llama_kv_cache: size =   13.50 MiB (   512 cells,  48 layers,  1/1 seqs), K (q4_0):    6.75 MiB, V (q4_0):    6.75 MiB\n0.13.669.013 I llama_kv_cache: attn_rot_k = 1, n_embd_head_k_all = 128\n0.13.669.013 I llama_kv_cache: attn_rot_v = 1, n_embd_head_k_all = 128\n0.13.669.129 I sched_reserve: reserving ...\n0.13.672.739 I resolve_fused_ops: resolving fused DeepSeek V4 HC support:\n0.13.673.971 I resolve_fused_ops: fused DeepSeek V4 HC pre enabled\n0.13.674.744 I resolve_fused_ops: fused DeepSeek V4 HC comb enabled\n0.13.675.412 I resolve_fused_ops: fused DeepSeek V4 HC post enabled\n0.13.683.654 I sched_reserve:      CUDA0 compute buffer size =   300.75 MiB\n0.13.683.662 I sched_reserve:  CUDA_Host compute buffer size =     8.59 MiB\n0.13.683.662 I sched_reserve: graph nodes  = 3606\n0.13.683.663 I sched_reserve: graph splits = 2\n0.13.683.665 I sched_reserve: reserve took 14.53 ms, sched copies = 1\n0.13.684.122 I cmn          init: llama threadpool init, n_threads = 4\n0.13.698.552 I \n0.13.698.585 I system_info: n_threads = 4 (n_threads_batch = 4) / 20 | CUDA : ARCHS = 1200 | USE_GRAPHS = 1 | BLACKWELL_NATIVE_FP4 = 1 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | \n0.13.698.585 I \n0.13.705.157 I sampler seed: 2026\n0.13.705.172 I sampler params: \n\trepeat_last_n = 64, repeat_penalty = 1.000, frequency_penalty = 0.000, presence_penalty = 0.000\n\tdry_multiplier = 0.000, dry_base = 1.750, dry_allowed_length = 2, dry_penalty_last_n = 64\n\ttop_k = 1, top_p = 0.950, min_p = 0.050, xtc_probability = 0.000, xtc_threshold = 0.100, typical_p = 1.000, top_n_sigma = -1.000, temp = 0.000\n\tmirostat = 0, mirostat_lr = 0.100, mirostat_ent = 5.000, adaptive_target = -1.000, adaptive_decay = 0.900\n0.13.705.908 I sampler chain: logits -> ?penalties -> ?dry -> ?top-n-sigma -> top-k -> ?typical -> top-p -> min-p -> ?xtc -> temp-ext -> dist \n0.13.705.913 I generate: n_ctx = 512, n_batch = 2048, n_predict = 12, n_keep = 0\n0.13.705.913 I \n0.14.432.429 I common_perf_print:    sampling time =       3.03 ms\n0.14.432.430 I common_perf_print:    samplers time =       0.59 ms /    39 tokens\n0.14.432.430 I common_perf_print:        load time =     673.79 ms\n0.14.432.432 I common_perf_print: prompt eval time =     665.58 ms /    35 tokens (   19.02 ms per token,    52.59 tokens per second)\n0.14.432.433 I common_perf_print:        eval time =      56.58 ms /     3 runs   (   18.86 ms per token,    53.02 tokens per second)\n0.14.432.433 I common_perf_print:       total time =     733.88 ms /    38 tokens\n0.14.432.434 I common_perf_print: unaccounted time =       8.70 ms /   1.2 %      (total - sampling - prompt eval - eval) / (total)\n0.14.432.434 I common_perf_print:    graphs reused =          2\n0.14.432.496 I common_memory_breakdown_print: | memory breakdown [MiB]             | total   free    self   model   context   compute    unaccounted |\n0.14.432.497 I common_memory_breakdown_print: |   - CUDA0 (RTX 5070 Ti Laptop GPU) | 12226 = 1186 + (9594 =  9279 +      13 +     300) +        1446 |\n0.14.432.497 I common_memory_breakdown_print: |   - Host                           |                  136 =   127 +       0 +       8                |\n",
+      "id": "arithmetic"
+    },
+    {
+      "prompt": "In one concise sentence, explain why a checksum passing does not prove that a compressed language model still produces useful answers.",
+      "acceptance_rule": {
+        "kind": "terms",
+        "all_groups": [
+          [
+            "checksum",
+            "integrity"
+          ],
+          [
+            "quality",
+            "accur",
+            "semantic",
+            "useful"
+          ]
+        ]
+      },
+      "passed": true,
+      "exit_code": 0,
+      "generated_text": "A checksum passing only verifies data integrity, not the correctness or usefulness of the model's outputs after compression.",
+      "context_tokens": 512,
+      "max_new_tokens": 64,
+      "elapsed_seconds": 14.709442899998976,
+      "resource_preflight": {
+        "gpu": "NVIDIA GeForce RTX 5070 Ti Laptop GPU",
+        "total_mib": 12227,
+        "used_mib": 401,
+        "free_mib": 11826,
+        "required_mib": 10712
+      },
+      "baseline_gpu_memory_mib": 401,
+      "peak_gpu_memory_mib": 10220,
+      "incremental_peak_gpu_memory_mib": 9819,
+      "peak_gpu_utilization_percent": 60,
+      "resource_monitoring_enabled": true,
+      "samples": 79,
+      "llama_metrics": {
+        "load_ms": 818.14,
+        "prompt_tokens_per_second": 52.35,
+        "decode_tokens_per_second": 69.9,
+        "total_ms": 1129.3,
+        "cuda_model_buffer_mib": 9279.83,
+        "cpu_mapped_model_buffer_mib": 127.51,
+        "cuda_kv_buffer_mib": 13.5,
+        "cuda_compute_buffer_mib": 300.75,
+        "offloaded_layers": [
+          49,
+          49
+        ]
+      },
+      "stderr_tail": " n_ubatch              = 512\n0.12.215.819 I llama_context: causal_attn           = 1\n0.12.215.821 I llama_context: flash_attn            = enabled\n0.12.215.821 I llama_context: kv_unified            = false\n0.12.215.836 I llama_context: freq_base             = 10000000.0\n0.12.215.841 I llama_context: freq_scale            = 1\n0.12.215.841 I llama_context: n_rs_seq              = 0\n0.12.215.842 I llama_context: n_outputs_max         = 512\n0.12.215.842 I llama_context: n_outputs_max_per_seq = 1\n0.12.215.843 I llama_context: n_ctx_seq (512) < n_ctx_train (262144) -- the full capacity of the model will not be utilized\n0.12.227.933 I llama_context:  CUDA_Host  output buffer size =     0.58 MiB\n0.12.229.817 I llama_kv_cache:      CUDA0 KV buffer size =    13.50 MiB\n0.12.239.230 I llama_kv_cache: size =   13.50 MiB (   512 cells,  48 layers,  1/1 seqs), K (q4_0):    6.75 MiB, V (q4_0):    6.75 MiB\n0.12.239.241 I llama_kv_cache: attn_rot_k = 1, n_embd_head_k_all = 128\n0.12.239.241 I llama_kv_cache: attn_rot_v = 1, n_embd_head_k_all = 128\n0.12.239.549 I sched_reserve: reserving ...\n0.12.241.383 I resolve_fused_ops: resolving fused DeepSeek V4 HC support:\n0.12.245.091 I resolve_fused_ops: fused DeepSeek V4 HC pre enabled\n0.12.245.891 I resolve_fused_ops: fused DeepSeek V4 HC comb enabled\n0.12.246.561 I resolve_fused_ops: fused DeepSeek V4 HC post enabled\n0.12.254.709 I sched_reserve:      CUDA0 compute buffer size =   300.75 MiB\n0.12.254.715 I sched_reserve:  CUDA_Host compute buffer size =     8.59 MiB\n0.12.254.716 I sched_reserve: graph nodes  = 3606\n0.12.254.716 I sched_reserve: graph splits = 2\n0.12.254.717 I sched_reserve: reserve took 15.16 ms, sched copies = 1\n0.12.256.114 I cmn          init: llama threadpool init, n_threads = 4\n0.12.271.340 I \n0.12.272.408 I system_info: n_threads = 4 (n_threads_batch = 4) / 20 | CUDA : ARCHS = 1200 | USE_GRAPHS = 1 | BLACKWELL_NATIVE_FP4 = 1 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | \n0.12.272.413 I \n0.12.286.041 I sampler seed: 2026\n0.12.286.166 I sampler params: \n\trepeat_last_n = 64, repeat_penalty = 1.000, frequency_penalty = 0.000, presence_penalty = 0.000\n\tdry_multiplier = 0.000, dry_base = 1.750, dry_allowed_length = 2, dry_penalty_last_n = 64\n\ttop_k = 1, top_p = 0.950, min_p = 0.050, xtc_probability = 0.000, xtc_threshold = 0.100, typical_p = 1.000, top_n_sigma = -1.000, temp = 0.000\n\tmirostat = 0, mirostat_lr = 0.100, mirostat_ent = 5.000, adaptive_target = -1.000, adaptive_decay = 0.900\n0.12.286.742 I sampler chain: logits -> ?penalties -> ?dry -> ?top-n-sigma -> top-k -> ?typical -> top-p -> min-p -> ?xtc -> temp-ext -> dist \n0.12.286.763 I generate: n_ctx = 512, n_batch = 2048, n_predict = 64, n_keep = 0\n0.12.286.767 I \n0.13.400.427 I common_perf_print:    sampling time =       7.68 ms\n0.13.400.431 I common_perf_print:    samplers time =       2.89 ms /    64 tokens\n0.13.400.432 I common_perf_print:        load time =     818.14 ms\n0.13.400.433 I common_perf_print: prompt eval time =     802.30 ms /    42 tokens (   19.10 ms per token,    52.35 tokens per second)\n0.13.400.435 I common_perf_print:        eval time =     300.42 ms /    21 runs   (   14.31 ms per token,    69.90 tokens per second)\n0.13.400.435 I common_perf_print:       total time =    1129.30 ms /    63 tokens\n0.13.400.436 I common_perf_print: unaccounted time =      18.91 ms /   1.7 %      (total - sampling - prompt eval - eval) / (total)\n0.13.400.436 I common_perf_print:    graphs reused =         20\n0.13.401.911 I common_memory_breakdown_print: | memory breakdown [MiB]             | total   free    self   model   context   compute    unaccounted |\n0.13.401.914 I common_memory_breakdown_print: |   - CUDA0 (RTX 5070 Ti Laptop GPU) | 12226 = 1186 + (9594 =  9279 +      13 +     300) +        1446 |\n0.13.401.914 I common_memory_breakdown_print: |   - Host                           |                  136 =   127 +       0 +       8                |\n",
+      "id": "integrity_vs_quality"
+    },
+    {
+      "prompt": "Write only a short Python function named is_even(n) that returns whether an integer is even.",
+      "acceptance_rule": {
+        "kind": "terms",
+        "all_groups": [
+          [
+            "def is_even"
+          ],
+          [
+            "% 2",
+            "& 1"
+          ]
+        ]
+      },
+      "passed": true,
+      "exit_code": 0,
+      "generated_text": "```python\ndef is_even(n):\n    return n % 2 == 0\n```",
+      "context_tokens": 512,
+      "max_new_tokens": 64,
+      "elapsed_seconds": 27.86417879999499,
+      "resource_preflight": {
+        "gpu": "NVIDIA GeForce RTX 5070 Ti Laptop GPU",
+        "total_mib": 12227,
+        "used_mib": 401,
+        "free_mib": 11826,
+        "required_mib": 10712
+      },
+      "baseline_gpu_memory_mib": 401,
+      "peak_gpu_memory_mib": 10220,
+      "incremental_peak_gpu_memory_mib": 9819,
+      "peak_gpu_utilization_percent": 86,
+      "resource_monitoring_enabled": true,
+      "samples": 157,
+      "llama_metrics": {
+        "load_ms": 836.26,
+        "prompt_tokens_per_second": 46.04,
+        "decode_tokens_per_second": 109.55,
+        "total_ms": 1017.44,
+        "cuda_model_buffer_mib": 9279.83,
+        "cpu_mapped_model_buffer_mib": 127.51,
+        "cuda_kv_buffer_mib": 13.5,
+        "cuda_compute_buffer_mib": 300.75,
+        "offloaded_layers": [
+          49,
+          49
+        ]
+      },
+      "stderr_tail": " n_ubatch              = 512\n0.25.562.106 I llama_context: causal_attn           = 1\n0.25.562.108 I llama_context: flash_attn            = enabled\n0.25.562.108 I llama_context: kv_unified            = false\n0.25.562.121 I llama_context: freq_base             = 10000000.0\n0.25.562.125 I llama_context: freq_scale            = 1\n0.25.562.125 I llama_context: n_rs_seq              = 0\n0.25.562.125 I llama_context: n_outputs_max         = 512\n0.25.562.126 I llama_context: n_outputs_max_per_seq = 1\n0.25.562.126 I llama_context: n_ctx_seq (512) < n_ctx_train (262144) -- the full capacity of the model will not be utilized\n0.25.574.404 I llama_context:  CUDA_Host  output buffer size =     0.58 MiB\n0.25.575.846 I llama_kv_cache:      CUDA0 KV buffer size =    13.50 MiB\n0.25.581.838 I llama_kv_cache: size =   13.50 MiB (   512 cells,  48 layers,  1/1 seqs), K (q4_0):    6.75 MiB, V (q4_0):    6.75 MiB\n0.25.581.846 I llama_kv_cache: attn_rot_k = 1, n_embd_head_k_all = 128\n0.25.581.846 I llama_kv_cache: attn_rot_v = 1, n_embd_head_k_all = 128\n0.25.581.973 I sched_reserve: reserving ...\n0.25.583.864 I resolve_fused_ops: resolving fused DeepSeek V4 HC support:\n0.25.586.747 I resolve_fused_ops: fused DeepSeek V4 HC pre enabled\n0.25.587.492 I resolve_fused_ops: fused DeepSeek V4 HC comb enabled\n0.25.588.052 I resolve_fused_ops: fused DeepSeek V4 HC post enabled\n0.25.597.370 I sched_reserve:      CUDA0 compute buffer size =   300.75 MiB\n0.25.597.376 I sched_reserve:  CUDA_Host compute buffer size =     8.59 MiB\n0.25.597.376 I sched_reserve: graph nodes  = 3606\n0.25.597.376 I sched_reserve: graph splits = 2\n0.25.597.377 I sched_reserve: reserve took 15.40 ms, sched copies = 1\n0.25.599.482 I cmn          init: llama threadpool init, n_threads = 4\n0.25.616.759 I \n0.25.617.541 I system_info: n_threads = 4 (n_threads_batch = 4) / 20 | CUDA : ARCHS = 1200 | USE_GRAPHS = 1 | BLACKWELL_NATIVE_FP4 = 1 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | \n0.25.617.547 I \n0.25.626.760 I sampler seed: 2026\n0.25.626.791 I sampler params: \n\trepeat_last_n = 64, repeat_penalty = 1.000, frequency_penalty = 0.000, presence_penalty = 0.000\n\tdry_multiplier = 0.000, dry_base = 1.750, dry_allowed_length = 2, dry_penalty_last_n = 64\n\ttop_k = 1, top_p = 0.950, min_p = 0.050, xtc_probability = 0.000, xtc_threshold = 0.100, typical_p = 1.000, top_n_sigma = -1.000, temp = 0.000\n\tmirostat = 0, mirostat_lr = 0.100, mirostat_ent = 5.000, adaptive_target = -1.000, adaptive_decay = 0.900\n0.25.627.258 I sampler chain: logits -> ?penalties -> ?dry -> ?top-n-sigma -> top-k -> ?typical -> top-p -> min-p -> ?xtc -> temp-ext -> dist \n0.25.627.261 I generate: n_ctx = 512, n_batch = 2048, n_predict = 64, n_keep = 0\n0.25.627.261 I \n0.26.633.974 I common_perf_print:    sampling time =       6.58 ms\n0.26.633.975 I common_perf_print:    samplers time =       2.90 ms /    58 tokens\n0.26.633.975 I common_perf_print:        load time =     836.26 ms\n0.26.633.977 I common_perf_print: prompt eval time =     825.31 ms /    38 tokens (   21.72 ms per token,    46.04 tokens per second)\n0.26.633.978 I common_perf_print:        eval time =     173.43 ms /    19 runs   (    9.13 ms per token,   109.55 tokens per second)\n0.26.633.978 I common_perf_print:       total time =    1017.44 ms /    57 tokens\n0.26.633.979 I common_perf_print: unaccounted time =      12.12 ms /   1.2 %      (total - sampling - prompt eval - eval) / (total)\n0.26.633.979 I common_perf_print:    graphs reused =         18\n0.26.635.811 I common_memory_breakdown_print: | memory breakdown [MiB]             | total   free    self   model   context   compute    unaccounted |\n0.26.635.814 I common_memory_breakdown_print: |   - CUDA0 (RTX 5070 Ti Laptop GPU) | 12226 = 1186 + (9594 =  9279 +      13 +     300) +        1446 |\n0.26.635.815 I common_memory_breakdown_print: |   - Host                           |                  136 =   127 +       0 +       8                |\n",
+      "id": "code"
+    }
+  ],
+  "allocated_context_residency_result": {
+    "prompt": "Reply with exactly the single word OK.",
+    "acceptance_rule": {
+      "kind": "exact",
+      "value": "OK"
+    },
+    "passed": true,
+    "exit_code": 0,
+    "generated_text": "OK",
+    "context_tokens": 32768,
+    "max_new_tokens": 8,
+    "elapsed_seconds": 14.53308890000335,
+    "resource_preflight": {
+      "gpu": "NVIDIA GeForce RTX 5070 Ti Laptop GPU",
+      "total_mib": 12227,
+      "used_mib": 401,
+      "free_mib": 11826,
+      "required_mib": 10712
+    },
+    "baseline_gpu_memory_mib": 401,
+    "peak_gpu_memory_mib": 11064,
+    "incremental_peak_gpu_memory_mib": 10663,
+    "peak_gpu_utilization_percent": 98,
+    "resource_monitoring_enabled": true,
+    "samples": 84,
+    "llama_metrics": {
+      "load_ms": 550.16,
+      "prompt_tokens_per_second": 49.73,
+      "decode_tokens_per_second": 37.22,
+      "total_ms": 579.44,
+      "cuda_model_buffer_mib": 9279.83,
+      "cpu_mapped_model_buffer_mib": 127.51,
+      "cuda_kv_buffer_mib": 864.0,
+      "cuda_compute_buffer_mib": 300.75,
+      "offloaded_layers": [
+        49,
+        49
+      ]
+    },
+    "stderr_tail": "ch              = 512\n0.12.426.396 I llama_context: causal_attn           = 1\n0.12.426.398 I llama_context: flash_attn            = enabled\n0.12.426.398 I llama_context: kv_unified            = false\n0.12.426.413 I llama_context: freq_base             = 10000000.0\n0.12.426.418 I llama_context: freq_scale            = 1\n0.12.426.419 I llama_context: n_rs_seq              = 0\n0.12.426.419 I llama_context: n_outputs_max         = 2048\n0.12.426.419 I llama_context: n_outputs_max_per_seq = 1\n0.12.426.420 I llama_context: n_ctx_seq (32768) < n_ctx_train (262144) -- the full capacity of the model will not be utilized\n0.12.441.210 I llama_context:  CUDA_Host  output buffer size =     0.58 MiB\n0.12.446.084 I llama_kv_cache:      CUDA0 KV buffer size =   864.00 MiB\n0.12.611.212 I llama_kv_cache: size =  864.00 MiB ( 32768 cells,  48 layers,  1/1 seqs), K (q4_0):  432.00 MiB, V (q4_0):  432.00 MiB\n0.12.611.228 I llama_kv_cache: attn_rot_k = 1, n_embd_head_k_all = 128\n0.12.611.229 I llama_kv_cache: attn_rot_v = 1, n_embd_head_k_all = 128\n0.12.611.322 I sched_reserve: reserving ...\n0.12.614.602 I resolve_fused_ops: resolving fused DeepSeek V4 HC support:\n0.12.618.585 I resolve_fused_ops: fused DeepSeek V4 HC pre enabled\n0.12.619.336 I resolve_fused_ops: fused DeepSeek V4 HC comb enabled\n0.12.620.367 I resolve_fused_ops: fused DeepSeek V4 HC post enabled\n0.12.638.106 I sched_reserve:      CUDA0 compute buffer size =   300.75 MiB\n0.12.638.113 I sched_reserve:  CUDA_Host compute buffer size =    40.09 MiB\n0.12.638.114 I sched_reserve: graph nodes  = 3606\n0.12.638.114 I sched_reserve: graph splits = 2\n0.12.638.115 I sched_reserve: reserve took 26.79 ms, sched copies = 1\n0.12.638.610 I cmn          init: llama threadpool init, n_threads = 4\n0.12.655.642 I \n0.12.656.436 I system_info: n_threads = 4 (n_threads_batch = 4) / 20 | CUDA : ARCHS = 1200 | USE_GRAPHS = 1 | BLACKWELL_NATIVE_FP4 = 1 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | \n0.12.656.442 I \n0.12.661.624 I sampler seed: 2026\n0.12.661.647 I sampler params: \n\trepeat_last_n = 64, repeat_penalty = 1.000, frequency_penalty = 0.000, presence_penalty = 0.000\n\tdry_multiplier = 0.000, dry_base = 1.750, dry_allowed_length = 2, dry_penalty_last_n = 64\n\ttop_k = 1, top_p = 0.950, min_p = 0.050, xtc_probability = 0.000, xtc_threshold = 0.100, typical_p = 1.000, top_n_sigma = -1.000, temp = 0.000\n\tmirostat = 0, mirostat_lr = 0.100, mirostat_ent = 5.000, adaptive_target = -1.000, adaptive_decay = 0.900\n0.12.662.253 I sampler chain: logits -> ?penalties -> ?dry -> ?top-n-sigma -> top-k -> ?typical -> top-p -> min-p -> ?xtc -> temp-ext -> dist \n0.12.662.256 I generate: n_ctx = 32768, n_batch = 2048, n_predict = 8, n_keep = 0\n0.12.662.257 I \n0.13.234.790 I common_perf_print:    sampling time =       2.10 ms\n0.13.234.791 I common_perf_print:    samplers time =       0.84 ms /    29 tokens\n0.13.234.792 I common_perf_print:        load time =     550.16 ms\n0.13.234.793 I common_perf_print: prompt eval time =     542.91 ms /    27 tokens (   20.11 ms per token,    49.73 tokens per second)\n0.13.234.794 I common_perf_print:        eval time =      26.87 ms /     1 runs   (   26.87 ms per token,    37.22 tokens per second)\n0.13.234.795 I common_perf_print:       total time =     579.44 ms /    28 tokens\n0.13.234.799 I common_perf_print: unaccounted time =       7.57 ms /   1.3 %      (total - sampling - prompt eval - eval) / (total)\n0.13.234.799 I common_perf_print:    graphs reused =          0\n0.13.236.376 I common_memory_breakdown_print: | memory breakdown [MiB]             | total   free     self   model   context   compute    unaccounted |\n0.13.236.381 I common_memory_breakdown_print: |   - CUDA0 (RTX 5070 Ti Laptop GPU) | 12226 =  340 + (10444 =  9279 +     864 +     300) +        1441 |\n0.13.236.381 I common_memory_breakdown_print: |   - Host                           |                   167 =   127 +       0 +      40                |\n",
+    "id": "allocated_context_exact_ok"
+  },
+  "benchmark": {
+    "runtime_records": [
+      {
+        "build_commit": "f8dbcd61",
+        "build_number": 10720,
+        "cpu_info": "Intel(R) Core(TM) Ultra 7 255HX",
+        "gpu_info": "NVIDIA GeForce RTX 5070 Ti Laptop GPU",
+        "backends": "CUDA",
+        "model_filename": "C:\\UGTOMS(Universal Geometric Topological Open Modular Substrate)\\NHDF_Edge_Qwen3_RTX5070Ti_12GB\\nhdf_edge_qwen3\\models\\Qwen3-30B-A3B-Instruct-2507-IQ2_M\\Qwen_Qwen3-30B-A3B-Instruct-2507-IQ2_M.gguf",
+        "model_type": "qwen3moe 30B.A3B IQ2_M - 2.7 bpw",
+        "model_size": 9864300544,
+        "model_n_params": 30532122624,
+        "n_batch": 2048,
+        "n_ubatch": 512,
+        "n_threads": 4,
+        "cpu_mask": "0x0",
+        "cpu_strict": false,
+        "poll": 50,
+        "type_k": "q4_0",
+        "type_v": "q4_0",
+        "n_gpu_layers": 999,
+        "n_cpu_moe": 0,
+        "split_mode": "none",
+        "main_gpu": 0,
+        "no_kv_offload": false,
+        "flash_attn": 1,
+        "devices": "auto",
+        "tensor_split": "0.00",
+        "tensor_buft_overrides": "none",
+        "load_mode": "auto",
+        "lazy_mode": "auto",
+        "embeddings": false,
+        "no_op_offload": 0,
+        "no_host": false,
+        "fit_target": 0,
+        "fit_min_ctx": 0,
+        "n_prompt": 64,
+        "n_gen": 0,
+        "n_depth": 0,
+        "test_time": "2026-08-31T17:14:28Z",
+        "avg_ns": 74581800,
+        "stddev_ns": 16897652,
+        "avg_ts": 885.013308,
+        "stddev_ts": 178.171701,
+        "samples_ns": [
+          94032900,
+          63525200,
+          66187300
+        ],
+        "samples_ts": [
+          680.613,
+          1007.47,
+          966.953
+        ]
+      },
+      {
+        "build_commit": "f8dbcd61",
+        "build_number": 10720,
+        "cpu_info": "Intel(R) Core(TM) Ultra 7 255HX",
+        "gpu_info": "NVIDIA GeForce RTX 5070 Ti Laptop GPU",
+        "backends": "CUDA",
+        "model_filename": "C:\\UGTOMS(Universal Geometric Topological Open Modular Substrate)\\NHDF_Edge_Qwen3_RTX5070Ti_12GB\\nhdf_edge_qwen3\\models\\Qwen3-30B-A3B-Instruct-2507-IQ2_M\\Qwen_Qwen3-30B-A3B-Instruct-2507-IQ2_M.gguf",
+        "model_type": "qwen3moe 30B.A3B IQ2_M - 2.7 bpw",
+        "model_size": 9864300544,
+        "model_n_params": 30532122624,
+        "n_batch": 2048,
+        "n_ubatch": 512,
+        "n_threads": 4,
+        "cpu_mask": "0x0",
+        "cpu_strict": false,
+        "poll": 50,
+        "type_k": "q4_0",
+        "type_v": "q4_0",
+        "n_gpu_layers": 999,
+        "n_cpu_moe": 0,
+        "split_mode": "none",
+        "main_gpu": 0,
+        "no_kv_offload": false,
+        "flash_attn": 1,
+        "devices": "auto",
+        "tensor_split": "0.00",
+        "tensor_buft_overrides": "none",
+        "load_mode": "auto",
+        "lazy_mode": "auto",
+        "embeddings": false,
+        "no_op_offload": 0,
+        "no_host": false,
+        "fit_target": 0,
+        "fit_min_ctx": 0,
+        "n_prompt": 0,
+        "n_gen": 64,
+        "n_depth": 0,
+        "test_time": "2026-08-31T17:14:29Z",
+        "avg_ns": 473419700,
+        "stddev_ns": 7425386,
+        "avg_ts": 135.208586,
+        "stddev_ts": 2.102534,
+        "samples_ns": [
+          481950400,
+          469900500,
+          468408200
+        ],
+        "samples_ts": [
+          132.794,
+          136.199,
+          136.633
+        ]
+      }
+    ],
+    "prompt": {
+      "tokens": 64,
+      "average_tokens_per_second": 885.013308,
+      "standard_deviation_tokens_per_second": 178.171701,
+      "samples_tokens_per_second": [
+        680.613,
+        1007.47,
+        966.953
+      ]
+    },
+    "generation": {
+      "tokens": 64,
+      "average_tokens_per_second": 135.208586,
+      "standard_deviation_tokens_per_second": 2.102534,
+      "samples_tokens_per_second": [
+        132.794,
+        136.199,
+        136.633
+      ]
+    }
+  },
+  "thresholds": {
+    "functional_prompts_required": 4,
+    "allocated_context_tokens": 32768,
+    "allocated_context_exact_response_required": true,
+    "full_offload_required": [
+      49,
+      49
+    ],
+    "reserve_vram_mib": 512,
+    "minimum_generation_tokens_per_second": 80.0
+  },
+  "aggregate": {
+    "functional_prompts_passed": 4,
+    "functional_prompts_total": 4,
+    "allocated_context_tokens": 32768,
+    "allocated_context_passed": true,
+    "full_offload_passed": true,
+    "peak_gpu_memory_mib": 11064,
+    "target_vram_mib": 12227,
+    "contract_target_vram_mib": 12227,
+    "headroom_mib": 1163,
+    "resource_gate_passed": true,
+    "throughput_gate_passed": true
+  },
+  "passed": true,
+  "status": "functional-hybrid-pass",
+  "limitations": [
+    "The maximum-context run allocates the cache and executes a short prompt; it is not a filled-context quality test.",
+    "The weight codec is external GGUF/IQ2_M, not an NHDF-native tensor codec."
+  ]
+}

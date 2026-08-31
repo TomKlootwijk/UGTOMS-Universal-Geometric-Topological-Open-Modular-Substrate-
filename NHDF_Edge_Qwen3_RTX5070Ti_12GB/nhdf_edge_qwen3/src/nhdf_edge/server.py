@@ -26,6 +26,7 @@ from . import hybrid
 LOOPBACK_HOST = "127.0.0.1"
 DEFAULT_PORT = 18080
 VALIDATED_CONTEXT_TOKENS = 8_192
+MODEL_ALIAS = "local-qwen3-30b-a3b"
 DETERMINISTIC_TEMPERATURE = 0.0
 DETERMINISTIC_TOP_K = 1
 DETERMINISTIC_SEED = 2026
@@ -85,14 +86,39 @@ def _require_validated_profile(manifest: dict[str, Any]) -> None:
         or expected_offload[0] <= 0
     ):
         problems.append("expected_offloaded_layers must declare a complete nonzero offload")
-    if profile.get("kv_cache_k") != "q8_0" or profile.get("kv_cache_v") != "q8_0":
-        problems.append("both KV caches must use q8_0")
+    for field_name in ("kv_cache_k", "kv_cache_v"):
+        cache_type = profile.get(field_name)
+        if (
+            not isinstance(cache_type, str)
+            or cache_type not in hybrid.VALIDATED_KV_CACHE_TYPES
+        ):
+            supported = ", ".join(sorted(hybrid.VALIDATED_KV_CACHE_TYPES))
+            problems.append(
+                f"{field_name} must use a validated KV cache type ({supported})"
+            )
     if profile.get("flash_attention") is not True:
         problems.append("flash attention must be enabled")
-    if int(profile.get("maximum_context_tokens", 0)) < VALIDATED_CONTEXT_TOKENS:
+    context = profile.get("maximum_context_tokens")
+    contract_context = contract.get("maximum_validated_context_tokens")
+    valid_context = (
+        isinstance(context, int)
+        and not isinstance(context, bool)
+        and context >= VALIDATED_CONTEXT_TOKENS
+    )
+    valid_contract_context = (
+        isinstance(contract_context, int)
+        and not isinstance(contract_context, bool)
+        and contract_context >= VALIDATED_CONTEXT_TOKENS
+    )
+    if not valid_context:
         problems.append(f"execution context must cover {VALIDATED_CONTEXT_TOKENS} tokens")
-    if int(contract.get("maximum_validated_context_tokens", 0)) < VALIDATED_CONTEXT_TOKENS:
+    if not valid_contract_context:
         problems.append(f"resource contract must validate {VALIDATED_CONTEXT_TOKENS} tokens")
+    elif valid_context and contract_context < context:
+        problems.append(
+            "resource contract does not validate the full execution context "
+            f"({contract_context} < {context})"
+        )
     if sampling.get("temperature") != DETERMINISTIC_TEMPERATURE:
         problems.append("sampling temperature must be 0")
     if (
@@ -212,9 +238,13 @@ class HybridServer:
     startup_timeout_seconds: float = 120.0
     request_timeout_seconds: float = 120.0
     threads: int | None = None
+    verify_payload_hash: bool = True
     _process: subprocess.Popen[Any] | None = field(default=None, init=False, repr=False)
     _command: tuple[str, ...] | None = field(default=None, init=False, repr=False)
     _preflight_result: dict[str, Any] | None = field(default=None, init=False, repr=False)
+    _maximum_context_tokens: int = field(
+        default=VALIDATED_CONTEXT_TOKENS, init=False, repr=False
+    )
     _lock: threading.RLock = field(default_factory=threading.RLock, init=False, repr=False)
 
     def __post_init__(self) -> None:
@@ -226,6 +256,8 @@ class HybridServer:
             raise HybridServerConfigurationError("server port must be between 1 and 65535")
         if self.startup_timeout_seconds <= 0 or self.request_timeout_seconds <= 0:
             raise HybridServerConfigurationError("server timeouts must be positive")
+        if not isinstance(self.verify_payload_hash, bool):
+            raise HybridServerConfigurationError("verify_payload_hash must be a boolean")
         if self.threads is None:
             # Measured on the target Core Ultra 7 255HX: four generation
             # threads outperformed 2/8/12/20 while the model was fully offloaded.
@@ -275,7 +307,7 @@ class HybridServer:
 
             verification = hybrid.verify_hybrid_artifact(
                 self.artifact_dir,
-                verify_payload_hash=True,
+                verify_payload_hash=self.verify_payload_hash,
                 require_validated=True,
             )
             if not verification.get("ok") or not verification.get("deployment_loadable"):
@@ -286,6 +318,8 @@ class HybridServer:
 
             manifest = hybrid.load_hybrid_manifest(self.artifact_dir)
             _require_validated_profile(manifest)
+            profile = manifest["execution_profile"]
+            context = int(profile["maximum_context_tokens"])
             server = _sealed_server_entrypoint(self.artifact_dir, manifest)
             model = hybrid._resolve_reference(self.artifact_dir, manifest["payload"]["path"])
             runtime_profile = manifest["runtime"].get("argument_profile", "b6014")
@@ -297,9 +331,7 @@ class HybridServer:
                 raise HybridServerConfigurationError(
                     f"unsupported llama.cpp argument profile: {runtime_profile!r}"
                 )
-            preflight = hybrid._preflight(
-                manifest, context=VALIDATED_CONTEXT_TOKENS
-            )
+            preflight = hybrid._preflight(manifest, context=context)
             command = [
                 str(server),
                 "-m",
@@ -309,11 +341,11 @@ class HybridServer:
                 "-sm",
                 "none",
                 "-c",
-                str(VALIDATED_CONTEXT_TOKENS),
+                str(context),
                 "-ctk",
-                "q8_0",
+                str(profile["kv_cache_k"]),
                 "-ctv",
-                "q8_0",
+                str(profile["kv_cache_v"]),
                 *flash_arguments,
                 "-np",
                 "1",
@@ -337,6 +369,13 @@ class HybridServer:
                 "1",
                 "--seed",
                 str(DETERMINISTIC_SEED),
+                "--alias",
+                MODEL_ALIAS,
+                "--jinja",
+                "--reasoning-format",
+                "none",
+                "--cors-origins",
+                "localhost",
                 "--host",
                 self.host,
                 "--port",
@@ -357,6 +396,7 @@ class HybridServer:
             self._process = process
             self._command = tuple(command)
             self._preflight_result = preflight
+            self._maximum_context_tokens = context
 
         if wait_ready:
             try:
@@ -426,10 +466,10 @@ class HybridServer:
         if (
             isinstance(max_tokens, bool)
             or not isinstance(max_tokens, int)
-            or not 1 <= max_tokens <= VALIDATED_CONTEXT_TOKENS
+            or not 1 <= max_tokens <= self._maximum_context_tokens
         ):
             raise ValueError(
-                f"max_tokens must be between 1 and {VALIDATED_CONTEXT_TOKENS}"
+                f"max_tokens must be between 1 and {self._maximum_context_tokens}"
             )
         if not isinstance(cache_prompt, bool):
             raise ValueError("cache_prompt must be a boolean")

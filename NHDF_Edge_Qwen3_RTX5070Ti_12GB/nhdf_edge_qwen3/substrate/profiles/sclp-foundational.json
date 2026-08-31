@@ -1,0 +1,37 @@
+{
+  "format": "ugtoms-profile-0.1",
+  "profile_id": "sclp-foundational",
+  "title": "SCLP 3.6.2 swept-cone log-polar packing correction",
+  "classification": "SELECTABLE_PROFILE",
+  "kernel_id": "ugtoms-kernel-v0.1",
+  "kernel_sha256": "ee4dad2b85c8816ef718b4a9f36c2da090b8b9a14525e17f30d65bf17fba23d7",
+  "kernel_stage_mapping": {
+    "finite_cone_relation": "cone_sphere_SDF_sweep_relation_and_projection",
+    "paired_sphere_support": "local_support",
+    "logpolar_metric": "log_polar_address_and_metric -> causal_vector_kinematics",
+    "one_bit_jitter_guard": "typed_parity_jitter_control_predicates -> guard_crossing",
+    "topological_wrap": "compatibility -> route_transition",
+    "bounded_binary_grammar": "bounded_BST_L_system_or_radix_routing",
+    "packed_key": "generative_address -> lineage",
+    "event_handoff": "event_admission_discipline"
+  },
+  "mappings": {
+    "typed": "q=(x,t,rho,theta,phi,dphi,ddphi,o,s,b,grammar,K,address,lineage,uncertainty)",
+    "vector": "cone apex and axis, position, directed motion, surface normal, tangent projection",
+    "kinematic": "log-polar metric, Jacobian, exact radial increment, velocity, acceleration, hinge state",
+    "geometry": "exact finite-cone SDF, sphere SDF, paired sphere support, certified translational sweep interval",
+    "topology": "source half-turn bundle map and corrected reflective Klein gluing remain distinct",
+    "packing": "20/18/14/12-bit rho/theta/time/phi key in distinct contiguous and Morton layouts",
+    "predicate": "content-addressed one-bit jitter with interval strictly inside guard margin",
+    "operator": "finite typed pipeline ending in the UGTS event-admission handoff",
+    "self_reference": "content-addressed definitions and instances by definition_ref; no same-generation cycle"
+  },
+  "resource_bounds": ["64-bit finite key", "bounded grammar depth", "bounded symbols", "bounded stack", "finite sweep samples"],
+  "failure_modes": ["jitter interval crosses guard", "grammar budget exceeded", "key saturation", "apex core", "unsupported physical force inference", "uncertified sweep"],
+  "evidence_requirements": ["finite-cone reference vector", "both key round trips", "jitter margin certificate", "metric/kinematic reference vector", "grammar budget trace", "sweep interval"],
+  "source_records": [
+    {"source_id": "sclp-3.6.2-report", "sha256": "6987490a0a7b7ed76b0091057a2e69ab831fee786434a0b4219782923f5ea580", "bytes": 893935, "pages": 19, "availability": "READ_ONLY_EXTERNAL", "redistributed": false},
+    {"source_id": "sclp-3.6.2-formal-definition", "sha256": "0aaa035870d3e6bf2c531cf13c414ad43c7fba75a9c664754255afb4644517a1", "bytes": 5825, "availability": "READ_ONLY_EXTERNAL", "redistributed": false},
+    {"source_id": "sclp-raw-13p-registered-not-present", "sha256": "7e29c1c800d905268f35084a6a4c7d9c1cfed50c926c63a8ec2c79021e32ab63", "pages": 13, "availability": "REGISTERED_NOT_INSPECTED", "redistributed": false}
+  ]
+}

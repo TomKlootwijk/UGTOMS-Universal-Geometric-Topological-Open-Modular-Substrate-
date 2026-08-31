@@ -1,0 +1,32 @@
+{
+  "format": "ugtoms-profile-registry-0.1",
+  "kernel": {
+    "kernel_id": "ugtoms-kernel-v0.1",
+    "path": "substrate/kernel/contract.json",
+    "sha256": "ee4dad2b85c8816ef718b4a9f36c2da090b8b9a14525e17f30d65bf17fba23d7"
+  },
+  "automatic_promotion": false,
+  "profiles": [
+    {
+      "profile_id": "nhdf-v0.1",
+      "path": "substrate/profiles/nhdf-v0.1.json",
+      "sha256": "831977e6542664917d38ff449bed36a60fcce123546d19a6c810d46e2ac70794",
+      "status": "ACTIVE",
+      "selectable": true
+    },
+    {
+      "profile_id": "sclp-foundational",
+      "path": "substrate/profiles/sclp-foundational.json",
+      "sha256": "2a1a6d973a6508caf4def0100354a95becfd41accc58fcad9c9dfeaf9ee7860a",
+      "status": "ACTIVE",
+      "selectable": true
+    },
+    {
+      "profile_id": "nhdf-v0.3-ccd",
+      "path": "substrate/profiles/nhdf-v0.3-ccd.json",
+      "sha256": "ddfc0efee5b1133f8ae3e9650f41f6a534f1a3d131db8769a5ed8b0e8830a391",
+      "status": "ACTIVE",
+      "selectable": true
+    }
+  ]
+}

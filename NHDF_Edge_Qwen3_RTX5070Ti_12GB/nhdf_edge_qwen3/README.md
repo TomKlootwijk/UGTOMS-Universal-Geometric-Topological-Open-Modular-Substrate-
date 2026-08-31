@@ -1,311 +1,286 @@
-# UGTOMS/NHDF Edge: functional, resident Qwen3-30B-A3B on 12 GB
+# UGTOMS substrate and a local Qwen3 coding agent on 12 GB
 
-This repository now has a **validated, functional NHDF v0.3 hybrid artifact**
-for the complete 30,532,122,624-parameter
-`Qwen/Qwen3-30B-A3B-Instruct-2507` model on an NVIDIA GeForce RTX 5070 Ti
-Laptop GPU.
+This repository contains a clean-room UGTOMS kernel, selectable NHDF/SCLP
+profiles, and a validated local coding stack for the complete
+30,532,122,624-parameter `Qwen/Qwen3-30B-A3B-Instruct-2507` model on an NVIDIA
+GeForce RTX 5070 Ti Laptop GPU with 12,227 MiB of VRAM.
 
-The result is deliberately split into two responsibilities:
+The current result is useful, but its boundaries matter:
 
-- **GGUF/IQ2_M is the tensor codec.** The payload is the externally produced
-  Bartowski/ggml IQ2_M artifact, executed by pinned llama.cpp build 10720 at
-  commit `f8dbcd61893702976f9ab03be89c2b9f436d532c`. NHDF does not claim
-  authorship of that codec.
-- **NHDF v0.3 is the substrate.** It seals provenance, declares the capability
-  and resource policy, maintains a hash-linked evidence chain, records typed
-  validation state, and refuses launch when integrity, quality, or resource
-  gates are not satisfied.
+- `substrate/kernel/contract.json` is the substrate authority. The explicit
+  active base profiles are `nhdf-v0.1` and `sclp-foundational`; the later
+  `nhdf-v0.3-ccd` profile is optional and does not replace them.
+- `packs/qwen3-30b-a3b-iq2m-32k-q4kv` is the current validated 32K/q4 K/V
+  model artifact.
+- GGUF/IQ2_M is an externally produced Bartowski/ggml tensor codec. UGTOMS and
+  NHDF govern provenance, typed capability, resource policy, evidence, and
+  fail-closed launch; they do not claim authorship of the working weight codec.
+- `scripts/start_local_coder.ps1` launches an isolated OpenCode client against
+  the local model. After one-time installation and model acquisition, it uses
+  no account, API key, or paid per-token service. Hardware, storage, power, and
+  initial downloads are still real costs.
 
-The hybrid artifact references the existing GGUF in place. It does not create
-a second 9.87 GB copy.
+## Substrate identity
 
-## Current measured outcome
+The `ugtoms-kernel-v0.1` kernel is a finite, typed, deterministic
+geometric-topological generative system. It combines the normalized NHDF v0.1
+closure, the early UGTS typed algebra, the UGTS 3.6 content-addressed
+referential DAG, the SCLP 3.6.2
+swept-cone/log-polar correction, and the UGTS-GN event-admission discipline.
+Same-generation definitions must be acyclic. Feedback is an explicit
+generation `n` to `n+1` edge, not an unrestricted fixed-point engine.
 
-The original BF16 checkpoint contains 61,064,245,248 tensor bytes. The hybrid
-payload is 9,870,270,464 bytes, or 2.5862 file-size-derived bits per parameter.
-That is a 6.1867x reduction (51,193,974,784 fewer bytes, or 83.84%). BF16
-weights alone would require 58,235 MiB, 4.76x the GPU's reported capacity,
-before runtime buffers or KV cache.
+| Layer | Current role | File |
+|---|---|---|
+| UGTOMS kernel | Stable typed contract and invariants | `substrate/kernel/contract.json` |
+| NHDF v0.1 | Normalized base closure | `substrate/profiles/nhdf-v0.1.json` |
+| SCLP 3.6.2 | Foundational cone/log-polar corrective profile | `substrate/profiles/sclp-foundational.json` |
+| NHDF v0.3 CCD | Optional later collision profile | `substrate/profiles/nhdf-v0.3-ccd.json` |
+| Spatial ledger | Quarantined future evidence direction | `substrate/incubator/spatial-evidence-ledger.json` |
 
-| Measurement | Fresh result |
+The profile registry is `substrate/profiles/registry.json`; automatic profile
+or extension promotion is disabled. Clean-room implementations live in:
+
+- `src/nhdf_edge/substrate_contract.py`: kernel, profile, application-manifest,
+  and extension validation;
+- `src/nhdf_edge/substrate_graph.py`: typed content-addressed definitions,
+  instances, pipelines, topological resolution, and next-generation feedback;
+- `src/nhdf_edge/substrate_runtime.py`: bounded SCLP/NHDF reference mechanisms;
+- `src/nhdf_edge/substrate_packing.py`: bounded clean-room display packing;
+- `src/nhdf_edge/substrate_pdf.py`: deterministic PDF generation and checking.
+
+The symbol firewall keeps linear time, modular ticks, cone slant length,
+golden ratio, phase, jitter radius, spatial radius, four distinct bit roles,
+comparison trees, radix tries, half-turn maps, Klein gluing, implicit cones,
+finite SDFs, and swept bounds from being silently conflated.
+
+## Current model result
+
+The model is mixture-of-experts: all 30.532B parameters must be stored, while
+approximately 3.3B are active per token. Its throughput must not be described
+as dense-30B throughput.
+
+| Storage measurement | Result |
 |---|---:|
-| Complete model | 30,532,122,624 parameters |
-| BF16 source tensor bytes | 61,064,245,248 |
-| Referenced IQ2_M payload | 9,870,270,464 bytes |
-| Pinned llama.cpp runtime | build 10720 / `f8dbcd61` |
-| Functional prompts | 4/4 passed |
-| llama.cpp layer offload | 49/49 |
+| BF16 tensor bytes | 61,064,245,248 |
+| BF16 weights | 58,235.4 MiB |
+| Referenced IQ2_M file | 9,870,270,464 bytes |
+| File-size reduction | 6.1867x / 83.84% |
 | Physical GPU capacity | 12,227 MiB |
-| Peak device use with allocated 8K context | 10,610 MiB |
-| Measured device headroom | 1,617 MiB |
-| 64-token prompt processing, 3 samples | 870.026857 tok/s |
-| 64-token generation, 3 samples | 157.141442 tok/s |
-| Controlled 512-prompt/256-generation average | 149.441046 generation tok/s |
-| Resident coding median | 147.139410 generation tok/s |
-| Warm cached coding TTFT proxy, median | 90.82995 ms |
-| Executable coding tasks, first pass | 5/6 across both repetitions (10/12 launches) |
-| Executable coding tasks, after one repair | 6/6 across both repetitions (12/12 launches) |
 
-The 64-token rows are the fresh artifact gate. The controlled optimization
-comparison used 512 prompt tokens, 256 generated tokens and three repetitions.
-The coding number is the median across twelve streamed requests to an already
-resident server. These are different scopes, not interchangeable claims about
-every workload. This is also a mixture-of-experts model: all 30.532B parameters
-must be stored, but about 3.3B are active per token. Its generation rate must
-not be described as dense-30B throughput.
+The zero-copy hybrid manifest references the existing 9.87 GB model file; it
+does not commit or create a second large payload.
 
-The functional suite produced exact `OK`, exact `323`, a coherent explanation
-of integrity versus output quality, and a correct `is_even(n)` Python function.
-The allocated-8K run also returned exact `OK`. llama.cpp offloaded all 49
-reported layers while also reporting a 127.51 MiB CPU-mapped model buffer.
+### Fresh sealed 32K gate
 
-The executable coding probe covered six small Python functions, twice each.
-Five tasks passed both first attempts. `merge_intervals` failed both first
-attempts because it mutated a nested input; one separately recorded
-machine-feedback repair fixed both repetitions and produced identical passing
-source hashes. This is useful bounded evidence for a local coding workflow,
-not broad coding accuracy. At the measured 147.14 generation tok/s, 100 output
-tokens take about 0.68 seconds of decode and 300 take about 2.04 seconds,
-excluding prompt processing and other application overhead.
+The current artifact passed its fresh gate on 31 August 2026:
 
-The 8K measurement establishes allocation, residency, and short-prompt
-execution with an 8K q8 K/V cache. It is **not** evidence for answer quality
-after filling the context with 8K tokens.
+| Measurement | Result |
+|---|---:|
+| Functional prompts | 4/4 passed |
+| Reported layer offload | 49/49 |
+| Allocated context | 32,768 tokens |
+| K/V cache | q4_0 / q4_0, 864 MiB |
+| Peak GPU memory | 11,064 MiB |
+| Headroom on 12,227 MiB GPU | 1,163 MiB |
+| 64-token prompt microbenchmark | 885.013308 tok/s |
+| 64-token short decode microbenchmark | 135.208586 tok/s |
 
-## Run the validated artifact
+This establishes full cache allocation, residency, a short exact response,
+full layer offload, and short microbenchmark throughput. It does not establish
+answer quality after filling all 32K tokens. A 48K configuration remains
+fragile and unvalidated, so it is not the default.
 
-The committed Windows runtime is not fully standalone. It requires an NVIDIA
-driver for the RTX 5070 Ti, CUDA Toolkit 12.8 runtime libraries
-(`cudart64_12.dll`, `cublas64_12.dll`, and `cublasLt64_12.dll`) on `PATH`, and
-the Microsoft Visual C++ 2015-2022 x64 Redistributable. Those external CUDA
-DLLs are not sealed or committed; in particular, bundling cuBLAS would exceed
-the repository's requested size policy. The exact locally built llama.cpp
-files that are committed are individually hashed in
-`tools/llama.cpp-f8dbcd61/SOURCE.json`.
+### Separate prior filled-context measurement
 
-```powershell
-# Full verification rehashes the referenced 9.87 GB payload and every sealed
-# runtime/evidence component.
-nhdf-edge verify packs\qwen3-30b-a3b-nhdf-v03-iq2m
+A prior, separately scoped run used 22,440 prompt tokens and measured
+2,297.477 prompt tok/s followed by 25.189 decode tok/s. At that decode rate,
+100 generated tokens take about 3.97 seconds and 300 take about 11.91 seconds,
+before application overhead. This is the practical long-context result; it is
+not interchangeable with the fresh 64-token 135.208586 tok/s gate and is not
+part of that sealed gate record.
 
-# Launch is fail-closed and accepts a validated hybrid by default.
-nhdf-edge run packs\qwen3-30b-a3b-nhdf-v03-iq2m `
-  --prompt "Reply with exactly the single word OK." `
-  --context 512 `
-  --max-new-tokens 8 `
-  --text-only
-```
+## Generic local coding-agent gate
 
-For repeated interactive use, keep the model resident. `serve` performs the
-full sealed-artifact hash verification once, requires `VALIDATED`, checks the
-GPU/free-VRAM contract, then starts one loopback-only slot with 8K q8 K/V,
-Flash Attention, 49/49 offload, four measured-optimal CPU threads and
-deterministic sampling (`temperature=0`, `top_k=1`, `seed=2026`). The measured
-startup-to-listening time was 12.644645 seconds.
+The final bounded generic agent run passed at:
 
-In the first PowerShell terminal:
+`metrics/local/coding_agent_32k/run-20260831T172748.453659Z/evidence.json`
 
-```powershell
-nhdf-edge serve packs\qwen3-30b-a3b-nhdf-v03-iq2m `
-  --port 18080 `
-  --threads 4 `
-  --startup-timeout 120 `
-  --request-timeout 120
-```
+Evidence SHA-256:
+`a110060c30816c9d8e92d9ddc0eb0ade6c07be871371dd49942cb8de47262348`.
 
-Leave it running. In a second PowerShell terminal, reproduce the executable
-coding/repair measurement:
+| Check | Measured result |
+|---|---:|
+| Actual context reported by the served model | `n_ctx = 32768` |
+| Synthetic needle retrieval | 21,997 prompt tokens, exact retrieval |
+| Native OpenAI-compatible tool-call JSON | Passed |
+| Disposable repository repair | Passed in 36.524758 s |
+| Recorded mutations/commands | Exactly one `edit`, exactly one `bash` |
+| Independent final fixture tests | 4/4 passed |
+| Git HEAD | Unchanged |
+| Overall disposition | `PASSED` |
 
-```powershell
-python scripts\benchmark_hybrid_coding.py `
-  packs\qwen3-30b-a3b-nhdf-v03-iq2m `
-  --output-root metrics\local\coding_benchmark `
-  --context 2048 `
-  --max-new-tokens 384 `
-  --seed 2026 `
-  --repetitions 2 `
-  --repair-attempts 1 `
-  --server-url http://127.0.0.1:18080 `
-  --server-cache-prompt `
-  --quick `
-  --cache-precondition-note "build 10720/f8dbcd61; t4, split none, priority 2; 8K q8 KV; cached first pass and uncached repair"
-```
+The tool-path audit was retrospective, not a preventive OS/filesystem/network
+sandbox. The launcher adds an explicit permission contract, reduced
+environment, loopback-only model endpoint, no project configuration, and no
+plugins or MCP, but this still does not prove production safety or broad coding
+accuracy.
 
-`--server-cache-prompt` produced the measured 90.83 ms warm TTFT proxy for
-shared cached prefixes. It is not cold startup latency or a guarantee for an
-unrelated prompt. Repairs deliberately disable prefix-cache reuse to preserve
-the measured accuracy path; their median TTFT was 220.89 ms and median wall
-time was 1.179 seconds. Stop the server with Ctrl+C.
+This was deliberately a generic coding gate. It proves one native tool call,
+one approximately 22K-token retrieval, and one isolated Python repair. A live
+substrate-specific gate that tests correct profile selection, symbol-firewall
+discipline, typed substrate manifests, and evidence-bound behavior is still
+pending measurement. In status terms, the substrate-specific live gate is
+pending. Do not describe the generic pass as substrate awareness.
 
-For repeated use after a trusted full verification, `verify --quick` and
-`run --quick` skip rehashing the large payload but still verify the sealed
-manifest and smaller components. They are convenience modes, not substitutes
-for the full integrity gate after the payload changes or moves.
+## Run the free local coding agent
 
-## Create and gate the hybrid
+Prerequisites are Python 3, the repository's pinned llama.cpp/CUDA runtime,
+the verified model at its manifest path, an NVIDIA driver/CUDA 12.8 runtime,
+and enough free GPU memory. The one-time setup installs the pinned local
+OpenCode client and may require npm network access.
 
-`create-hybrid` writes only the small NHDF manifest and references the existing
-model payload by a workspace-relative path.
-
-```powershell
-nhdf-edge create-hybrid packs\qwen3-30b-a3b-nhdf-v03-iq2m `
-  --model models\Qwen3-30B-A3B-Instruct-2507-IQ2_M\Qwen_Qwen3-30B-A3B-Instruct-2507-IQ2_M.gguf `
-  --runtime tools\llama.cpp-f8dbcd61\bin\llama-completion.exe `
-  --benchmark-runtime tools\llama.cpp-f8dbcd61\bin\llama-bench.exe `
-  --server-runtime tools\llama.cpp-f8dbcd61\bin\llama-server.exe `
-  --runtime-revision f8dbcd61893702976f9ab03be89c2b9f436d532c `
-  --runtime-build-number 10720 `
-  --runtime-argument-profile current-2026 `
-  --specification sources\NHDF_Formal_Specification_v0.3_General_Purpose_CCD_Tom_Klootwijk.pdf `
-  --source-record models\Qwen3-30B-A3B-Instruct-2507-IQ2_M\CONTROL_SOURCE.json `
-  --assurance-evidence metrics\local\gguf_backend_ops.json `
-  --assurance-evidence tools\llama.cpp-f8dbcd61\SOURCE.json `
-  --assurance-evidence tools\llama.cpp-f8dbcd61\LICENSE `
-  --assurance-evidence metrics\local\runtime_optimization_20260831.json `
-  --assurance-evidence metrics\local\coding_benchmark\run-20260831T144501Z\evidence.json
-
-nhdf-edge gate-hybrid packs\qwen3-30b-a3b-nhdf-v03-iq2m `
-  --output packs\qwen3-30b-a3b-nhdf-v03-iq2m\evidence\functional_gate.json
-```
-
-A new hybrid begins as `UNCALIBRATED`. `gate-hybrid` performs fresh integrity,
-functional-output, allocated-8K residency, full-offload, VRAM-reserve, and
-throughput gates. Only a complete pass promotes it to `VALIDATED`; a failure is
-recorded as a failed disposition and launch remains closed.
-
-The supported validation states are:
-
-- `UNCALIBRATED`
-- `QUALITY_FAILED`
-- `RESOURCE_FAILED`
-- `VALIDATED`
-
-The one-shot and resident runtimes verify the sealed artifact, require
-`VALIDATED`, check the target GPU and free-memory contract, use q8 K/V plus
-Flash Attention, and apply the pinned explicit non-thinking Qwen ChatML
-template. The resident runtime additionally refuses an unsealed server
-executable and binds only to the literal IPv4 loopback address. The
-`--allow-unvalidated` option exists only for explicit one-shot research
-experiments; `serve` has no such override.
-
-## What failed in the native-codec research
-
-The legacy `nhdf-edge-0.1` scalar codec is not the codec used by the validated
-hybrid. Its full 9,152,386,624-byte tensor pack loaded and executed on CUDA,
-but generated repeated newline tokens or `10000000`. Its manifest is therefore
-sealed as `QUALITY_FAILED`, and the native loader refuses it by default even
-though all 531 CRC and parity checks pass.
-
-Measured packed-versus-BF16 layer-0 expert errors were:
-
-| Expert | Output NRMSE | Cosine |
-|---:|---:|---:|
-| 0 | 0.4813 | 0.8805 |
-| 17 | 0.4749 | 0.8935 |
-| 127 | 0.4482 | 0.9170 |
-
-A subsequent bounded GEMQ-style 3-bit GPTQ experiment was numerically much
-better on two isolated layer-0 experts:
-
-| Expert | Output NRMSE | Cosine | Improvement over equal-byte RTN |
-|---:|---:|---:|---:|
-| 0 | 0.2542 | 0.9671 | 2.91% |
-| 17 | 0.1859 | 0.9830 | 3.91% |
-
-Those experts passed the absolute distortion thresholds but missed the
-predeclared 20% comparative-advantage requirement. No full checkpoint was
-packed from this replacement experiment. It remains native-codec research,
-not the current functional artifact.
-
-## How v0.3 is used
-
-Tom Klootwijk's *NHDF Formal Specification v0.3, General-Purpose CCD* is not a
-language-model quantization specification and does not make dense weights
-disappear. This project uses its Edge-AI/resource principles as an operational
-substrate:
-
-- SHA-256-sealed local source, codec, runtime, specification, and evidence records;
-- bounded GPU and context allocation;
-- typed capability and validation state;
-- a hash-linked event/evidence chain;
-- measurable quality, memory, and throughput gates;
-- fail-closed execution;
-- a replaceable codec boundary.
-
-CCD collision, time-of-impact, and contact-manifold operators are not
-relabeled as language-model weight operators. The validated claim is about the
-NHDF substrate governing a functional external codec, not about an
-NHDF-native compression advantage.
-
-## Evidence and limitations
-
-Primary evidence is stored in:
-
-- `packs/qwen3-30b-a3b-nhdf-v03-iq2m/NHDF_HYBRID_MANIFEST.json`
-- `packs/qwen3-30b-a3b-nhdf-v03-iq2m/evidence/functional_gate.json`
-- `metrics/local/runtime_optimization_20260831.json`
-- `metrics/local/coding_benchmark/run-20260831T144501Z/evidence.json`
-- `metrics/local/gguf_backend_ops.json`
-- `VALIDATION_STATUS.md`
-
-[`output/pdf/NHDF_Token_Speed_Practical_Meaning.pdf`](output/pdf/NHDF_Token_Speed_Practical_Meaning.pdf)
-translates the measured token rates and latency into practical warm-response
-times. It is a human-readable explanation derived from the evidence above, not
-an additional benchmark.
-
-Established locally:
-
-- exact model, runtime, specification, and evidence hashes;
-- zero-copy payload reference with a sealed path, size, and SHA-256;
-- complete-model functional generation through the NHDF hybrid launch path;
-- 49/49 layer offload and measured fit on the 12,227 MiB GPU;
-- allocated-8K residency with 1,617 MiB measured headroom;
-- fresh three-sample prompt and generation throughput;
-- direct warm resident-server TTFT and executable coding throughput;
-- a bounded six-task, two-repetition first-pass and one-repair coding probe;
-- fail-closed launch for unvalidated, modified, or resource-incompatible
-  artifacts.
-
-Not established:
-
-- broad benchmark or coding accuracy, perplexity, or parity with BF16;
-- quality with an actually filled 8K-token prompt;
-- sustained thermals, power, or long-duration stability;
-- cold-start TTFT (startup-to-listening and warm request TTFT are separate);
-- an NHDF-native tensor-codec advantage;
-- a self-contained or relocatable artifact (the zero-copy manifest is workspace-bound);
-- production suitability outside the measured hardware/runtime scope.
-
-## Install and inspect
+From the repository root:
 
 ```powershell
 python -m pip install -e ".[dev,runtime]"
-python -m pytest -q
-nhdf-edge doctor --config configs\qwen3_30b_a3b_edge12.yaml
+powershell -ExecutionPolicy Bypass -File .\scripts\setup_local_coder.ps1
+nhdf-edge verify .\packs\qwen3-30b-a3b-iq2m-32k-q4kv
 ```
 
-## Repository map
+First trusted interactive launch, with a full payload hash check:
 
-```text
-configs/                  target and native research profiles
-csrc/                     experimental native CUDA decode
-metrics/local/            target-machine evidence
-models/                   exact BF16 source and verified IQ2_M payload
-packs/                    validated hybrid and rejected native pack
-scripts/                  download, calibration, and benchmark tools
-sources/                  supplied NHDF specification lineage and hashes
-src/nhdf_edge/            native and hybrid formats, CLI, gates, and runtimes
-tests/                    semantic, integrity, policy, and loader tests
-tools/                    pinned llama.cpp build 10720 runtime and provenance
+```powershell
+.\scripts\start_local_coder.ps1 -Arguments @(
+  "C:\path\to\your\git-worktree"
+)
 ```
 
-## References
+Routine launch after a trusted full verification:
 
-- Tom Klootwijk, *NHDF Formal Specification v0.3: General-Purpose CCD*,
-  included under `sources/`.
-- Qwen Team, `Qwen/Qwen3-30B-A3B-Instruct-2507`.
-- Bartowski, `Qwen_Qwen3-30B-A3B-Instruct-2507-IQ2_M.gguf`, immutable source
-  revision and hash in `CONTROL_SOURCE.json`.
-- ggml-org, llama.cpp build 10720 at `f8dbcd61893702976f9ab03be89c2b9f436d532c`,
-  MIT license.
-- Deng et al., GEMQ, ICML 2026, MIT implementation.
+```powershell
+.\scripts\start_local_coder.ps1 -Arguments @(
+  "--quick",
+  "C:\path\to\your\git-worktree"
+)
+```
+
+One noninteractive request; `--run` must be last because all remaining values
+are passed to OpenCode:
+
+```powershell
+.\scripts\start_local_coder.ps1 -Arguments @(
+  "--quick",
+  "C:\path\to\your\git-worktree",
+  "--run",
+  "Inspect the repository, explain the failing test, and do not edit yet."
+)
+```
+
+The configured agent asks before edits and ordinary shell commands. It denies
+web access, external directories, plugins, MCP, delegation, commits, pushes,
+and destructive commands. Those controls narrow the intended workflow; they
+are not a substitute for an OS sandbox.
+
+## Verify the substrate, manifests, and report source
+
+Verify the committed kernel, source hashes, and all selectable profiles:
+
+```powershell
+nhdf-edge substrate-verify --repository .
+```
+
+Verify the current zero-copy model artifact and sealed evidence:
+
+```powershell
+nhdf-edge verify .\packs\qwen3-30b-a3b-iq2m-32k-q4kv
+```
+
+Validate an evidence-bound substrate application manifest:
+
+```powershell
+nhdf-edge substrate-validate-app `
+  .\path\to\application-manifest.json `
+  --repository . `
+  --evidence-root .\path\to\evidence
+```
+
+Render the versioned guide, verify expected extractable text with pypdf, write
+a SHA-256 metadata sidecar, and produce Poppler page images for visual QA:
+
+```powershell
+python .\scripts\render_substrate_pdf.py `
+  .\docs\UGTOMS_Local_Substrate_Coding_Agent_Guide_v0.1.md `
+  --output .\output\pdf\UGTOMS_Local_Substrate_Coding_Agent_Guide_v0.1.pdf `
+  --expect "UGTOMS Local Substrate Coding Agent Guide" `
+  --render-pages .\output\pdf\UGTOMS_Local_Substrate_Coding_Agent_Guide_v0.1-pages
+```
+
+## Correct application-proof scope
+
+`substrate/evidence/application_proofs.json` keeps application evidence below
+the kernel authority boundary.
+
+- The `KC3D392` Grove scene is a 21,798-byte explicit packed scene with 66
+  explicit nodes. It is not the 1,024-instance recipe result.
+- The separate 1,024-display-instance recipe is 4,984 bytes versus 162,274
+  bytes for the comparison representation: 32.56x smaller, a 96.93% reduction,
+  with exact prior-prefix stability. Its generated copies are render-only;
+  they do not gain independent ECS, collider, graph, saved-object, or gameplay
+  identity.
+- The `KSGP1` proof reconstructs 328 recorded states with zero mismatch flags,
+  maximum position delta `2.656269518315808e-7 km`, and maximum velocity delta
+  `7.841169468777989e-10 km/s`. It does not place generic SGP4 mathematics in
+  the kernel.
+
+These are bounded packing/reconstruction proofs, not evidence of arbitrary
+semantic compression.
+
+## Historical results retained for comparison
+
+### Superseded 8K deployment profile
+
+The earlier `packs/qwen3-30b-a3b-nhdf-v03-iq2m` artifact remains historical
+evidence, not the current default. It passed 4/4 functional prompts, reported
+49/49 offload, allocated an 8K q8 K/V cache, peaked at 10,610 MiB with 1,617
+MiB headroom, and measured 870.026857 prompt tok/s and 157.141442 short decode
+tok/s. Its controlled 512-prompt/256-generation result was 149.441046 decode
+tok/s; a small resident coding probe measured a 147.139410 tok/s median, 10/12
+first-pass launches, and 12/12 after at most one repair. These 8K results are
+preserved for comparison and must not be presented as the current gate.
+
+### Failed native-codec research
+
+The legacy native scalar pack contains 9,152,386,624 tensor-file bytes. It
+loaded and executed on CUDA and passed all 531 CRC/parity checks, but generated
+repeated newlines or `10000000`. It remains `QUALITY_FAILED` and is refused by
+default. A later two-expert GEMQ-style probe improved numerical error but
+missed its declared 20% comparative-advantage threshold and was not expanded
+to a full checkpoint. The working deployment therefore remains explicitly on
+the external GGUF/IQ2_M codec boundary.
+
+## Evidence boundary
+
+Established on the named laptop and pinned runtime:
+
+- verified UGTOMS kernel/profile source records and no automatic promotion;
+- a complete-model 32K/q4 artifact with 49/49 offload and measured headroom;
+- four bounded functional outputs and fresh short throughput;
+- actual 32,768-token server exposure, 21,997-token retrieval, native tool-call
+  JSON, and one isolated repair with independent tests;
+- fail-closed artifact and resource checks.
+
+Not established:
+
+- an NHDF-native tensor-codec advantage;
+- filled-32K quality, validated 48K operation, or broad q4 K/V quality parity;
+- broad coding accuracy, BF16 parity, or hosted-frontier-agent parity;
+- a passing live substrate-specific agent gate;
+- preventive sandboxing, production security, sustained thermals, or
+  long-duration stability;
+- a self-contained artifact: the large payload remains a workspace-relative
+  external file.
+
+See `VALIDATION_STATUS.md` for the evidence disposition and
+`docs/UGTOMS_Local_Substrate_Coding_Agent_Guide_v0.1.md` for the detailed
+architecture and operational guide.

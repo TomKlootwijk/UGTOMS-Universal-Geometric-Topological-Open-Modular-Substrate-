@@ -1,0 +1,105 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "local-runtime/local-qwen3-30b-a3b",
+  "small_model": "local-runtime/local-qwen3-30b-a3b",
+  "default_agent": "local-coder",
+  "subagent_depth": 0,
+  "share": "disabled",
+  "autoupdate": false,
+  "enabled_providers": [
+    "local-runtime"
+  ],
+  "provider": {
+    "local-runtime": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Qwen3 30B-A3B local runtime",
+      "options": {
+        "baseURL": "{env:UGTOMS_LOCAL_CODER_BASE_URL}/v1"
+      },
+      "models": {
+        "local-qwen3-30b-a3b": {
+          "name": "Qwen3 30B-A3B local",
+          "tool_call": true,
+          "limit": {
+            "context": 32768,
+            "output": 4096
+          }
+        }
+      }
+    }
+  },
+  "agent": {
+    "local-coder": {
+      "description": "A careful, local-only general-purpose coding agent.",
+      "mode": "primary",
+      "model": "local-runtime/local-qwen3-30b-a3b",
+      "temperature": 0,
+      "prompt": "Work as a careful local-only general-purpose coding agent. Inspect the selected Git repository, make scoped edits, run focused local checks, and report measured results and uncertainty. The digest-verified UGTOMS contract installed in global AGENTS.md is mandatory for substrate work. Never use network services, external directories, destructive actions, task delegation, commits, pushes, or external systems.",
+      "permission": {
+        "task": "deny"
+      }
+    },
+    "build": {
+      "disable": true
+    },
+    "plan": {
+      "disable": true
+    },
+    "general": {
+      "disable": true
+    },
+    "explore": {
+      "disable": true
+    }
+  },
+  "permission": {
+    "*": "deny",
+    "read": "allow",
+    "glob": "allow",
+    "grep": "allow",
+    "list": "allow",
+    "lsp": "allow",
+    "todowrite": "allow",
+    "question": "allow",
+    "edit": "ask",
+    "bash": {
+      "*": "ask",
+      "git commit*": "deny",
+      "git * commit*": "deny",
+      "git push*": "deny",
+      "git * push*": "deny",
+      "git reset --hard*": "deny",
+      "git * reset --hard*": "deny",
+      "git clean*": "deny",
+      "git * clean*": "deny",
+      "git checkout -- *": "deny",
+      "git * checkout -- *": "deny",
+      "git restore*": "deny",
+      "git * restore*": "deny",
+      "git branch -D*": "deny",
+      "git * branch -D*": "deny",
+      "rm *": "deny",
+      "rmdir *": "deny",
+      "rd *": "deny",
+      "del *": "deny",
+      "erase *": "deny",
+      "Remove-Item *": "deny",
+      "remove-item *": "deny",
+      "format *": "deny",
+      "diskpart *": "deny"
+    },
+    "task": "deny",
+    "external_directory": "deny",
+    "webfetch": "deny",
+    "websearch": "deny",
+    "skill": "deny"
+  },
+  "compaction": {
+    "auto": true,
+    "prune": true,
+    "reserved": 2048
+  },
+  "formatter": false,
+  "mcp": {},
+  "plugin": []
+}
