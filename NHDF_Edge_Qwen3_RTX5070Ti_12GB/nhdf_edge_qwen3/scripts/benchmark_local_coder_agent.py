@@ -607,8 +607,9 @@ def _load_pinned_config(path: str | Path) -> tuple[Path, bytes, dict[str, Any]]:
     """Reuse the launcher's digest and schema check for the benchmark input."""
 
     try:
-        resolved = _LAUNCHER.validate_config(Path(path))
-        raw = resolved.read_bytes()
+        validated = _LAUNCHER.validate_config(Path(path))
+        resolved = Path(validated.path)
+        raw = bytes(validated.raw)
         value = json.loads(raw.decode("utf-8"))
     except (_LAUNCHER.LocalCoderError, OSError, UnicodeError, json.JSONDecodeError) as exc:
         raise GateError(f"benchmark requires the pinned launcher config: {exc}") from exc

@@ -128,7 +128,20 @@ def _profile(
         },
         "resource_bounds": ["finite state", "finite branches"],
         "failure_modes": ["invalid typed input", "resource bound exceeded"],
-        "evidence_requirements": ["reference vectors", "bounded replay trace"],
+        "evidence_requirements": [
+            {
+                "id": "reference-vectors",
+                "claim": "The selected profile has deterministic reference vectors.",
+                "method": "Replay the bounded fixture.",
+                "pass_condition": "The sealed proof inventory marks the replay passed.",
+            },
+            {
+                "id": "bounded-replay-trace",
+                "claim": "The selected profile stays within the fixture bounds.",
+                "method": "Record the bounded fixture trace.",
+                "pass_condition": "The sealed proof inventory marks the trace passed.",
+            },
+        ],
         "source_records": [] if source_record is None else [source_record],
     }
 
@@ -177,31 +190,15 @@ def _contract_repository(tmp_path: Path, *, provisional_sclp: bool = False) -> P
             "quality": ["uncertainty_interval", "resource_status", "failure_status"],
         },
         "symbol_firewall": [
-            {
-                "symbols": ["linear_time", "phase"],
-                "rule": "Linear time and wrapped phase are distinct.",
-            }
+            {"symbols": list(symbols), "rule": rule}
+            for symbols, rule in contracts.REQUIRED_SYMBOL_FIREWALL
         ],
         "definition_graph": {
-            "node_fields": [
-                "id",
-                "kind",
-                "domain",
-                "codomain",
-                "dependencies",
-                "evaluation_phase",
-                "equation_or_algorithm",
-                "units",
-                "bounds",
-                "failure_modes",
-                "provenance",
-                "content_hash",
-            ],
-            "same_generation": "A content-addressed acyclic typed graph.",
-            "instance_rule": "Instances reference definitions; coordinates are not identity.",
-            "pipeline_rule": "Execution order is explicit and topologically resolved.",
-            "self_reference_rule": "Feedback enters the next generation through an explicit edge.",
-            "unproven_claim": "Unrestricted fixed points are not implemented.",
+            "node_fields": list(contracts.REQUIRED_DEFINITION_NODE_FIELDS),
+            "instance_fields": list(contracts.REQUIRED_DEFINITION_INSTANCE_FIELDS),
+            "pipeline_fields": list(contracts.REQUIRED_PIPELINE_FIELDS),
+            "feedback_fields": list(contracts.REQUIRED_FEEDBACK_FIELDS),
+            **dict(contracts.REQUIRED_DEFINITION_GRAPH_INVARIANTS),
         },
         "composed_execution": list(contracts.COMPOSED_EXECUTION),
         "canonical_chain": [
@@ -211,7 +208,11 @@ def _contract_repository(tmp_path: Path, *, provisional_sclp: bool = False) -> P
         "mappings": {
             category: {
                 "required": list(contracts.KERNEL_MAPPING_REQUIREMENTS[category]),
-                "rule": f"Explicit bounded {category} semantics.",
+                "rule": (
+                    contracts.REQUIRED_SELF_REFERENCE_MAPPING_RULE
+                    if category == "self_reference"
+                    else f"Explicit bounded {category} semantics."
+                ),
             }
             for category in contracts.MAPPING_CATEGORIES
         },
@@ -298,20 +299,49 @@ def _contract_repository(tmp_path: Path, *, provisional_sclp: bool = False) -> P
     return root
 
 
-def _application_evidence(root: Path) -> dict[str, object]:
-    evidence_path = root / "evidence" / "application-test.txt"
+def _application_evidence(
+    root: Path, *, selected_profiles: tuple[str, ...]
+) -> dict[str, object]:
+    evidence_path = root / "evidence" / "application-test.json"
     evidence_path.parent.mkdir(parents=True, exist_ok=True)
-    evidence_path.write_text("reference replay passed\n", encoding="utf-8")
-    return _sealed_record(
+    proof_inventory = {
+        profile_id: {
+            requirement_id: {
+                "profile_id": profile_id,
+                "requirement_id": requirement_id,
+                "passed": True,
+                "evidence_paths": ["/replay/passed"],
+            }
+            for requirement_id in ("reference-vectors", "bounded-replay-trace")
+        }
+        for profile_id in selected_profiles
+    }
+    _write_json(
+        evidence_path,
+        {"proof_inventory": proof_inventory, "replay": {"passed": True}},
+    )
+    record = _sealed_record(
         root,
         evidence_path,
         record_id="application-evidence",
         role="TEST",
         title="Bounded application replay",
     )
+    record["claim_coverage"] = [
+        {
+            "profile_id": profile_id,
+            "requirement_id": requirement_id,
+            "proof_pointer": f"/proof_inventory/{profile_id}/{requirement_id}",
+        }
+        for profile_id in selected_profiles
+        for requirement_id in ("reference-vectors", "bounded-replay-trace")
+    ]
+    return record
 
 
-def _application_fields(root: Path) -> dict[str, object]:
+def _application_fields(
+    root: Path, *, selected_profiles: tuple[str, ...] = ()
+) -> dict[str, object]:
     return {
         "mappings": _mappings(
             "application",
@@ -320,7 +350,9 @@ def _application_fields(root: Path) -> dict[str, object]:
         ),
         "resource_bounds": _bounds("application"),
         "failure_modes": _failures("application"),
-        "evidence": [_application_evidence(root)],
+        "evidence": [
+            _application_evidence(root, selected_profiles=selected_profiles)
+        ],
     }
 
 
@@ -401,6 +433,58 @@ def test_external_provenance_is_registered_but_never_treated_as_redistributed(
             lambda kernel: kernel["identity"].__setitem__("not_a_renderer", False),
             "not_a_renderer",
         ),
+        (
+            lambda kernel: kernel["policy"].__setitem__("same_generation_cycles", True),
+            "same_generation_cycles",
+        ),
+        (
+            lambda kernel: kernel["policy"].__setitem__(
+                "learned_semantics_may_only_rank_or_propose", False
+            ),
+            "learned_semantics_may_only_rank_or_propose",
+        ),
+        (
+            lambda kernel: kernel["symbol_firewall"][0].__setitem__(
+                "symbols", ["t", "X"]
+            ),
+            "symbol_firewall",
+        ),
+        (
+            lambda kernel: kernel["definition_graph"].__setitem__(
+                "same_generation", "same-generation cycles are permitted"
+            ),
+            "same_generation",
+        ),
+        (
+            lambda kernel: kernel["definition_graph"].__setitem__(
+                "self_reference_rule", "generated output may rewrite its own authority"
+            ),
+            "self_reference_rule",
+        ),
+        (
+            lambda kernel: kernel["definition_graph"].__setitem__(
+                "unproven_claim", "unrestricted fixed points are proven"
+            ),
+            "unproven_claim",
+        ),
+        (
+            lambda kernel: kernel["definition_graph"]["node_fields"].remove(
+                "dependency_hashes"
+            ),
+            "hardened v2 fields",
+        ),
+        (
+            lambda kernel: kernel["definition_graph"]["feedback_fields"].remove(
+                "source_hash"
+            ),
+            "hardened v2 fields",
+        ),
+        (
+            lambda kernel: kernel["mappings"]["self_reference"].__setitem__(
+                "rule", "self-promotion is permitted"
+            ),
+            "self-authority",
+        ),
     ],
 )
 def test_kernel_architecture_invariants_fail_closed(tmp_path: Path, mutation, match: str) -> None:
@@ -427,11 +511,13 @@ def test_application_manifest_binds_profiles_mappings_evidence_and_self_referenc
     tmp_path: Path,
 ) -> None:
     root = _contract_repository(tmp_path)
-    fields = _application_fields(root)
+    fields = _application_fields(
+        root, selected_profiles=("nhdf-v0.1", "sclp-foundational")
+    )
     self_reference = {
         "enabled": True,
         "bounded_generations": 2,
-        "may_propose_extensions": True,
+        "may_propose_extensions": False,
         "may_promote_extensions": False,
         "proposal_disposition": "QUARANTINED",
     }
@@ -450,7 +536,9 @@ def test_application_manifest_binds_profiles_mappings_evidence_and_self_referenc
     assert result["ok"] is True
     assert result["selected_profiles"] == ["nhdf-v0.1", "sclp-foundational"]
     assert result["mapping_count"] == len(contracts.MAPPING_CATEGORIES)
+    assert result["profile_requirement_count"] == 4
     assert result["self_reference_enabled"] is True
+    assert manifest["self_reference"]["may_propose_extensions"] is False
     assert manifest["self_reference"]["may_promote_extensions"] is False
 
 
@@ -458,7 +546,7 @@ def test_application_rejects_unbound_profile_missing_mapping_and_stale_evidence(
     tmp_path: Path,
 ) -> None:
     root = _contract_repository(tmp_path)
-    fields = _application_fields(root)
+    fields = _application_fields(root, selected_profiles=("nhdf-v0.1",))
     manifest = contracts.create_application_manifest(
         "bounded-demo",
         "1",
@@ -478,8 +566,58 @@ def test_application_rejects_unbound_profile_missing_mapping_and_stale_evidence(
     with pytest.raises(contracts.SubstrateContractError, match="missing required keys"):
         contracts.validate_application_manifest(missing_mapping, repository_root=root)
 
-    (root / "evidence" / "application-test.txt").write_text("changed\n", encoding="utf-8")
+    (root / "evidence" / "application-test.json").write_text("{}\n", encoding="utf-8")
     with pytest.raises(contracts.SubstrateContractError, match="mismatch"):
+        contracts.validate_application_manifest(manifest, repository_root=root)
+
+
+@pytest.mark.parametrize(
+    ("mutation", "match"),
+    [
+        ("missing", "missing selected-profile evidence coverage"),
+        ("unknown", "unknown requirement"),
+        ("wrong-profile", "wrong-profile coverage"),
+        ("duplicate", "duplicate coverage"),
+        ("contradiction", "contradicts the coverage profile_id"),
+        ("failed-proof", "must be true for declared claim coverage"),
+    ],
+)
+def test_selected_profile_claim_coverage_fails_closed(
+    tmp_path: Path, mutation: str, match: str
+) -> None:
+    root = _contract_repository(tmp_path)
+    fields = _application_fields(root, selected_profiles=("nhdf-v0.1",))
+    manifest = contracts.create_application_manifest(
+        "coverage-demo",
+        "1",
+        repository_root=root,
+        selected_profiles=("nhdf-v0.1",),
+        profile_selection_rationale="The NHDF v0.1 claims are covered explicitly.",
+        **fields,
+    )
+    coverage = manifest["evidence"][0]["claim_coverage"]
+    assert isinstance(coverage, list)
+    if mutation == "missing":
+        coverage.pop()
+    elif mutation == "unknown":
+        coverage[0]["requirement_id"] = "unknown-requirement"
+    elif mutation == "wrong-profile":
+        coverage[0]["profile_id"] = "nhdf-v0.3-ccd"
+    elif mutation == "duplicate":
+        coverage.append(copy.deepcopy(coverage[0]))
+    else:
+        evidence_path = root / "evidence" / "application-test.json"
+        document = json.loads(evidence_path.read_text(encoding="utf-8"))
+        proof = document["proof_inventory"]["nhdf-v0.1"]["reference-vectors"]
+        if mutation == "contradiction":
+            proof["profile_id"] = "sclp-foundational"
+        else:
+            proof["passed"] = False
+        _write_json(evidence_path, document)
+        manifest["evidence"][0]["bytes"] = evidence_path.stat().st_size
+        manifest["evidence"][0]["sha256"] = contracts.sha256_file(evidence_path)
+
+    with pytest.raises(contracts.SubstrateContractError, match=match):
         contracts.validate_application_manifest(manifest, repository_root=root)
 
 
@@ -510,7 +648,7 @@ def test_provisional_profile_is_verified_but_cannot_be_selected(tmp_path: Path) 
     root = _contract_repository(tmp_path, provisional_sclp=True)
     bundle = contracts.load_contract_bundle(root)
     assert "sclp-foundational" in bundle.profiles
-    fields = _application_fields(root)
+    fields = _application_fields(root, selected_profiles=("sclp-foundational",))
 
     with pytest.raises(contracts.SubstrateContractError, match="provisional"):
         contracts.create_application_manifest(
@@ -572,6 +710,11 @@ def test_self_referential_extension_stays_quarantined_and_cannot_promote(
     with pytest.raises(contracts.SubstrateContractError, match="cannot promote"):
         contracts.validate_extension_proposal(self_promoting, repository_root=root)
 
+    feedback_only = copy.deepcopy(proposal)
+    feedback_only["self_reference"]["may_propose_extensions"] = False
+    with pytest.raises(contracts.SubstrateContractError, match="extension-proposal permission"):
+        contracts.validate_extension_proposal(feedback_only, repository_root=root)
+
 
 def test_unknown_contract_fields_require_a_format_bump(tmp_path: Path) -> None:
     root = _contract_repository(tmp_path)
@@ -580,3 +723,39 @@ def test_unknown_contract_fields_require_a_format_bump(tmp_path: Path) -> None:
 
     with pytest.raises(contracts.SubstrateContractError, match="unknown keys"):
         contracts.validate_kernel_contract(kernel, repository_root=root)
+
+
+@pytest.mark.parametrize(
+    ("payload", "match"),
+    [
+        ('{"format":"a","format":"b"}', "duplicate object key"),
+        ('{"value":NaN}', "non-finite"),
+        ('{"value":1e999}', "non-finite"),
+        ('{"e\\u0301":1,"é":2}', "duplicate object key after NFC"),
+    ],
+)
+def test_contract_json_loader_rejects_ambiguous_or_nonfinite_input(
+    tmp_path: Path, payload: str, match: str
+) -> None:
+    path = tmp_path / "strict.json"
+    path.write_text(payload, encoding="utf-8")
+
+    with pytest.raises(contracts.SubstrateContractError, match=match):
+        contracts._load_json(path, "fixture")
+
+
+def test_contract_canonical_json_normalizes_nfc_and_negative_zero() -> None:
+    decomposed = {"label": "Cafe\u0301", "zero": -0.0}
+    composed = {"label": "Café", "zero": 0.0}
+
+    assert contracts.canonical_json_bytes(decomposed) == contracts.canonical_json_bytes(
+        composed
+    )
+    assert contracts.canonical_json_bytes(decomposed) == (
+        '{"label":"Café","zero":0.0}'.encode("utf-8")
+    )
+
+    with pytest.raises(contracts.SubstrateContractError, match="non-finite"):
+        contracts.canonical_json_bytes({"value": float("nan")})
+    with pytest.raises(contracts.SubstrateContractError, match="duplicate object key after NFC"):
+        contracts.canonical_json_bytes({"e\u0301": 1, "é": 2})

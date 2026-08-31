@@ -9,9 +9,10 @@ import json
 import os
 import subprocess
 import sys
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Sequence
+from typing import Any, Callable, Mapping, Sequence
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -20,15 +21,23 @@ if str(SOURCE_ROOT) not in sys.path:
     sys.path.insert(0, str(SOURCE_ROOT))
 
 from nhdf_edge import hybrid  # noqa: E402
-from nhdf_edge.server import DEFAULT_PORT, HybridServer  # noqa: E402
+from nhdf_edge.server import (  # noqa: E402
+    DEFAULT_PORT,
+    ApprovedArtifactFile,
+    ArtifactApproval,
+    HybridServer,
+)
 
 
 PINNED_OPENCODE_VERSION = "1.18.25"
+EXPECTED_OPENCODE_SHA256 = (
+    "ef06e41a35795066e95acde276a42fbbf85d7a683c2787f6a19ed20bcde9b6ff"
+)
 DEFAULT_ARTIFACT = PROJECT_ROOT / "packs" / "qwen3-30b-a3b-iq2m-32k-q4kv"
 DEFAULT_CONFIG = PROJECT_ROOT / "configs" / "opencode_nhdf_local.json"
 SUBSTRATE_CONTRACT = PROJECT_ROOT / "substrate" / "AGENT_CONTRACT.md"
 EXPECTED_CONFIG_SHA256 = "66a6e5adcc98fc80921bc4e0386f341c80a4f824597e26309b8499344f440ab1"
-EXPECTED_CONTRACT_SHA256 = "ad3fc7963c5ab4f222892816a73078458e4d7714cede8a960fb1dcf37df28b40"
+EXPECTED_CONTRACT_SHA256 = "54bbf57e0b26154df0c417c909dc756bdfbfad3df74622dc456f94d0f46a0035"
 REQUIRED_CONTEXT_TOKENS = 32_768
 REQUIRED_KV_CACHE = "q4_0"
 CANONICAL_AGENT_PROMPT = (
@@ -48,6 +57,138 @@ OPENCODE_EXE = (
 )
 LOCAL_STATE_ROOT = PROJECT_ROOT / ".local-coder" / "state"
 MODEL_ID = "local-runtime/local-qwen3-30b-a3b"
+CANONICAL_PAYLOAD_PATH = (
+    "models/Qwen3-30B-A3B-Instruct-2507-IQ2_M/"
+    "Qwen_Qwen3-30B-A3B-Instruct-2507-IQ2_M.gguf"
+)
+CANONICAL_SOURCE_RECORD_PATH = (
+    "models/Qwen3-30B-A3B-Instruct-2507-IQ2_M/CONTROL_SOURCE.json"
+)
+CANONICAL_RUNTIME_ENTRYPOINT = (
+    "tools/llama.cpp-f8dbcd61/bin/llama-completion.exe"
+)
+CANONICAL_BENCHMARK_ENTRYPOINT = (
+    "tools/llama.cpp-f8dbcd61/bin/llama-bench.exe"
+)
+CANONICAL_SERVER_ENTRYPOINT = "tools/llama.cpp-f8dbcd61/bin/llama-server.exe"
+CANONICAL_SPECIFICATION_PATH = "substrate/kernel/contract.json"
+CANONICAL_ASSURANCE_PATHS = (
+    "substrate/profiles/registry.json",
+    "substrate/evidence/application_proofs.json",
+    "substrate/AGENT_CONTRACT.md",
+)
+CANONICAL_VALIDATION_EVIDENCE_PATH = (
+    "packs/qwen3-30b-a3b-iq2m-32k-q4kv/evidence/functional_gate.json"
+)
+CANONICAL_VALIDATION_SNAPSHOT_PATH = (
+    "metrics/local/ugtoms_local_agent_32k/functional_gate.json"
+)
+EXPECTED_VALIDATION_EVIDENCE_BYTES = 33_248
+EXPECTED_VALIDATION_EVIDENCE_SHA256 = (
+    "c56f79acf80f73773e80325bb3c865dc5b949c55abcdeefbf01f4fda1677baeb"
+)
+CANONICAL_RUNTIME_PATHS = (
+    CANONICAL_RUNTIME_ENTRYPOINT,
+    CANONICAL_BENCHMARK_ENTRYPOINT,
+    CANONICAL_SERVER_ENTRYPOINT,
+    "tools/llama.cpp-f8dbcd61/bin/ggml-base.dll",
+    "tools/llama.cpp-f8dbcd61/bin/ggml-cpu.dll",
+    "tools/llama.cpp-f8dbcd61/bin/ggml-cuda.dll",
+    "tools/llama.cpp-f8dbcd61/bin/ggml.dll",
+    "tools/llama.cpp-f8dbcd61/bin/llama-bench-impl.dll",
+    "tools/llama.cpp-f8dbcd61/bin/llama-cli-impl.dll",
+    "tools/llama.cpp-f8dbcd61/bin/llama-common.dll",
+    "tools/llama.cpp-f8dbcd61/bin/llama-completion-impl.dll",
+    "tools/llama.cpp-f8dbcd61/bin/llama-server-impl.dll",
+    "tools/llama.cpp-f8dbcd61/bin/llama.dll",
+    "tools/llama.cpp-f8dbcd61/bin/mtmd.dll",
+)
+CANONICAL_REFERENCE_RECORDS: Mapping[str, tuple[int, str]] = {
+    CANONICAL_PAYLOAD_PATH: (
+        9_870_270_464,
+        "f2dc78edd3ec0171904f1945d8c05a948131b1103172b1710b763db2eb65f52a",
+    ),
+    CANONICAL_SOURCE_RECORD_PATH: (
+        948,
+        "9b184e403b591bd4fc9a6adc176ff47bbe0f372cd529168dc999fa09b4f6543a",
+    ),
+    CANONICAL_SPECIFICATION_PATH: (
+        10_187,
+        "9b5fa7cff4483129e80e1c234055d57e0f79a574dcd2e131c418bbe0259448c3",
+    ),
+    "substrate/profiles/registry.json": (
+        1_003,
+        "aa1d788808ebd624dcff435538cd4e63f13004bf84101956ffe4119f14b14152",
+    ),
+    "substrate/evidence/application_proofs.json": (
+        4_856,
+        "94f815f5b3e28592077e13005dbfd9d1c5cdb22253ca6a3d0f1273511817de44",
+    ),
+    "substrate/AGENT_CONTRACT.md": (
+        9_796,
+        EXPECTED_CONTRACT_SHA256,
+    ),
+    CANONICAL_VALIDATION_EVIDENCE_PATH: (
+        EXPECTED_VALIDATION_EVIDENCE_BYTES,
+        EXPECTED_VALIDATION_EVIDENCE_SHA256,
+    ),
+    CANONICAL_RUNTIME_ENTRYPOINT: (
+        10_752,
+        "d687544bc1e82d3fc18e4da0d64dc5a94f08e8a8bd358bc96a3243d00df38f31",
+    ),
+    CANONICAL_BENCHMARK_ENTRYPOINT: (
+        10_752,
+        "48b29766bdb58bbec86804589decf2b12049a3eb8ca62899a57d063cb989280a",
+    ),
+    CANONICAL_SERVER_ENTRYPOINT: (
+        10_752,
+        "3f1041dcc2e797a05b80324e0b04a20021cd14fba272f6e2945d16b2ead2364c",
+    ),
+    "tools/llama.cpp-f8dbcd61/bin/ggml-base.dll": (
+        671_744,
+        "5debdf44b6a8a30cbc9e733b41712bac29b9dbc68c94b6f9ecfde9a5cce82acb",
+    ),
+    "tools/llama.cpp-f8dbcd61/bin/ggml-cpu.dll": (
+        907_264,
+        "9230df69ab901f24fd6742949bf04c8f725bebacae189aac54d349c773c7ad1d",
+    ),
+    "tools/llama.cpp-f8dbcd61/bin/ggml-cuda.dll": (
+        52_752_896,
+        "734b80b60afeb373e91ad876f03698a713324102c63f0e755a417d56147e4536",
+    ),
+    "tools/llama.cpp-f8dbcd61/bin/ggml.dll": (
+        67_072,
+        "bfa741c63302c8051b80a717749ca796c2e65d8ae6267b776d512391b51f1cf9",
+    ),
+    "tools/llama.cpp-f8dbcd61/bin/llama-bench-impl.dll": (
+        904_704,
+        "08d8e3a0a03e4d4d3d48c6315385ee312653109c575e9c0ef11cf466838243ac",
+    ),
+    "tools/llama.cpp-f8dbcd61/bin/llama-cli-impl.dll": (
+        873_472,
+        "25cc56a47561d5c153731a6f783b512fac3c9cb0222a70321d06c9cbc31bde64",
+    ),
+    "tools/llama.cpp-f8dbcd61/bin/llama-common.dll": (
+        8_201_216,
+        "4ed30d4d551f42c4b5f8dc761a06172402922bab01e2fce03d34f489d6a65cf8",
+    ),
+    "tools/llama.cpp-f8dbcd61/bin/llama-completion-impl.dll": (
+        247_808,
+        "a2539189c876a5f31afa4066650476b31800f0bdb494ed527808e396ce3777b5",
+    ),
+    "tools/llama.cpp-f8dbcd61/bin/llama-server-impl.dll": (
+        13_089_280,
+        "666adac5159f65338a897a1bb3e404ab207796f6653f25ee24fb1ee4220876a2",
+    ),
+    "tools/llama.cpp-f8dbcd61/bin/llama.dll": (
+        2_567_680,
+        "216dc4e66b6505766f531d1539d87f6a66d018cdb82d5955c65cc130b19c916d",
+    ),
+    "tools/llama.cpp-f8dbcd61/bin/mtmd.dll": (
+        2_377_728,
+        "b816fd936992b81e3ce29a170ad4983cbf7d6db3ea71ebb55119e3c6c1c3224b",
+    ),
+}
 FORBIDDEN_RUN_OPTIONS = frozenset(
     {
         "--agent",
@@ -84,8 +225,38 @@ class LaunchOptions:
     run_args: tuple[str, ...] | None
 
 
+@dataclass(frozen=True)
+class ValidatedConfig:
+    """The exact pinned config bytes parsed during validation."""
+
+    path: Path
+    raw: bytes
+    sha256: str
+
+
+@dataclass(frozen=True)
+class ValidatedAgentArtifact:
+    """A validated manifest snapshot plus its external server trust anchor."""
+
+    artifact: Path
+    manifest: Mapping[str, Any]
+    manifest_sha256: str
+    server_approval: ArtifactApproval
+
+
 def _sha256_bytes(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
+
+
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    try:
+        with path.open("rb") as handle:
+            for block in iter(lambda: handle.read(1024 * 1024), b""):
+                digest.update(block)
+    except OSError as exc:
+        raise LocalCoderError(f"could not hash {path}: {exc}") from exc
+    return digest.hexdigest()
 
 
 def _read_pinned_file(path: Path, expected_sha256: str, label: str) -> bytes:
@@ -102,6 +273,82 @@ def _read_pinned_file(path: Path, expected_sha256: str, label: str) -> bytes:
     return data
 
 
+def _is_reparse_point(path: Path) -> bool:
+    try:
+        attributes = int(getattr(path.lstat(), "st_file_attributes", 0))
+    except OSError as exc:
+        raise LocalCoderError(f"could not inspect local state path {path}: {exc}") from exc
+    return path.is_symlink() or bool(attributes & 0x400)
+
+
+def _ensure_safe_project_directory(path: Path) -> Path:
+    """Create a directory below the project without traversing reparse points."""
+
+    try:
+        project_root = PROJECT_ROOT.resolve(strict=True)
+    except OSError as exc:
+        raise LocalCoderError(f"project root does not resolve: {exc}") from exc
+    candidate = Path(os.path.abspath(path))
+    try:
+        relative = candidate.relative_to(project_root)
+    except ValueError as exc:
+        raise LocalCoderError(
+            f"local-coder state path must remain inside the project: {candidate}"
+        ) from exc
+    current = project_root
+    for component in relative.parts:
+        current = current / component
+        if current.exists() or current.is_symlink():
+            if _is_reparse_point(current):
+                raise LocalCoderError(
+                    f"local-coder state path traverses a symlink/reparse point: {current}"
+                )
+            if not current.is_dir():
+                raise LocalCoderError(
+                    f"local-coder state path component is not a directory: {current}"
+                )
+        else:
+            try:
+                current.mkdir()
+            except OSError as exc:
+                raise LocalCoderError(
+                    f"could not create local-coder state directory {current}: {exc}"
+                ) from exc
+        try:
+            resolved = current.resolve(strict=True)
+        except OSError as exc:
+            raise LocalCoderError(f"local-coder state path does not resolve: {exc}") from exc
+        if _is_reparse_point(current) or not _within(resolved, project_root):
+            raise LocalCoderError(
+                f"local-coder state path escaped the project: {current}"
+            )
+    return current
+
+
+def _atomic_write_local(path: Path, data: bytes) -> None:
+    directory = _ensure_safe_project_directory(path.parent)
+    descriptor, temporary_text = tempfile.mkstemp(
+        prefix=f".{path.name}.", suffix=".tmp", dir=directory
+    )
+    temporary = Path(temporary_text)
+    try:
+        with os.fdopen(descriptor, "wb") as handle:
+            handle.write(data)
+            handle.flush()
+            os.fsync(handle.fileno())
+        if _is_reparse_point(directory):
+            raise LocalCoderError(
+                f"local-coder destination became a reparse point: {directory}"
+            )
+        os.replace(temporary, path)
+    except BaseException:
+        try:
+            temporary.unlink(missing_ok=True)
+        except OSError:
+            pass
+        raise
+
+
 def install_substrate_contract(xdg_config_home: Path) -> Path:
     """Install the exact tracked contract into isolated global OpenCode rules."""
 
@@ -109,20 +356,11 @@ def install_substrate_contract(xdg_config_home: Path) -> Path:
         SUBSTRATE_CONTRACT, EXPECTED_CONTRACT_SHA256, "substrate contract"
     )
     destination_directory = xdg_config_home / "opencode"
-    destination_directory.mkdir(parents=True, exist_ok=True)
+    _ensure_safe_project_directory(destination_directory)
     destination = destination_directory / "AGENTS.md"
-    temporary = destination_directory / f".AGENTS.md.{os.getpid()}.tmp"
     try:
-        with temporary.open("wb") as handle:
-            handle.write(data)
-            handle.flush()
-            os.fsync(handle.fileno())
-        os.replace(temporary, destination)
+        _atomic_write_local(destination, data)
     except OSError as exc:
-        try:
-            temporary.unlink(missing_ok=True)
-        except OSError:
-            pass
         raise LocalCoderError(f"could not install isolated substrate contract: {exc}") from exc
     if _sha256_bytes(destination.read_bytes()) != EXPECTED_CONTRACT_SHA256:
         raise LocalCoderError("installed substrate contract failed its post-write digest check")
@@ -157,7 +395,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--quick",
         action="store_true",
-        help="skip the large model-payload rehash for a routine daily launch",
+        help="compatibility flag; strict final payload verification remains mandatory",
     )
     parser.add_argument(
         "--startup-timeout",
@@ -245,13 +483,33 @@ def validate_git_target(target: Path) -> tuple[Path, Path]:
 
 
 def validate_local_install(executable: Path) -> None:
-    if not executable.is_file():
+    try:
+        project_root = PROJECT_ROOT.resolve(strict=True)
+        expected = OPENCODE_EXE.resolve(strict=True)
+        resolved = executable.resolve(strict=True)
+    except OSError as exc:
+        raise LocalCoderError(
+            "project-local OpenCode is not installed; run scripts/setup_local_coder.ps1"
+        ) from exc
+    if not _within(expected, project_root):
+        raise LocalCoderError("project-local OpenCode resolves outside the project repository")
+    if resolved != expected:
+        raise LocalCoderError(
+            f"only the canonical project-local OpenCode executable is permitted: {expected}"
+        )
+    if not resolved.is_file():
         raise LocalCoderError(
             "project-local OpenCode is not installed; run scripts/setup_local_coder.ps1"
         )
+    actual_digest = _sha256_file(resolved)
+    if actual_digest != EXPECTED_OPENCODE_SHA256:
+        raise LocalCoderError(
+            "project-local OpenCode executable digest mismatch: "
+            f"expected {EXPECTED_OPENCODE_SHA256}, got {actual_digest}"
+        )
     try:
         result = subprocess.run(
-            [str(executable), "--version"],
+            [str(resolved), "--version"],
             check=False,
             capture_output=True,
             text=True,
@@ -265,9 +523,12 @@ def validate_local_install(executable: Path) -> None:
         raise LocalCoderError(
             f"OpenCode {PINNED_OPENCODE_VERSION} is required; found {version or 'unknown'}"
         )
+    post_run_digest = _sha256_file(resolved)
+    if post_run_digest != EXPECTED_OPENCODE_SHA256:
+        raise LocalCoderError("project-local OpenCode executable changed during validation")
 
 
-def validate_config(config_path: Path) -> Path:
+def validate_config(config_path: Path) -> ValidatedConfig:
     try:
         resolved = config_path.resolve(strict=True)
         raw = resolved.read_bytes()
@@ -285,7 +546,7 @@ def validate_config(config_path: Path) -> Path:
         expected_base_url="{env:UGTOMS_LOCAL_CODER_BASE_URL}/v1",
         source_config=True,
     )
-    return resolved
+    return ValidatedConfig(path=resolved, raw=raw, sha256=actual_digest)
 
 
 def _validate_config_contract(
@@ -392,16 +653,370 @@ def _validate_config_contract(
         raise LocalCoderError("unsafe OpenCode config: " + "; ".join(problems))
 
 
-def validate_agent_artifact(artifact: Path) -> dict[str, object]:
-    """Require the measured 32K/q4 local-agent execution profile."""
+def _within(path: Path, parent: Path) -> bool:
+    try:
+        path.relative_to(parent)
+        return True
+    except ValueError:
+        return False
+
+
+def resolve_canonical_artifact(artifact: Path) -> Path:
+    """Resolve one artifact and require the sole sealed project artifact root."""
 
     try:
-        manifest = hybrid.load_hybrid_manifest(artifact)
+        project_root = PROJECT_ROOT.resolve(strict=True)
+        expected = DEFAULT_ARTIFACT.resolve(strict=True)
+        resolved = artifact.resolve(strict=True)
+    except OSError as exc:
+        raise LocalCoderError(f"could not resolve canonical local-agent artifact: {exc}") from exc
+    if not expected.is_dir():
+        raise LocalCoderError(f"canonical artifact is not a directory: {expected}")
+    if not _within(expected, project_root):
+        raise LocalCoderError("canonical artifact resolves outside the intended project repository")
+    if resolved != expected:
+        raise LocalCoderError(
+            "only the canonical sealed local-agent artifact is permitted: "
+            f"expected {expected}, got {resolved}"
+        )
+    return resolved
+
+
+def _canonical_project_file(project_relative: str, label: str) -> Path:
+    relative = Path(project_relative)
+    if relative.is_absolute() or relative.drive or ".." in relative.parts:
+        raise LocalCoderError(f"internal canonical {label} path is unsafe: {project_relative!r}")
+    try:
+        project_root = PROJECT_ROOT.resolve(strict=True)
+        resolved = (project_root / relative).resolve(strict=True)
+    except OSError as exc:
+        raise LocalCoderError(f"canonical {label} does not resolve: {exc}") from exc
+    if not _within(resolved, project_root):
+        raise LocalCoderError(f"canonical {label} resolves outside the intended project repository")
+    if not resolved.is_file():
+        raise LocalCoderError(f"canonical {label} is not a regular file: {resolved}")
+    return resolved
+
+
+def _resolve_artifact_reference(artifact: Path, reference: object, label: str) -> Path:
+    if not isinstance(reference, str) or not reference or reference != reference.strip():
+        raise LocalCoderError(f"artifact {label} path must be a non-empty normalized string")
+    relative = Path(reference)
+    if relative.is_absolute() or relative.drive:
+        raise LocalCoderError(f"artifact {label} path must be repository-relative")
+    try:
+        project_root = PROJECT_ROOT.resolve(strict=True)
+        resolved = (artifact / relative).resolve(strict=True)
+    except OSError as exc:
+        raise LocalCoderError(f"artifact {label} reference does not resolve: {exc}") from exc
+    if not _within(resolved, project_root):
+        raise LocalCoderError(
+            f"artifact {label} reference resolves outside the intended project repository"
+        )
+    if not resolved.is_file():
+        raise LocalCoderError(f"artifact {label} reference is not a regular file: {resolved}")
+    return resolved
+
+
+def _expected_reference_text(artifact: Path, project_relative: str, label: str) -> str:
+    expected = _canonical_project_file(project_relative, label)
+    try:
+        return Path(os.path.relpath(expected, artifact)).as_posix()
+    except ValueError as exc:
+        raise LocalCoderError(f"canonical {label} is not addressable from the artifact") from exc
+
+
+def _validate_pinned_record(
+    artifact: Path,
+    record: object,
+    *,
+    project_relative: str,
+    label: str,
+    verify_file: bool = True,
+) -> Path:
+    if not isinstance(record, Mapping):
+        raise LocalCoderError(f"artifact {label} record must be an object")
+    expected_reference = _expected_reference_text(artifact, project_relative, label)
+    resolved = _resolve_artifact_reference(artifact, record.get("path"), label)
+    expected_path = _canonical_project_file(project_relative, label)
+    if record.get("path") != expected_reference or resolved != expected_path:
+        raise LocalCoderError(
+            f"artifact {label} must reference exactly {expected_reference!r}"
+        )
+    expected_bytes, expected_digest = CANONICAL_REFERENCE_RECORDS[project_relative]
+    if record.get("bytes") != expected_bytes:
+        raise LocalCoderError(
+            f"artifact {label} byte contract changed: expected {expected_bytes}, "
+            f"got {record.get('bytes')!r}"
+        )
+    digest = record.get("sha256")
+    if not isinstance(digest, str) or digest.lower() != expected_digest:
+        raise LocalCoderError(f"artifact {label} does not bind the canonical SHA-256")
+    if verify_file and (
+        resolved.stat().st_size != expected_bytes
+        or _sha256_file(resolved) != expected_digest
+    ):
+        raise LocalCoderError(f"canonical {label} file does not match its pinned record")
+    return resolved
+
+
+def _validate_evidence_snapshot(artifact: Path, record: object) -> Mapping[str, Any]:
+    """Bind deployment status to the committed, externally pinned gate snapshot."""
+
+    evidence_path = _validate_pinned_record(
+        artifact,
+        record,
+        project_relative=CANONICAL_VALIDATION_EVIDENCE_PATH,
+        label="validation evidence",
+    )
+    snapshot = _canonical_project_file(
+        CANONICAL_VALIDATION_SNAPSHOT_PATH, "validation evidence snapshot"
+    )
+    for path, label in (
+        (evidence_path, "artifact validation evidence"),
+        (snapshot, "committed validation evidence snapshot"),
+    ):
+        if path.stat().st_size != EXPECTED_VALIDATION_EVIDENCE_BYTES:
+            raise LocalCoderError(f"{label} byte length differs from the pinned snapshot")
+        if _sha256_file(path) != EXPECTED_VALIDATION_EVIDENCE_SHA256:
+            raise LocalCoderError(f"{label} SHA-256 differs from the pinned snapshot")
+    try:
+        evidence = json.loads(snapshot.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise LocalCoderError(f"could not parse pinned validation evidence: {exc}") from exc
+    if not isinstance(evidence, Mapping):
+        raise LocalCoderError("pinned validation evidence must be a JSON object")
+    return evidence
+
+
+def _validate_evidence_claims(
+    evidence: Mapping[str, Any], manifest: Mapping[str, Any]
+) -> None:
+    """Check the measured pass fields the local coding claim depends on."""
+
+    aggregate = evidence.get("aggregate")
+    benchmark = evidence.get("benchmark")
+    payload = evidence.get("payload")
+    thresholds = evidence.get("thresholds")
+    if not all(
+        isinstance(value, Mapping)
+        for value in (aggregate, benchmark, payload, thresholds)
+    ):
+        raise LocalCoderError("pinned validation evidence is missing measured sections")
+    prompt = benchmark.get("prompt")
+    generation = benchmark.get("generation")
+    if not isinstance(prompt, Mapping) or not isinstance(generation, Mapping):
+        raise LocalCoderError("pinned validation benchmark sections are incomplete")
+    expected = {
+        "experiment": "nhdf_hybrid_full_model_functional_gate",
+        "artifact_format": hybrid.HYBRID_FORMAT,
+        "passed": True,
+        "status": "functional-hybrid-pass",
+        "runtime_revision": "f8dbcd61893702976f9ab03be89c2b9f436d532c",
+        "runtime_build_number": 10_720,
+        "runtime_argument_profile": "current-2026",
+    }
+    for field, value in expected.items():
+        if evidence.get(field) != value:
+            raise LocalCoderError(
+                f"pinned validation evidence field {field!r} does not match {value!r}"
+            )
+    if evidence.get("execution_profile_sha256") != hybrid._execution_profile_sha256(
+        dict(manifest)
+    ):
+        raise LocalCoderError("validation evidence is not bound to this execution profile")
+    if payload.get("bytes") != CANONICAL_REFERENCE_RECORDS[CANONICAL_PAYLOAD_PATH][0] or (
+        payload.get("sha256")
+        != CANONICAL_REFERENCE_RECORDS[CANONICAL_PAYLOAD_PATH][1]
+    ):
+        raise LocalCoderError("validation evidence is not bound to the canonical payload")
+    aggregate_expected = {
+        "functional_prompts_passed": 4,
+        "functional_prompts_total": 4,
+        "allocated_context_tokens": REQUIRED_CONTEXT_TOKENS,
+        "allocated_context_passed": True,
+        "full_offload_passed": True,
+        "peak_gpu_memory_mib": 11_064,
+        "target_vram_mib": 12_227,
+        "contract_target_vram_mib": 12_227,
+        "headroom_mib": 1_163,
+        "resource_gate_passed": True,
+        "throughput_gate_passed": True,
+    }
+    if any(aggregate.get(field) != value for field, value in aggregate_expected.items()):
+        raise LocalCoderError("validation evidence aggregate does not match the measured 32K gate")
+    if thresholds.get("minimum_generation_tokens_per_second") != 80.0:
+        raise LocalCoderError("validation evidence throughput threshold changed")
+    if thresholds.get("full_offload_required") != [49, 49]:
+        raise LocalCoderError("validation evidence offload threshold changed")
+    if prompt.get("tokens") != 64 or prompt.get("average_tokens_per_second") != 885.013308:
+        raise LocalCoderError("validation evidence prompt measurement changed")
+    if generation.get("tokens") != 64 or (
+        generation.get("average_tokens_per_second") != 135.208586
+    ):
+        raise LocalCoderError("validation evidence generation measurement changed")
+
+
+def _validate_exact_record_sequence(
+    artifact: Path,
+    records: object,
+    *,
+    expected_paths: Sequence[str],
+    label: str,
+    verify_files: bool = True,
+) -> None:
+    if not isinstance(records, list) or len(records) != len(expected_paths):
+        raise LocalCoderError(
+            f"artifact {label} must contain exactly {len(expected_paths)} canonical records"
+        )
+    for index, (record, expected) in enumerate(zip(records, expected_paths)):
+        _validate_pinned_record(
+            artifact,
+            record,
+            project_relative=expected,
+            label=f"{label}:{index}",
+            verify_file=verify_files,
+        )
+
+
+def _validate_exact_entrypoint(
+    artifact: Path,
+    reference: object,
+    *,
+    project_relative: str,
+    label: str,
+) -> None:
+    expected_reference = _expected_reference_text(artifact, project_relative, label)
+    resolved = _resolve_artifact_reference(artifact, reference, label)
+    expected_path = _canonical_project_file(project_relative, label)
+    if reference != expected_reference or resolved != expected_path:
+        raise LocalCoderError(
+            f"artifact {label} must reference exactly {expected_reference!r}"
+        )
+
+
+def _validate_artifact_references(
+    artifact: Path, manifest: Mapping[str, Any]
+) -> Mapping[str, Any]:
+    """Validate every path-bearing manifest field against the pinned project layout."""
+
+    try:
+        runtime = manifest["runtime"]
+        substrate = manifest["substrate"]
+        validation = manifest["validation"]
+        if not all(isinstance(value, Mapping) for value in (runtime, substrate, validation)):
+            raise TypeError("runtime, substrate, and validation must be objects")
+        _validate_pinned_record(
+            artifact,
+            manifest["payload"],
+            project_relative=CANONICAL_PAYLOAD_PATH,
+            label="model payload",
+            verify_file=False,
+        )
+        _validate_pinned_record(
+            artifact,
+            manifest["source_record"],
+            project_relative=CANONICAL_SOURCE_RECORD_PATH,
+            label="source record",
+        )
+        _validate_pinned_record(
+            artifact,
+            substrate["specification"],
+            project_relative=CANONICAL_SPECIFICATION_PATH,
+            label="substrate specification",
+        )
+        _validate_exact_record_sequence(
+            artifact,
+            runtime["files"],
+            expected_paths=CANONICAL_RUNTIME_PATHS,
+            label="runtime files",
+            verify_files=False,
+        )
+        _validate_exact_record_sequence(
+            artifact,
+            manifest["assurance_evidence"],
+            expected_paths=CANONICAL_ASSURANCE_PATHS,
+            label="assurance evidence",
+        )
+        _validate_exact_entrypoint(
+            artifact,
+            runtime["entrypoint"],
+            project_relative=CANONICAL_RUNTIME_ENTRYPOINT,
+            label="runtime entrypoint",
+        )
+        _validate_exact_entrypoint(
+            artifact,
+            runtime["benchmark_entrypoint"],
+            project_relative=CANONICAL_BENCHMARK_ENTRYPOINT,
+            label="benchmark entrypoint",
+        )
+        _validate_exact_entrypoint(
+            artifact,
+            runtime["server_entrypoint"],
+            project_relative=CANONICAL_SERVER_ENTRYPOINT,
+            label="server entrypoint",
+        )
+        evidence = _validate_evidence_snapshot(artifact, validation["evidence"])
+    except (KeyError, TypeError) as exc:
+        raise LocalCoderError(f"artifact reference contract is incomplete: {exc}") from exc
+    return evidence
+
+
+def _approved_artifact_file(project_relative: str) -> ApprovedArtifactFile:
+    expected_bytes, expected_sha256 = CANONICAL_REFERENCE_RECORDS[project_relative]
+    return ApprovedArtifactFile(
+        path=_canonical_project_file(project_relative, "approved execution file"),
+        bytes=expected_bytes,
+        sha256=expected_sha256,
+    )
+
+
+def validate_agent_artifact(artifact: Path) -> ValidatedAgentArtifact:
+    """Require the one canonical measured 32K/q4 local-agent artifact."""
+
+    artifact = resolve_canonical_artifact(artifact)
+
+    try:
+        manifest, manifest_sha256 = hybrid.load_hybrid_manifest_snapshot(artifact)
         profile = manifest["execution_profile"]
         validation = manifest["validation"]
     except (OSError, ValueError, KeyError, TypeError) as exc:
         raise LocalCoderError(f"could not load local-agent artifact manifest: {exc}") from exc
+    evidence = _validate_artifact_references(artifact, manifest)
+    _validate_evidence_claims(evidence, manifest)
+    event_chain = hybrid._verify_event_chain(manifest)
+    if event_chain.get("ok") is not True:
+        raise LocalCoderError(
+            "artifact event chain is invalid: " + str(event_chain.get("error"))
+        )
     problems: list[str] = []
+    model = manifest.get("model")
+    runtime = manifest.get("runtime")
+    payload = manifest.get("payload")
+    codec = manifest.get("weight_codec")
+    if manifest.get("artifact_kind") != "external-codec-reference":
+        problems.append("artifact kind must remain the external-codec reference")
+    if not isinstance(model, Mapping) or (
+        model.get("id") != "Qwen/Qwen3-30B-A3B-Instruct-2507"
+        or model.get("source_revision") != "0d7cf23991f47feeb3a57ecb4c9cee8ea4a17bfe"
+        or model.get("parameters") != 30_532_122_624
+    ):
+        problems.append("artifact model identity or source revision changed")
+    if not isinstance(runtime, Mapping) or (
+        runtime.get("implementation") != "llama.cpp"
+        or runtime.get("revision") != "f8dbcd61893702976f9ab03be89c2b9f436d532c"
+        or runtime.get("build_number") != 10_720
+        or runtime.get("argument_profile") != "current-2026"
+    ):
+        problems.append("artifact runtime identity or argument profile changed")
+    if not isinstance(payload, Mapping) or payload.get("link_mode") != "workspace-relative-reference":
+        problems.append("artifact payload must remain a workspace-relative reference")
+    if not isinstance(codec, Mapping) or (
+        codec.get("container") != "GGUF"
+        or codec.get("profile") != "IQ2_M mixed-bit"
+        or codec.get("nhdf_native_codec") is not False
+    ):
+        problems.append("artifact codec identity changed")
     if validation.get("status") != "VALIDATED" or validation.get("deployment_loadable") is not True:
         problems.append("artifact must have measured VALIDATED deployment status")
     if profile.get("maximum_context_tokens") != REQUIRED_CONTEXT_TOKENS:
@@ -412,12 +1027,37 @@ def validate_agent_artifact(artifact: Path) -> dict[str, object]:
         problems.append("artifact must declare complete 49/49 GPU offload")
     if problems:
         raise LocalCoderError("artifact is not the validated local-agent profile: " + "; ".join(problems))
-    return manifest
+    runtime_files = tuple(
+        _approved_artifact_file(path) for path in CANONICAL_RUNTIME_PATHS
+    )
+    server_file = next(
+        item
+        for item in runtime_files
+        if item.path == _canonical_project_file(
+            CANONICAL_SERVER_ENTRYPOINT, "approved server entrypoint"
+        )
+    )
+    approval = ArtifactApproval(
+        artifact_dir=artifact,
+        reference_root=PROJECT_ROOT,
+        manifest_sha256=manifest_sha256,
+        payload=_approved_artifact_file(CANONICAL_PAYLOAD_PATH),
+        runtime_files=runtime_files,
+        server=server_file,
+    )
+    return ValidatedAgentArtifact(
+        artifact=artifact,
+        manifest=manifest,
+        manifest_sha256=manifest_sha256,
+        server_approval=approval,
+    )
 
 
-def isolated_environment(config: Path, base_url: str) -> dict[str, str]:
+def isolated_environment(config: ValidatedConfig, base_url: str) -> dict[str, str]:
     """Build an environment that cannot inherit OpenCode account/config state."""
 
+    if not isinstance(config, ValidatedConfig):
+        raise LocalCoderError("isolated environment requires a validated config snapshot")
     state_paths = {
         "XDG_CONFIG_HOME": LOCAL_STATE_ROOT / "xdg-config",
         "XDG_DATA_HOME": LOCAL_STATE_ROOT / "xdg-data",
@@ -425,19 +1065,23 @@ def isolated_environment(config: Path, base_url: str) -> dict[str, str]:
         "XDG_STATE_HOME": LOCAL_STATE_ROOT / "xdg-state",
     }
     for path in state_paths.values():
-        path.mkdir(parents=True, exist_ok=True)
+        _ensure_safe_project_directory(path)
     home = LOCAL_STATE_ROOT / "home"
     appdata = LOCAL_STATE_ROOT / "appdata"
     local_appdata = LOCAL_STATE_ROOT / "local-appdata"
     temporary_directory = LOCAL_STATE_ROOT / "temp"
     for path in (home, appdata, local_appdata, temporary_directory):
-        path.mkdir(parents=True, exist_ok=True)
+        _ensure_safe_project_directory(path)
     config_directory = LOCAL_STATE_ROOT / "config-dir"
-    config_directory.mkdir(parents=True, exist_ok=True)
+    _ensure_safe_project_directory(config_directory)
+    isolated_config = config_directory / "opencode.json"
+    _atomic_write_local(isolated_config, config.raw)
+    if _sha256_file(isolated_config) != config.sha256:
+        raise LocalCoderError("isolated OpenCode config failed its post-write digest check")
     installed_contract = install_substrate_contract(state_paths["XDG_CONFIG_HOME"])
 
     try:
-        inline_config = json.loads(config.read_text(encoding="utf-8"))
+        inline_config = json.loads(config.raw.decode("utf-8"))
         inline_config["provider"]["local-runtime"]["options"]["baseURL"] = (
             f"{base_url}/v1"
         )
@@ -464,7 +1108,7 @@ def isolated_environment(config: Path, base_url: str) -> dict[str, str]:
     environment["TMP"] = str(temporary_directory)
     environment["HOMEDRIVE"] = home.drive
     environment["HOMEPATH"] = str(home)[len(home.drive) :]
-    environment["OPENCODE_CONFIG"] = str(config)
+    environment["OPENCODE_CONFIG"] = str(isolated_config)
     environment["OPENCODE_CONFIG_CONTENT"] = json.dumps(
         inline_config, separators=(",", ":")
     )
@@ -479,6 +1123,32 @@ def isolated_environment(config: Path, base_url: str) -> dict[str, str]:
     environment["NO_PROXY"] = "127.0.0.1,localhost"
     environment["no_proxy"] = "127.0.0.1,localhost"
     return environment
+
+
+def verify_execution_inputs(
+    executable: Path,
+    config: ValidatedConfig,
+    environment: Mapping[str, str],
+) -> None:
+    """Rehash every local-client trust anchor immediately before execution."""
+
+    if _sha256_file(executable.resolve(strict=True)) != EXPECTED_OPENCODE_SHA256:
+        raise LocalCoderError("OpenCode executable changed after validation")
+    if _sha256_file(config.path.resolve(strict=True)) != config.sha256:
+        raise LocalCoderError("canonical OpenCode config changed after validation")
+    isolated_config = Path(environment.get("OPENCODE_CONFIG", ""))
+    if not isolated_config.is_file() or _sha256_file(isolated_config) != config.sha256:
+        raise LocalCoderError("isolated OpenCode config changed after installation")
+    source_contract = SUBSTRATE_CONTRACT.resolve(strict=True)
+    if _sha256_file(source_contract) != EXPECTED_CONTRACT_SHA256:
+        raise LocalCoderError("canonical AGENT_CONTRACT changed after validation")
+    installed_contract = (
+        Path(environment.get("XDG_CONFIG_HOME", "")) / "opencode" / "AGENTS.md"
+    )
+    if not installed_contract.is_file() or (
+        _sha256_file(installed_contract) != EXPECTED_CONTRACT_SHA256
+    ):
+        raise LocalCoderError("installed AGENT_CONTRACT changed after installation")
 
 
 def validate_resolved_config(
@@ -539,10 +1209,8 @@ def run_local_coder(
     target, worktree_root = validate_git_target(options.target)
     config = validate_config(options.config)
     validate_local_install(OPENCODE_EXE)
-    artifact = options.artifact.resolve(strict=True)
-    if not artifact.is_dir():
-        raise LocalCoderError(f"artifact is not a directory: {artifact}")
-    validate_agent_artifact(artifact)
+    artifact = resolve_canonical_artifact(options.artifact)
+    validated_artifact = validate_agent_artifact(artifact)
 
     server = server_factory(
         artifact,
@@ -550,10 +1218,12 @@ def run_local_coder(
         threads=options.threads,
         startup_timeout_seconds=options.startup_timeout,
         request_timeout_seconds=600.0,
-        verify_payload_hash=not options.quick,
+        verify_payload_hash=True,
+        artifact_approval=validated_artifact.server_approval,
     )
     try:
         environment = isolated_environment(config, server.base_url)
+        verify_execution_inputs(OPENCODE_EXE, config, environment)
         validate_resolved_config(
             OPENCODE_EXE,
             target,
@@ -571,9 +1241,13 @@ def run_local_coder(
         print(f"Git worktree: {worktree_root}", file=sys.stderr)
         print(f"Local model endpoint: {server.base_url}/v1", file=sys.stderr)
         if options.quick:
-            print("Verification: quick metadata/runtime check (payload rehash skipped)", file=sys.stderr)
+            print(
+                "Verification: strict sealed payload check (--quick is compatibility-only)",
+                file=sys.stderr,
+            )
         else:
-            print("Verification: full sealed payload check", file=sys.stderr)
+            print("Verification: strict sealed payload check", file=sys.stderr)
+        verify_execution_inputs(OPENCODE_EXE, config, environment)
         completed = client_runner(
             command,
             cwd=str(target),

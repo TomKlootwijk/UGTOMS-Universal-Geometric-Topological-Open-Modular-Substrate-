@@ -149,8 +149,12 @@ def test_shared_lut_is_self_describing_binary16_canonical_and_strict() -> None:
     assert data == second.to_bytes()
     assert len(data) == 60 + POLAR.resolution * 3 * 2
     assert SharedLogPolarLUT.from_bytes(data) == first
-    sine, cosine = first.direction(2.0 * math.pi - 1.0e-8)
-    assert math.hypot(sine, cosine) == pytest.approx(1.0)
+    x, y = first.direction(2.0 * math.pi - 1.0e-8)
+    assert math.hypot(x, y) == pytest.approx(1.0)
+    assert first.direction(0.0) == pytest.approx((1.0, 0.0))
+    assert first.direction(math.pi / 2.0) == pytest.approx((0.0, 1.0))
+    assert first.direction(math.pi) == pytest.approx((-1.0, 0.0))
+    assert first.direction(3.0 * math.pi / 2.0) == pytest.approx((0.0, -1.0))
     assert first.radius(POLAR.rho_min) == pytest.approx(
         POLAR.reference_radius * math.exp(POLAR.rho_min), rel=2.0e-3
     )
@@ -165,6 +169,31 @@ def test_shared_lut_is_self_describing_binary16_canonical_and_strict() -> None:
         SharedLogPolarLUT.from_bytes(reserved)
     with pytest.raises(SubstratePackingError, match="trailing"):
         SharedLogPolarLUT.from_bytes(data + b"\0")
+
+    # The cosine sample at 3*pi/2 canonically stores +0.  IEEE -0 compares
+    # equal numerically, so this explicitly locks byte-level rejection.
+    negative_zero = bytearray(data)
+    cosine_index = 3 * POLAR.resolution // 4
+    cosine_offset = 60 + POLAR.resolution * 2 + cosine_index * 2
+    negative_zero[cosine_offset : cosine_offset + 2] = b"\x00\x80"
+    with pytest.raises(SubstratePackingError, match="canonical"):
+        SharedLogPolarLUT.from_bytes(negative_zero)
+
+
+def test_noncanonical_direct_lut_cannot_serve_queries_or_identity() -> None:
+    noncanonical = SharedLogPolarLUT(
+        POLAR,
+        1.0,
+        (0.0,) * POLAR.resolution,
+        (1.0,) * POLAR.resolution,
+        (1.0,) * POLAR.resolution,
+    )
+    with pytest.raises(SubstratePackingError, match="not the canonical table"):
+        noncanonical.direction(math.pi / 2.0)
+    with pytest.raises(SubstratePackingError, match="not the canonical table"):
+        noncanonical.radius(0.0)
+    with pytest.raises(SubstratePackingError, match="not the canonical table"):
+        _ = noncanonical.sha256
 
 
 def test_sparse_pack_sorts_records_shares_one_lut_and_grows_24_bytes_per_node() -> None:
@@ -240,6 +269,10 @@ def test_operator_meaning_address_changes_with_semantics_not_recipe_count() -> N
     assert recipe_64.content_address != recipe_1024.content_address
     assert recipe_64.parameters[3] == 0.0
     assert math.copysign(1.0, recipe_64.parameters[4]) == 1.0
+    composed = OperatorMeaning(0x200, 2, 1, "unicode-meaning", "Caf\u00e9 operator")
+    decomposed = OperatorMeaning(0x200, 2, 1, "unicode-meaning", "Cafe\u0301 operator")
+    assert composed.meaning == decomposed.meaning
+    assert composed.address == decomposed.address
 
 
 def test_recipe_pack_has_fixed_records_and_rejects_semantic_or_byte_drift() -> None:
@@ -341,9 +374,9 @@ def test_reference_bytes_and_hashes_lock_the_new_clean_room_format() -> None:
     assert _motion().word == 0x0800F8000800F800
     assert (
         hashlib.sha256(lut.to_bytes()).hexdigest()
-        == "94dca8a16cd055f472fdc5a87b8964f58b666d73dccc72f0dfd1e5e1ef9d7029"
+        == "1e62717d7858d0b91c320280e80eb2f493637a725a1006663de3639ae0f250e7"
     )
-    assert component.sha256 == "107efb0206bc368a2bdb6d7184f941de439e9d21cc8fc0b314e938d8e12c9c85"
+    assert component.sha256 == "4bb2e243e9b4d1a62ebcdf7dc105196d1adf9f127f40b2c37879c8503ea3cc9b"
     assert recipe.sha256 == "949b714658351100e2b250600f2f7475793cb698a1a3e684c4f6d6e0f7e36cb2"
 
 

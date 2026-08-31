@@ -1,34 +1,41 @@
 {
-  "format": "ugtoms-profile-0.1",
+  "format": "ugtoms-profile-0.2",
   "profile_id": "sclp-foundational",
   "title": "SCLP 3.6.2 swept-cone log-polar packing correction",
   "classification": "SELECTABLE_PROFILE",
   "kernel_id": "ugtoms-kernel-v0.1",
-  "kernel_sha256": "ee4dad2b85c8816ef718b4a9f36c2da090b8b9a14525e17f30d65bf17fba23d7",
+  "kernel_sha256": "9b5fa7cff4483129e80e1c234055d57e0f79a574dcd2e131c418bbe0259448c3",
   "kernel_stage_mapping": {
     "finite_cone_relation": "cone_sphere_SDF_sweep_relation_and_projection",
     "paired_sphere_support": "local_support",
     "logpolar_metric": "log_polar_address_and_metric -> causal_vector_kinematics",
-    "one_bit_jitter_guard": "typed_parity_jitter_control_predicates -> guard_crossing",
+    "one_bit_jitter_guard": "typed_payload_topology_parity_jitter_branch_control_predicates -> guard_crossing",
     "topological_wrap": "compatibility -> route_transition",
     "bounded_binary_grammar": "bounded_BST_L_system_or_radix_routing",
     "packed_key": "generative_address -> lineage",
     "event_handoff": "event_admission_discipline"
   },
   "mappings": {
-    "typed": "q=(x,t,rho,theta,phi,dphi,ddphi,o,s,b,grammar,K,address,lineage,uncertainty)",
+    "typed": "q=(x,t,rho,theta,phi,dphi,ddphi,o,s,payload_parity_bit,topology_parity_bit,jitter_control_bit,branch_control_bit,grammar,K,address,lineage,uncertainty)",
     "vector": "cone apex and axis, position, directed motion, surface normal, tangent projection",
     "kinematic": "log-polar metric, Jacobian, exact radial increment, velocity, acceleration, hinge state",
-    "geometry": "exact finite-cone SDF, sphere SDF, paired sphere support, certified translational sweep interval",
+    "geometry": "profile semantic envelope: exact finite-cone SDF, sphere SDF, paired sphere support, and certified translational sweep interval; each application must implement or explicitly bypass each selected mechanism",
     "topology": "source half-turn bundle map and corrected reflective Klein gluing remain distinct",
     "packing": "20/18/14/12-bit rho/theta/time/phi key in distinct contiguous and Morton layouts",
-    "predicate": "content-addressed one-bit jitter with interval strictly inside guard margin",
+    "predicate": "content-addressed jitter_control_bit with interval strictly inside guard margin, distinct from payload_parity_bit, topology_parity_bit, and branch_control_bit",
     "operator": "finite typed pipeline ending in the UGTS event-admission handoff",
-    "self_reference": "content-addressed definitions and instances by definition_ref; no same-generation cycle"
+    "self_reference": "Merkle-bound definitions, instances bound by definition content hash, and typed n to n+1 feedback; no same-generation cycle"
   },
   "resource_bounds": ["64-bit finite key", "bounded grammar depth", "bounded symbols", "bounded stack", "finite sweep samples"],
   "failure_modes": ["jitter interval crosses guard", "grammar budget exceeded", "key saturation", "apex core", "unsupported physical force inference", "uncertified sweep"],
-  "evidence_requirements": ["finite-cone reference vector", "both key round trips", "jitter margin certificate", "metric/kinematic reference vector", "grammar budget trace", "sweep interval"],
+  "evidence_requirements": [
+    {"id": "finite-cone-reference-vector", "claim": "The finite filled right-circular cone SDF has a deterministic reference vector.", "method": "Evaluate the declared cone before and after one causal motion step.", "pass_condition": "The sealed replay contains both finite signed distances and marks the cone vector passed."},
+    {"id": "packed-key-round-trips", "claim": "The 20/18/14/12-bit SCLP key round-trips in both contiguous and Morton layouts.", "method": "Pack one quantized state with each layout and decode both words.", "pass_condition": "Both decoded states exactly equal the same original quantized state and both booleans are true."},
+    {"id": "jitter-margin-certificate", "claim": "The deterministic one-bit jitter interval stays strictly inside the declared guard margin.", "method": "Generate the content-addressed jitter bit and record its closed interval and margin certificate.", "pass_condition": "The replay records distinct bit roles and jitter_safe_under_margin is true."},
+    {"id": "metric-kinematic-reference-vector", "claim": "Spatial log-polar metric, Jacobian, velocity, acceleration, and causal advance have deterministic reference values.", "method": "Evaluate one declared spatial chart and constant-acceleration time step.", "pass_condition": "The sealed metric and kinematic records exist and the proof inventory marks the vector passed."},
+    {"id": "grammar-budget-trace", "claim": "The bounded BST-T/L-system-style route stays within declared depth and active-branch budgets.", "method": "Record requested depth, active branches, declared maxima, resulting paths, and bounded status.", "pass_condition": "Used depth and branches do not exceed their maxima and bounded is true."},
+    {"id": "sweep-interval", "claim": "A translational point path has a certified finite-cone SDF zero in a bounded parameter interval.", "method": "Maintain an opposite-sign bracket while bisecting the exact finite-cone SDF along the linear path.", "pass_condition": "The final interval is ordered and finite, its endpoint distances retain opposite signs, and certified is true; no earliest-impact claim is made."}
+  ],
   "source_records": [
     {"source_id": "sclp-3.6.2-report", "sha256": "6987490a0a7b7ed76b0091057a2e69ab831fee786434a0b4219782923f5ea580", "bytes": 893935, "pages": 19, "availability": "READ_ONLY_EXTERNAL", "redistributed": false},
     {"source_id": "sclp-3.6.2-formal-definition", "sha256": "0aaa035870d3e6bf2c531cf13c414ad43c7fba75a9c664754255afb4644517a1", "bytes": 5825, "availability": "READ_ONLY_EXTERNAL", "redistributed": false},

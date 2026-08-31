@@ -18,7 +18,7 @@ import json
 import math
 import re
 import unicodedata
-from dataclasses import dataclass, field, fields, is_dataclass
+from dataclasses import dataclass, field, fields, is_dataclass, replace
 from enum import Enum
 from types import MappingProxyType
 from typing import Any, ClassVar, Iterable, Mapping, Sequence
@@ -47,6 +47,10 @@ class DependencyCycleError(SubstrateGraphError):
 
 class PhaseOrderError(SubstrateGraphError):
     """A dependency or explicit pipeline violates evaluation-phase order."""
+
+
+class TypeCompatibilityError(SubstrateGraphError):
+    """A pipeline or feedback port connects incompatible declared types."""
 
 
 class SymbolFirewallError(SubstrateGraphError):
@@ -160,6 +164,44 @@ def _string_tuple(
     return tuple(sorted(normalized)) if sort_values else normalized
 
 
+def _content_digest(value: str, name: str, *, allow_empty: bool = True) -> str:
+    if value == "" and allow_empty:
+        return ""
+    if not isinstance(value, str) or _SHA256.fullmatch(value.lower()) is None:
+        raise ContentHashError(f"{name} must have form sha256:<64 lowercase hex>")
+    return value.lower()
+
+
+def _hash_bindings(
+    value: Mapping[str, str], dependencies: tuple[str, ...]
+) -> Mapping[str, str]:
+    if not isinstance(value, Mapping):
+        raise ContentHashError("dependency_hashes must be a mapping")
+    normalized: dict[str, str] = {}
+    for raw_key, raw_hash in value.items():
+        key = _identifier(raw_key, "dependency hash key")
+        if key in normalized:
+            raise ContentHashError("dependency_hashes contains duplicate keys")
+        normalized[key] = _content_digest(raw_hash, f"dependency hash for {key}", allow_empty=False)
+    if normalized and set(normalized) != set(dependencies):
+        raise ContentHashError(
+            "dependency_hashes must bind every dependency ID exactly once"
+        )
+    return MappingProxyType({key: normalized[key] for key in sorted(normalized)})
+
+
+def _port_bindings(value: Mapping[str, str], name: str) -> Mapping[str, str]:
+    if not isinstance(value, Mapping):
+        raise TypeCompatibilityError(f"{name} must be a mapping from port names to types")
+    normalized: dict[str, str] = {}
+    for raw_port, raw_type in value.items():
+        port = _identifier(raw_port, f"{name} port")
+        if port in normalized:
+            raise TypeCompatibilityError(f"{name} contains a duplicate port {port!r}")
+        normalized[port] = _normal_text(raw_type, f"type for {name} port {port!r}")
+    return MappingProxyType({key: normalized[key] for key in sorted(normalized)})
+
+
 @dataclass(frozen=True)
 class DefinitionNode:
     """One typed operator or relation definition.
@@ -167,7 +209,9 @@ class DefinitionNode:
     ``dependencies`` are definition IDs and describe one generation only.
     The digest covers all semantic fields but never covers itself.  Supplying a
     digest is supported for loading manifests; it must match the recomputed
-    digest.  Omitting it computes the authoritative value.
+    digest.  In a :class:`SubstrateGraph`, ``dependency_hashes`` is populated
+    from the resolved dependency nodes, making ``content_hash`` a Merkle root.
+    The stable ``id`` remains a semantic lookup name and is not content identity.
     """
 
     id: str
@@ -182,6 +226,9 @@ class DefinitionNode:
     bounds: Mapping[str, Any] = field(default_factory=dict)
     failures: tuple[str, ...] = ()
     provenance: Mapping[str, Any] = field(default_factory=dict)
+    input_ports: Mapping[str, str] = field(default_factory=dict)
+    output_ports: Mapping[str, str] = field(default_factory=dict)
+    dependency_hashes: Mapping[str, str] = field(default_factory=dict)
     content_hash: str = ""
 
     def __post_init__(self) -> None:
@@ -195,6 +242,11 @@ class DefinitionNode:
         if self.id in dependencies:
             raise DependencyCycleError(f"definition {self.id!r} depends on itself")
         object.__setattr__(self, "dependencies", dependencies)
+        object.__setattr__(
+            self,
+            "dependency_hashes",
+            _hash_bindings(self.dependency_hashes, dependencies),
+        )
 
         if (
             isinstance(self.evaluation_phase, bool)
@@ -231,12 +283,29 @@ class DefinitionNode:
         object.__setattr__(
             self, "provenance", _freeze_json(self.provenance, "$.provenance")
         )
+        object.__setattr__(
+            self, "input_ports", _port_bindings(self.input_ports, "input_ports")
+        )
+        object.__setattr__(
+            self, "output_ports", _port_bindings(self.output_ports, "output_ports")
+        )
+        if any(port_type != self.domain for port_type in self.input_ports.values()):
+            raise TypeCompatibilityError(
+                "every declared input port type must match the definition domain"
+            )
+        if any(port_type != self.codomain for port_type in self.output_ports.values()):
+            raise TypeCompatibilityError(
+                "every declared output port type must match the definition codomain"
+            )
 
-        expected = canonical_hash(self.semantic_record())
+        fully_bound = not self.dependencies or bool(self.dependency_hashes)
+        expected = canonical_hash(self.semantic_record()) if fully_bound else ""
+        if self.content_hash and not fully_bound:
+            raise ContentHashError(
+                f"content_hash for {self.id!r} cannot be verified before dependencies are bound"
+            )
         if self.content_hash:
-            supplied = self.content_hash.lower()
-            if _SHA256.fullmatch(supplied) is None:
-                raise ContentHashError("content_hash must have form sha256:<64 lowercase hex>")
+            supplied = _content_digest(self.content_hash, "content_hash", allow_empty=False)
             if supplied != expected:
                 raise ContentHashError(
                     f"content_hash for {self.id!r} does not match its semantic fields"
@@ -247,12 +316,13 @@ class DefinitionNode:
         """Return the hash envelope, excluding ``content_hash`` itself."""
 
         return {
-            "record_type": "nhdf.definition-node.v1",
+            "record_type": "nhdf.definition-node.v2",
             "id": self.id,
             "kind": self.kind,
             "domain": self.domain,
             "codomain": self.codomain,
             "dependencies": self.dependencies,
+            "dependency_hashes": self.dependency_hashes,
             "evaluation_phase": self.evaluation_phase,
             "parameters": self.parameters,
             "equation": self.equation,
@@ -260,21 +330,34 @@ class DefinitionNode:
             "bounds": self.bounds,
             "failures": self.failures,
             "provenance": self.provenance,
+            "input_ports": self.input_ports,
+            "output_ports": self.output_ports,
         }
 
     def verify_content_hash(self) -> bool:
         """Recompute the digest; useful when inspecting deserialized records."""
 
-        return self.content_hash == canonical_hash(self.semantic_record())
+        return bool(self.content_hash) and self.content_hash == canonical_hash(
+            self.semantic_record()
+        )
 
     @classmethod
     def from_record(cls, record: Mapping[str, Any]) -> "DefinitionNode":
         """Load and verify a manifest-style definition record."""
 
         values = dict(record)
-        record_type = values.pop("record_type", "nhdf.definition-node.v1")
-        if record_type != "nhdf.definition-node.v1":
+        try:
+            record_type = values.pop("record_type")
+        except KeyError as error:
+            raise SubstrateGraphError(
+                "definition record must supply record_type"
+            ) from error
+        if record_type != "nhdf.definition-node.v2":
             raise SubstrateGraphError(f"unsupported definition record_type {record_type!r}")
+        if not values.get("content_hash"):
+            raise ContentHashError(
+                "manifest definition record must supply a non-empty content_hash"
+            )
         try:
             return cls(**values)
         except TypeError as error:
@@ -289,7 +372,8 @@ class DefinitionInstance:
     definition_ref: str
     literal: Mapping[str, Any] = field(default_factory=dict)
     state: Mapping[str, Any] = field(default_factory=dict)
-    content_hash: str = field(init=False)
+    definition_hash: str = ""
+    content_hash: str = ""
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "id", _identifier(self.id, "instance id"))
@@ -298,16 +382,53 @@ class DefinitionInstance:
         )
         object.__setattr__(self, "literal", _freeze_json(self.literal, "$.literal"))
         object.__setattr__(self, "state", _freeze_json(self.state, "$.state"))
-        object.__setattr__(self, "content_hash", canonical_hash(self.semantic_record()))
+        object.__setattr__(
+            self,
+            "definition_hash",
+            _content_digest(self.definition_hash, "definition_hash"),
+        )
+        expected = canonical_hash(self.semantic_record()) if self.definition_hash else ""
+        if self.content_hash and not self.definition_hash:
+            raise ContentHashError(
+                f"content_hash for instance {self.id!r} cannot be verified before its definition is bound"
+            )
+        if self.content_hash and _content_digest(
+            self.content_hash, "instance content_hash", allow_empty=False
+        ) != expected:
+            raise ContentHashError(
+                f"content_hash for instance {self.id!r} does not match its semantic fields"
+            )
+        object.__setattr__(self, "content_hash", expected)
 
     def semantic_record(self) -> Mapping[str, Any]:
         return {
-            "record_type": "nhdf.definition-instance.v1",
+            "record_type": "nhdf.definition-instance.v2",
             "id": self.id,
             "definition_ref": self.definition_ref,
+            "definition_hash": self.definition_hash,
             "literal": self.literal,
             "state": self.state,
         }
+
+    @classmethod
+    def from_record(cls, record: Mapping[str, Any]) -> "DefinitionInstance":
+        """Load a fully bound instance without silently minting a new digest."""
+
+        values = dict(record)
+        try:
+            record_type = values.pop("record_type")
+        except KeyError as error:
+            raise SubstrateGraphError("instance record must supply record_type") from error
+        if record_type != "nhdf.definition-instance.v2":
+            raise SubstrateGraphError(f"unsupported instance record_type {record_type!r}")
+        if not values.get("content_hash"):
+            raise ContentHashError(
+                "manifest instance record must supply a non-empty content_hash"
+            )
+        try:
+            return cls(**values)
+        except TypeError as error:
+            raise SubstrateGraphError(f"invalid instance record: {error}") from error
 
 
 @dataclass(frozen=True)
@@ -317,7 +438,11 @@ class Pipeline:
     id: str
     steps: tuple[str, ...]
     description: str = ""
-    content_hash: str = field(init=False)
+    generation: int = 0
+    domain: str = ""
+    codomain: str = ""
+    step_hashes: tuple[str, ...] = ()
+    content_hash: str = ""
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "id", _identifier(self.id, "pipeline id"))
@@ -330,15 +455,70 @@ class Pipeline:
         object.__setattr__(
             self, "description", _normal_text(self.description, "description", allow_empty=True)
         )
-        object.__setattr__(self, "content_hash", canonical_hash(self.semantic_record()))
+        if (
+            isinstance(self.generation, bool)
+            or not isinstance(self.generation, int)
+            or self.generation < 0
+        ):
+            raise SubstrateGraphError("pipeline generation must be a non-negative integer")
+        object.__setattr__(
+            self, "domain", _normal_text(self.domain, "pipeline domain", allow_empty=True)
+        )
+        object.__setattr__(
+            self, "codomain", _normal_text(self.codomain, "pipeline codomain", allow_empty=True)
+        )
+        hashes = tuple(
+            _content_digest(item, "pipeline step hash", allow_empty=False)
+            for item in self.step_hashes
+        )
+        if hashes and len(hashes) != len(self.steps):
+            raise ContentHashError("step_hashes must align one-for-one with pipeline steps")
+        object.__setattr__(self, "step_hashes", hashes)
+        fully_bound = bool(self.domain and self.codomain and self.step_hashes)
+        expected = canonical_hash(self.semantic_record()) if fully_bound else ""
+        if self.content_hash and not fully_bound:
+            raise ContentHashError(
+                f"content_hash for pipeline {self.id!r} cannot be verified before its steps are bound"
+            )
+        if self.content_hash and _content_digest(
+            self.content_hash, "pipeline content_hash", allow_empty=False
+        ) != expected:
+            raise ContentHashError(
+                f"content_hash for pipeline {self.id!r} does not match its semantic fields"
+            )
+        object.__setattr__(self, "content_hash", expected)
 
     def semantic_record(self) -> Mapping[str, Any]:
         return {
-            "record_type": "nhdf.pipeline.v1",
+            "record_type": "nhdf.pipeline.v2",
             "id": self.id,
             "description": self.description,
+            "generation": self.generation,
+            "domain": self.domain,
+            "codomain": self.codomain,
             "steps": self.steps,
+            "step_hashes": self.step_hashes,
         }
+
+    @classmethod
+    def from_record(cls, record: Mapping[str, Any]) -> "Pipeline":
+        """Load a fully bound pipeline and verify its supplied content digest."""
+
+        values = dict(record)
+        try:
+            record_type = values.pop("record_type")
+        except KeyError as error:
+            raise SubstrateGraphError("pipeline record must supply record_type") from error
+        if record_type != "nhdf.pipeline.v2":
+            raise SubstrateGraphError(f"unsupported pipeline record_type {record_type!r}")
+        if not values.get("content_hash"):
+            raise ContentHashError(
+                "manifest pipeline record must supply a non-empty content_hash"
+            )
+        try:
+            return cls(**values)
+        except TypeError as error:
+            raise SubstrateGraphError(f"invalid pipeline record: {error}") from error
 
 
 @dataclass(frozen=True)
@@ -358,7 +538,11 @@ class FeedbackEdge:
     source_generation: int = 0
     target_generation: int = 1
     provenance: Mapping[str, Any] = field(default_factory=dict)
-    content_hash: str = field(init=False)
+    source_port_type: str = ""
+    target_port_type: str = ""
+    source_hash: str = ""
+    target_hash: str = ""
+    content_hash: str = ""
 
     semantics: ClassVar[str] = "referential-next-generation"
     fixed_point_claim: ClassVar[bool] = False
@@ -381,6 +565,22 @@ class FeedbackEdge:
         object.__setattr__(
             self, "provenance", _freeze_json(self.provenance, "$.provenance")
         )
+        object.__setattr__(
+            self,
+            "source_port_type",
+            _normal_text(self.source_port_type, "source_port_type", allow_empty=True),
+        )
+        object.__setattr__(
+            self,
+            "target_port_type",
+            _normal_text(self.target_port_type, "target_port_type", allow_empty=True),
+        )
+        object.__setattr__(
+            self, "source_hash", _content_digest(self.source_hash, "source_hash")
+        )
+        object.__setattr__(
+            self, "target_hash", _content_digest(self.target_hash, "target_hash")
+        )
         source_refs = self.provenance.get("source_refs")
         if (
             not isinstance(source_refs, tuple)
@@ -390,7 +590,24 @@ class FeedbackEdge:
             raise SubstrateGraphError(
                 "feedback provenance must contain a non-empty source_refs sequence"
             )
-        object.__setattr__(self, "content_hash", canonical_hash(self.semantic_record()))
+        fully_bound = bool(
+            self.source_port_type
+            and self.target_port_type
+            and self.source_hash
+            and self.target_hash
+        )
+        expected = canonical_hash(self.semantic_record()) if fully_bound else ""
+        if self.content_hash and not fully_bound:
+            raise ContentHashError(
+                f"content_hash for feedback {self.id!r} cannot be verified before its ports are bound"
+            )
+        if self.content_hash and _content_digest(
+            self.content_hash, "feedback content_hash", allow_empty=False
+        ) != expected:
+            raise ContentHashError(
+                f"content_hash for feedback {self.id!r} does not match its semantic fields"
+            )
+        object.__setattr__(self, "content_hash", expected)
 
     @property
     def generation_delay(self) -> int:
@@ -398,18 +615,46 @@ class FeedbackEdge:
 
     def semantic_record(self) -> Mapping[str, Any]:
         return {
-            "record_type": "nhdf.feedback-edge.v1",
+            "record_type": "nhdf.feedback-edge.v2",
             "id": self.id,
             "source_ref": self.source_ref,
             "source_port": self.source_port,
+            "source_port_type": self.source_port_type,
+            "source_hash": self.source_hash,
             "source_generation": self.source_generation,
             "target_ref": self.target_ref,
             "target_port": self.target_port,
+            "target_port_type": self.target_port_type,
+            "target_hash": self.target_hash,
             "target_generation": self.target_generation,
             "semantics": self.semantics,
             "fixed_point_claim": self.fixed_point_claim,
             "provenance": self.provenance,
         }
+
+    @classmethod
+    def from_record(cls, record: Mapping[str, Any]) -> "FeedbackEdge":
+        """Load a bound delayed edge while preserving the no-fixed-point policy."""
+
+        values = dict(record)
+        try:
+            record_type = values.pop("record_type")
+        except KeyError as error:
+            raise SubstrateGraphError("feedback record must supply record_type") from error
+        if record_type != "nhdf.feedback-edge.v2":
+            raise SubstrateGraphError(f"unsupported feedback record_type {record_type!r}")
+        if values.pop("semantics", None) != cls.semantics:
+            raise SubstrateGraphError("feedback record has unsupported semantics")
+        if values.pop("fixed_point_claim", None) is not cls.fixed_point_claim:
+            raise SubstrateGraphError("feedback record must explicitly deny a fixed-point claim")
+        if not values.get("content_hash"):
+            raise ContentHashError(
+                "manifest feedback record must supply a non-empty content_hash"
+            )
+        try:
+            return cls(**values)
+        except TypeError as error:
+            raise SubstrateGraphError(f"invalid feedback record: {error}") from error
 
 
 class SymbolRole(str, Enum):
@@ -570,8 +815,28 @@ def _duplicates(items: Sequence[Any], attribute: str) -> tuple[str, ...]:
 class SubstrateGraph:
     """Validated definitions, instances, pipelines, and delayed feedback."""
 
+    __slots__ = (
+        "_sealed",
+        "symbol_bindings",
+        "definitions",
+        "_definition_by_id",
+        "_definition_by_hash",
+        "instances",
+        "_instance_by_id",
+        "_topological_definitions",
+        "pipelines",
+        "_pipeline_by_id",
+        "feedback_edges",
+        "content_hash",
+    )
+
     closure_semantics: ClassVar[str] = "source-grounded-referential-closure"
     fixed_point_engine: ClassVar[bool] = False
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        if getattr(self, "_sealed", False):
+            raise AttributeError("SubstrateGraph is immutable after validation")
+        object.__setattr__(self, name, value)
 
     def __init__(
         self,
@@ -582,19 +847,20 @@ class SubstrateGraph:
         feedback_edges: Iterable[FeedbackEdge] = (),
         symbol_bindings: Mapping[SymbolRole | str, str] | None = None,
     ) -> None:
-        self.definitions = tuple(definitions)
-        self.instances = tuple(instances)
-        self.pipelines = tuple(pipelines)
-        self.feedback_edges = tuple(feedback_edges)
+        object.__setattr__(self, "_sealed", False)
+        raw_definitions = tuple(definitions)
+        raw_instances = tuple(instances)
+        raw_pipelines = tuple(pipelines)
+        raw_feedback = tuple(feedback_edges)
         self.symbol_bindings = validate_symbol_firewall(symbol_bindings)
 
-        if not self.definitions:
+        if not raw_definitions:
             raise SubstrateGraphError("a substrate graph needs at least one definition")
         for collection, label in (
-            (self.definitions, "definition"),
-            (self.instances, "instance"),
-            (self.pipelines, "pipeline"),
-            (self.feedback_edges, "feedback edge"),
+            (raw_definitions, "definition"),
+            (raw_instances, "instance"),
+            (raw_pipelines, "pipeline"),
+            (raw_feedback, "feedback edge"),
         ):
             duplicate = _duplicates(collection, "id")
             if duplicate:
@@ -602,14 +868,35 @@ class SubstrateGraph:
                     f"duplicate {label} ids: {', '.join(duplicate)}"
                 )
 
-        definition_ids = {item.id for item in self.definitions}
-        instance_ids = {item.id for item in self.instances}
+        definition_ids = {item.id for item in raw_definitions}
+        instance_ids = {item.id for item in raw_instances}
         if definition_ids & instance_ids:
             overlap = ", ".join(sorted(definition_ids & instance_ids))
             raise SubstrateGraphError(
                 f"definition and instance ids share a reference namespace: {overlap}"
             )
 
+        # Resolve the ID graph first, then replace every child with a Merkle-bound
+        # copy.  Caller-owned nodes are never mutated or silently trusted.
+        self.definitions = raw_definitions
+        self._definition_by_id = MappingProxyType({item.id: item for item in raw_definitions})
+        raw_topology = self._resolve_topology()
+        bound_by_id: dict[str, DefinitionNode] = {}
+        for node in raw_topology:
+            expected_bindings = {
+                dependency: bound_by_id[dependency].content_hash
+                for dependency in node.dependencies
+            }
+            if node.dependency_hashes and dict(node.dependency_hashes) != expected_bindings:
+                raise ContentHashError(
+                    f"dependency hashes for {node.id!r} do not match the resolved graph"
+                )
+            bound_by_id[node.id] = replace(
+                node,
+                dependency_hashes=expected_bindings,
+                content_hash="",
+            )
+        self.definitions = tuple(bound_by_id[item.id] for item in raw_definitions)
         self._definition_by_id = MappingProxyType(
             {item.id: item for item in self.definitions}
         )
@@ -618,24 +905,114 @@ class SubstrateGraph:
         )
         if len(self._definition_by_hash) != len(self.definitions):
             raise ContentHashError("two definition records unexpectedly share a content hash")
-        self._instance_by_id = MappingProxyType({item.id: item for item in self.instances})
-        self._pipeline_by_id = MappingProxyType({item.id: item for item in self.pipelines})
-
-        for instance in self.instances:
-            if instance.definition_ref not in self._definition_by_id:
+        bound_instances: list[DefinitionInstance] = []
+        for instance in raw_instances:
+            definition = self._definition_by_id.get(instance.definition_ref)
+            if definition is None:
                 raise ReferenceResolutionError(
                     f"instance {instance.id!r} refers to unknown definition "
                     f"{instance.definition_ref!r}"
                 )
+            if instance.definition_hash and instance.definition_hash != definition.content_hash:
+                raise ContentHashError(
+                    f"definition hash for instance {instance.id!r} does not match "
+                    f"{instance.definition_ref!r}"
+                )
+            bound_instances.append(
+                replace(
+                    instance,
+                    definition_hash=definition.content_hash,
+                    content_hash="",
+                )
+            )
+        self.instances = tuple(bound_instances)
+        self._instance_by_id = MappingProxyType({item.id: item for item in self.instances})
 
-        self._topological_definitions = self._resolve_topology()
-        for pipeline in self.pipelines:
+        self._topological_definitions = tuple(
+            self._definition_by_id[item.id] for item in raw_topology
+        )
+        bound_pipelines: list[Pipeline] = []
+        for pipeline in raw_pipelines:
             self._validate_pipeline(pipeline)
-        for edge in self.feedback_edges:
-            self._resolve_step(edge.source_ref)
-            self._resolve_step(edge.target_ref)
+            resolved = tuple(self._resolve_step(step) for step in pipeline.steps)
+            hashes = tuple(self._step_content_hash(step) for step in resolved)
+            if pipeline.step_hashes and pipeline.step_hashes != hashes:
+                raise ContentHashError(
+                    f"step hashes for pipeline {pipeline.id!r} do not match resolved content"
+                )
+            domain = resolved[0].definition.domain
+            codomain = resolved[-1].definition.codomain
+            if pipeline.domain and pipeline.domain != domain:
+                raise TypeCompatibilityError(
+                    f"pipeline {pipeline.id!r} declares domain {pipeline.domain!r}, "
+                    f"but its first step accepts {domain!r}"
+                )
+            if pipeline.codomain and pipeline.codomain != codomain:
+                raise TypeCompatibilityError(
+                    f"pipeline {pipeline.id!r} declares codomain {pipeline.codomain!r}, "
+                    f"but its last step produces {codomain!r}"
+                )
+            bound_pipelines.append(
+                replace(
+                    pipeline,
+                    domain=domain,
+                    codomain=codomain,
+                    step_hashes=hashes,
+                    content_hash="",
+                )
+            )
+        self.pipelines = tuple(bound_pipelines)
+        self._pipeline_by_id = MappingProxyType({item.id: item for item in self.pipelines})
+
+        bound_feedback: list[FeedbackEdge] = []
+        for edge in raw_feedback:
+            source = self._resolve_step(edge.source_ref)
+            target = self._resolve_step(edge.target_ref)
+            source_type = self._port_type(
+                source.definition, edge.source_port, output=True
+            )
+            target_type = self._port_type(
+                target.definition, edge.target_port, output=False
+            )
+            if edge.source_port_type and edge.source_port_type != source_type:
+                raise TypeCompatibilityError(
+                    f"feedback {edge.id!r} source port type {edge.source_port_type!r} "
+                    f"does not match {source_type!r}"
+                )
+            if edge.target_port_type and edge.target_port_type != target_type:
+                raise TypeCompatibilityError(
+                    f"feedback {edge.id!r} target port type {edge.target_port_type!r} "
+                    f"does not match {target_type!r}"
+                )
+            if source_type != target_type:
+                raise TypeCompatibilityError(
+                    f"feedback {edge.id!r} connects {source_type!r} to incompatible "
+                    f"{target_type!r} across generations"
+                )
+            source_hash = self._step_content_hash(source)
+            target_hash = self._step_content_hash(target)
+            if edge.source_hash and edge.source_hash != source_hash:
+                raise ContentHashError(
+                    f"source hash for feedback {edge.id!r} does not match resolved content"
+                )
+            if edge.target_hash and edge.target_hash != target_hash:
+                raise ContentHashError(
+                    f"target hash for feedback {edge.id!r} does not match resolved content"
+                )
+            bound_feedback.append(
+                replace(
+                    edge,
+                    source_port_type=source_type,
+                    target_port_type=target_type,
+                    source_hash=source_hash,
+                    target_hash=target_hash,
+                    content_hash="",
+                )
+            )
+        self.feedback_edges = tuple(bound_feedback)
 
         self.content_hash = canonical_hash(self.manifest())
+        object.__setattr__(self, "_sealed", True)
 
     def definition(self, reference: str) -> DefinitionNode:
         """Resolve either a stable definition ID or its tagged content hash."""
@@ -686,6 +1063,25 @@ class SubstrateGraph:
         raise ReferenceResolutionError(
             f"step reference {reference!r} is neither a definition nor an instance"
         )
+
+    @staticmethod
+    def _step_content_hash(step: ResolvedPipelineStep) -> str:
+        return step.instance.content_hash if step.instance is not None else step.definition.content_hash
+
+    @staticmethod
+    def _port_type(node: DefinitionNode, port: str, *, output: bool) -> str:
+        bindings = node.output_ports if output else node.input_ports
+        if bindings:
+            try:
+                return bindings[port]
+            except KeyError as error:
+                direction = "output" if output else "input"
+                raise ReferenceResolutionError(
+                    f"definition {node.id!r} has no declared {direction} port {port!r}"
+                ) from error
+        # A definition without a named schema has one endpoint.  The edge's
+        # port label names that sole endpoint, whose type is still checked.
+        return node.codomain if output else node.domain
 
     def _resolve_topology(self) -> tuple[DefinitionNode, ...]:
         by_id = self._definition_by_id
@@ -768,6 +1164,7 @@ class SubstrateGraph:
     def _validate_pipeline(self, pipeline: Pipeline) -> None:
         seen_definitions: set[str] = set()
         prior_phase = -1
+        prior_step: ResolvedPipelineStep | None = None
         for step_ref in pipeline.steps:
             step = self._resolve_step(step_ref)
             node = step.definition
@@ -786,14 +1183,21 @@ class SubstrateGraph:
                     f"pipeline {pipeline.id!r} moves backward from phase {prior_phase} "
                     f"to phase {node.evaluation_phase} at {step_ref!r}"
                 )
+            if prior_step is not None and prior_step.definition.codomain != node.domain:
+                raise TypeCompatibilityError(
+                    f"pipeline {pipeline.id!r} connects {prior_step.step_ref!r} "
+                    f"codomain {prior_step.definition.codomain!r} to {step_ref!r} "
+                    f"domain {node.domain!r}"
+                )
             seen_definitions.add(node.id)
             prior_phase = node.evaluation_phase
+            prior_step = step
 
     def manifest(self) -> Mapping[str, Any]:
         """Return the deterministic graph envelope used for ``content_hash``."""
 
         return {
-            "record_type": "nhdf.substrate-graph.v1",
+            "record_type": "nhdf.substrate-graph.v2",
             "closure": {
                 "semantics": self.closure_semantics,
                 "fixed_point_engine": self.fixed_point_engine,
@@ -822,6 +1226,11 @@ class SubstrateGraph:
             ],
         }
 
+    def verify_content_hash(self) -> bool:
+        """Verify that the immutable graph still matches its stored root digest."""
+
+        return self.content_hash == canonical_hash(self.manifest())
+
 
 __all__ = [
     "ContentHashError",
@@ -839,6 +1248,7 @@ __all__ = [
     "SubstrateGraphError",
     "SymbolFirewallError",
     "SymbolRole",
+    "TypeCompatibilityError",
     "canonical_hash",
     "canonical_json",
     "validate_symbol_firewall",

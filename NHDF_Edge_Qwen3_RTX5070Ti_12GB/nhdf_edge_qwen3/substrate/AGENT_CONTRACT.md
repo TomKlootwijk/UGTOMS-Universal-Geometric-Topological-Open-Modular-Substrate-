@@ -23,7 +23,11 @@ Authority is stratified:
    explicit next-generation update.
 2. Early UGTS supplies the typed geometric/topological/operator algebra.
 3. UGTS 3.6 supplies content-addressed definition nodes, instances by
-   definition reference, and explicit acyclic pipelines.
+   definition reference, and explicit acyclic pipelines. The graph-v2
+   clean-room schema Merkle-binds each definition to its dependency ID-to-hash
+   map, each instance to its definition ID and hash, each pipeline to ordered
+   step IDs and hashes plus typed endpoints, and each delayed feedback edge to
+   typed source/target ports and hashes.
 4. SCLP 3.6.2 is a first-class corrective profile: exact finite-cone SDF,
    sphere support, certified sweep interval, log-polar metric/Jacobian and
    velocity/acceleration, bounded one-bit jitter, distinct topological wraps,
@@ -66,8 +70,10 @@ a declared equivalence scope and evidence.
 - Do not use fuzzy logic. A guard is true, false, or `INDETERMINATE`; the last
   is a visible refusal to classify, not a probability.
 - A geometric float backend must state its format, rounding, units, tolerances,
-  error interval, and reference vectors. Prefer a fixed-point or quantized key
-  for identity/routing. Never use floating-point coincidence as identity.
+  error interval, and reference vectors. Prefer a fixed-point numeric encoding
+  (integer-scaled arithmetic, unrelated to mathematical fixed-point iteration)
+  or a quantized key for identity/routing. Never use floating-point coincidence
+  as identity.
 - One-bit jitter is `H(seed,key,context) mod 2`, with a declared amplitude
   strictly below the guard margin. It is deterministic route/predicate metadata,
   not random noise and not complete state.
@@ -81,11 +87,13 @@ a declared equivalence scope and evidence.
 
 Never silently alias these concepts:
 
-- cone slant `T_cone`, linear time `t`, and modular tick `X`;
-- golden ratio `phi_g` and phase or hinge angle `phi`;
-- residual/jitter log magnitude and spatial log radius;
+- cone slant `T_cone`, linear time `time`, and modular tick `X`;
+- golden ratio `phi_g` and periodic phase or hinge angle `phase`;
+- residual/jitter log magnitude `rho_jitter` and spatial log radius
+  `rho_spatial`;
 - jitter amplitude and event-guard margin;
-- payload parity, topology parity, jitter bit, and branch bit;
+- payload parity `b_payload`, topology orientation `b_topology`, jitter control
+  `b_jitter`, and branch predicate `b_branch`;
 - comparison BST and radix-prefix trie;
 - source half-turn bundle map and reflective Klein quotient;
 - cone implicit field, exact finite-cone SDF, and certified sweep interval;
@@ -106,13 +114,21 @@ Never silently alias these concepts:
 - Topology requires explicit charts, ports, sheet, orientation, winding, and
   transfer maps. It is routing/gluing, not material magic.
 
-## Referential closure and extension
+## Referential closure
 
 Within one generation, definitions form a content-addressed acyclic typed DAG.
-An instance references a definition hash; a pipeline is explicit. Historical
-UGTS 3.6 did not demonstrate an unrestricted fixed-point loop. Self-reference
-here means source-grounded referential closure plus an explicit feedback edge
-from generation `n` output/residual to generation `n+1`.
+Every dependency is bound by both stable ID and content hash. An instance binds
+both `definition_ref` and `definition_hash`; a pipeline binds ordered step IDs,
+step hashes, domain, and codomain. A declared port name must exist in its typed
+port map; a definition without a port map exposes only its single declared
+domain or codomain endpoint. Historical UGTS 3.6 did not demonstrate an
+unrestricted mathematical fixed-point loop. Self-reference here means
+source-grounded referential closure plus a separately recorded, typed feedback
+edge from generation `n` output/residual to generation `n+1`. That delayed edge
+is not part of the same-generation DAG and makes no existence, uniqueness,
+stability, convergence, or fixed-point-engine claim.
+
+## Extension proposals
 
 Generated work may propose a new definition, profile, or extension. It may not
 promote itself. Every proposal starts `QUARANTINED` and must include base kernel
@@ -130,6 +146,16 @@ stable identity, typed relation surfaces, observations, uncertainty, atomic
 patches, checkpoints, replay, and lineage. Do not import ontology, HGT/TGN,
 teacher-model, GIS-provider, game, Android, wallet, or UI stacks into the
 kernel.
+
+Selecting a profile is an evidence-bearing act. Record the selected profile ID
+and digest, the exact base-kernel digest it requires, every applied correction
+or overlay in order, and the evidence records supporting each claimed
+capability. Evidence must bind the same kernel/profile hashes, numeric policy,
+implementation revision, hardware scope when relevant, inputs, thresholds,
+measured outputs, and pass/fail disposition. A registry label, adjacent hash
+file, report, or model assertion cannot promote a profile by itself. Missing,
+stale, contradictory, self-authored, or hash-mismatched evidence fails closed;
+automatic promotion remains prohibited.
 
 The historical archive is read-only. Never bulk-ingest it. Do not write there.
 Use a single item only when the task requires it, verify its hash and license,

@@ -43,7 +43,7 @@
       "proof_id": "clean-room-substrate-packing-1024-display-instances",
       "class": "CLEAN_ROOM_MEASURED_EVIDENCE",
       "artifact_type": "bounded content-addressed display recipe and shared packed state",
-      "implementation": {"path": "src/nhdf_edge/substrate_packing.py", "bytes": 50796, "sha256": "81d473c9f3706762b2ed2ec9b2745fb00fba9573a94ff33c0085b97d38986f69"},
+      "implementation": {"path": "src/nhdf_edge/substrate_packing.py", "bytes": 51155, "sha256": "8dc232f8c22672fa26d8cdbab2b06bf166e91c2120b2ab0f0c6609ac6f0ebe4c"},
       "validation": {
         "generated_display_instances": 1024,
         "shared_lut_bytes": 1596,

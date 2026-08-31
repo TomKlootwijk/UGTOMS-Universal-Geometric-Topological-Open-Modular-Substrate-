@@ -9,6 +9,8 @@ from pathlib import Path
 
 import pytest
 
+from nhdf_edge.substrate_contract import validate_application_manifest
+
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = PROJECT_ROOT / "scripts" / "benchmark_substrate_coder.py"
@@ -85,15 +87,15 @@ def _valid_replay(generations: int = 5) -> dict:
                 },
                 "bits": {
                     "payload_parity_bit": 0,
-                    "topology_orientation_bit": 1,
+                    "topology_parity_bit": 1,
                     "jitter_control_bit": generation & 1,
-                    "branch_predicate_bit": (generation + 1) & 1,
+                    "branch_control_bit": (generation + 1) & 1,
                 },
                 "bit_role_provenance": {
                     "payload_parity_bit": "xor_parity(payload)",
-                    "topology_orientation_bit": "orientation_reversals mod 2",
+                    "topology_parity_bit": "orientation_reversals mod 2",
                     "jitter_control_bit": "OneBitJitter.bit",
-                    "branch_predicate_bit": "explicit routing predicate",
+                    "branch_control_bit": "explicit routing control",
                 },
                 "vectors": [
                     {"role": "velocity", "origin": [0, 0, 0], "displacement": [1, 0, 0]},
@@ -107,6 +109,25 @@ def _valid_replay(generations: int = 5) -> dict:
                 "geometry": {
                     "finite_cone": {"kind": "exact-finite-cone-sdf", "distance": -0.25},
                     "sphere": {"kind": "exact-sphere-sdf", "distance": 0.5},
+                    "sweep_interval": {
+                        "certified": True,
+                        "earliest_impact_claim": False,
+                        "parameter_interval": [0.25, 0.5],
+                        "endpoint_distances": [0.01, -0.01],
+                    },
+                },
+                "jitter_certificate": {
+                    "amplitude": 0.01,
+                    "guard_margin": 0.1,
+                    "interval": [-0.01, 0.01],
+                    "safe_under_margin": True,
+                },
+                "routing_budget": {
+                    "used_depth": 1,
+                    "maximum_depth": 4,
+                    "used_active_branches": 2,
+                    "maximum_active_branches": 8,
+                    "bounded": True,
                 },
                 "event": {
                     "status": status,
@@ -118,6 +139,52 @@ def _valid_replay(generations: int = 5) -> dict:
                 "lineage_digest": f"{200 + generation:064x}",
             }
         )
+    proof_inventory = {
+        gate.PROFILE_ID: {
+            "finite-cone-reference-vector": {
+                "profile_id": gate.PROFILE_ID,
+                "requirement_id": "finite-cone-reference-vector",
+                "passed": True,
+                "evidence_paths": ["/generations/0/geometry/finite_cone"],
+            },
+            "packed-key-round-trips": {
+                "profile_id": gate.PROFILE_ID,
+                "requirement_id": "packed-key-round-trips",
+                "passed": True,
+                "evidence_paths": [
+                    "/generations/0/packing/contiguous_round_trip",
+                    "/generations/0/packing/morton_round_trip",
+                ],
+            },
+            "jitter-margin-certificate": {
+                "profile_id": gate.PROFILE_ID,
+                "requirement_id": "jitter-margin-certificate",
+                "passed": True,
+                "evidence_paths": ["/generations/0/jitter_certificate"],
+            },
+            "metric-kinematic-reference-vector": {
+                "profile_id": gate.PROFILE_ID,
+                "requirement_id": "metric-kinematic-reference-vector",
+                "passed": True,
+                "evidence_paths": [
+                    "/generations/0/address",
+                    "/generations/0/kinematics",
+                ],
+            },
+            "grammar-budget-trace": {
+                "profile_id": gate.PROFILE_ID,
+                "requirement_id": "grammar-budget-trace",
+                "passed": True,
+                "evidence_paths": ["/generations/0/routing_budget"],
+            },
+            "sweep-interval": {
+                "profile_id": gate.PROFILE_ID,
+                "requirement_id": "sweep-interval",
+                "passed": True,
+                "evidence_paths": ["/generations/0/geometry/sweep_interval"],
+            },
+        }
+    }
     return {
         "format": gate.REPLAY_FORMAT,
         "application_id": gate.APPLICATION_ID,
@@ -134,7 +201,11 @@ def _valid_replay(generations: int = 5) -> dict:
         },
         "generations": rows,
         "lineage_head": rows[-1]["lineage_digest"],
-        "distinctions": {"self_reference_may_promote": False},
+        "proof_inventory": proof_inventory,
+        "distinctions": {
+            "self_reference_may_propose_extensions": False,
+            "self_reference_may_promote": False,
+        },
     }
 
 
@@ -153,7 +224,8 @@ def test_scope_and_prompt_make_the_bounded_claim_honestly() -> None:
     assert "not a preventive sandbox" in lowered
     assert "legacy/archive" in lowered
     assert "n to n+1" in lowered
-    assert "may only propose quarantined extensions and cannot promote" in lowered
+    assert "no extension-proposal or promotion authority" in lowered
+    assert "profile-qualified proof inventory" in lowered
     for command in gate.ALLOWED_BASH_COMMANDS:
         assert f"`{command}`" in prompt
 
@@ -211,16 +283,59 @@ def test_manifest_template_is_bound_but_deliberately_unsealed(tmp_path: Path) ->
     registry = json.loads((fixture / "substrate/profiles/registry.json").read_text(encoding="utf-8"))
     profile = next(item for item in registry["profiles"] if item["profile_id"] == gate.PROFILE_ID)
     assert template["kernel"]["sha256"] == gate._sha256_file(fixture / template["kernel"]["path"])
+    assert template["format"] == gate.APPLICATION_FORMAT
     assert template["profiles"] == [{"profile_id": gate.PROFILE_ID, "sha256": profile["sha256"]}]
     assert set(template["mappings"]) == set(gate.MAPPING_CATEGORIES)
+    assert sum(len(rows) for rows in template["mappings"].values()) == gate.EXPECTED_MAPPING_ROWS
+    assert {
+        row["id"]
+        for rows in template["mappings"].values()
+        for row in rows
+        if row["disposition"] == "BYPASS"
+    } == {
+        "application-additional-geometry-bypass",
+        "application-half-turn-bypass",
+        "application-radix-bypass",
+    }
     assert template["self_reference"] == {
         "enabled": True,
         "bounded_generations": 5,
-        "may_propose_extensions": True,
+        "may_propose_extensions": False,
         "may_promote_extensions": False,
         "proposal_disposition": "QUARANTINED",
     }
     assert template["evidence"][0]["sha256"] == "0" * 64
+    assert {
+        (row["profile_id"], row["requirement_id"])
+        for row in template["evidence"][0]["claim_coverage"]
+    } == {(gate.PROFILE_ID, requirement_id) for requirement_id in gate.PROFILE_REQUIREMENT_IDS}
+
+
+def test_v02_template_validates_when_sealed_to_exact_requirement_replay(
+    tmp_path: Path,
+) -> None:
+    fixture = tmp_path / "fixture"
+    gate._create_fixture(fixture, require_tracked=False)
+    replay_path = fixture / "evidence/replay.json"
+    replay_path.write_text(
+        json.dumps(_valid_replay(), sort_keys=True, separators=(",", ":")) + "\n",
+        encoding="utf-8",
+    )
+    manifest_path = fixture / "app/application-manifest.template.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["evidence"][0]["bytes"] = replay_path.stat().st_size
+    manifest["evidence"][0]["sha256"] = gate._sha256_file(replay_path)
+
+    result = validate_application_manifest(
+        manifest,
+        repository_root=fixture,
+        evidence_root=fixture,
+    )
+
+    assert result["ok"] is True
+    assert result["selected_profiles"] == [gate.PROFILE_ID]
+    assert result["profile_requirement_count"] == len(gate.PROFILE_REQUIREMENT_IDS)
+    assert result["mapping_count"] == gate.EXPECTED_MAPPING_ROWS
 
 
 @pytest.mark.parametrize(
@@ -325,6 +440,7 @@ def test_replay_evaluator_accepts_exact_bounded_primitive_evidence() -> None:
     assert result["generations"] == 5
     assert result["exact_key_widths"] == gate.KEY_WIDTHS
     assert result["statuses"] == ["INDETERMINATE", "VERIFIED"]
+    assert result["profile_requirement_count"] == len(gate.PROFILE_REQUIREMENT_IDS)
 
 
 @pytest.mark.parametrize(
@@ -334,10 +450,33 @@ def test_replay_evaluator_accepts_exact_bounded_primitive_evidence() -> None:
         (lambda value: value["definition_graph"]["feedback"].update(target_generation=2), "generation 0 to 1"),
         (lambda value: value["generations"][0]["packing"].update(contiguous_round_trip=False), "round trips"),
         (lambda value: value["generations"][0]["geometry"].pop("finite_cone"), "finite cone"),
+        (
+            lambda value: value["generations"][0]["geometry"]["sweep_interval"].update(
+                certified=False
+            ),
+            "sweep interval",
+        ),
+        (
+            lambda value: value["generations"][0]["jitter_certificate"].update(
+                guard_margin=0.005
+            ),
+            "guard margin",
+        ),
         (lambda value: value["generations"][0]["bit_role_provenance"].update(jitter_control_bit="xor_parity(payload)"), "bit-role provenance"),
         (lambda value: value["generations"][0]["feedback"].update(target_generation=4), r"n to n\+1"),
         (lambda value: value["generations"][0].update(state_digest="bad"), "state digest"),
-        (lambda value: value["distinctions"].update(self_reference_may_promote=True), "promotion"),
+        (
+            lambda value: value["proof_inventory"][gate.PROFILE_ID].pop(
+                "sweep-interval"
+            ),
+            "proof inventory",
+        ),
+        (
+            lambda value: value["distinctions"].update(
+                self_reference_may_propose_extensions=True
+            ),
+            "extension proposal",
+        ),
     ),
 )
 def test_replay_evaluator_fails_closed_on_semantic_corruption(mutation, message: str) -> None:

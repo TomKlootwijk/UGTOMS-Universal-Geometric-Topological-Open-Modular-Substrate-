@@ -42,6 +42,7 @@ import hashlib
 import math
 import re
 import struct
+import unicodedata
 from typing import Iterable, Mapping, Sequence
 
 from .substrate_runtime import QuantizedStateKey, SCLPKeyLayout64, SubstrateError
@@ -138,10 +139,11 @@ def _identifier(value: object, label: str) -> str:
 def _text(value: object, label: str) -> str:
     if not isinstance(value, str) or not value or value != value.strip():
         raise SubstratePackingError(f"{label} must be non-empty text without edge whitespace")
-    encoded = value.encode("utf-8")
+    normalized = unicodedata.normalize("NFC", value)
+    encoded = normalized.encode("utf-8")
     if len(encoded) > 65535:
         raise SubstratePackingError(f"{label} exceeds 65535 UTF-8 bytes")
-    return value
+    return normalized
 
 
 def _length_prefixed(value: str) -> bytes:
@@ -428,7 +430,8 @@ class SharedLogPolarLUT:
     def _half_round(values: Sequence[float], label: str) -> tuple[float, ...]:
         try:
             packed = struct.pack(f"<{len(values)}e", *values)
-            return struct.unpack(f"<{len(values)}e", packed)
+            rounded = struct.unpack(f"<{len(values)}e", packed)
+            return tuple(0.0 if value == 0.0 else value for value in rounded)
         except (OverflowError, struct.error) as error:
             raise SubstratePackingError(f"{label} cannot be represented as binary16") from error
 
@@ -460,7 +463,9 @@ class SharedLogPolarLUT:
             raise SubstratePackingError("LUT radius scale must be positive")
         resolution = self.profile.resolution
         for name in ("sine", "cosine", "radius_mantissas"):
-            values = tuple(getattr(self, name))
+            values = tuple(
+                0.0 if value == 0.0 else value for value in getattr(self, name)
+            )
             if len(values) != resolution:
                 raise SubstratePackingError(f"LUT {name} length does not match resolution")
             if any(not math.isfinite(value) for value in values):
@@ -489,16 +494,17 @@ class SharedLogPolarLUT:
         except (OverflowError, struct.error) as error:
             raise SubstratePackingError("LUT values do not fit canonical binary16") from error
 
-    def to_bytes(self) -> bytes:
-        canonical = type(self).generate(self.profile)
-        if (
-            self.radius_scale != canonical.radius_scale
-            or self.sine != canonical.sine
-            or self.cosine != canonical.cosine
-            or self.radius_mantissas != canonical.radius_mantissas
-        ):
+    def _require_canonical(self) -> bytes:
+        """Return bytes only when this object is the unique table for its profile."""
+
+        result = self._unchecked_bytes()
+        canonical = type(self).generate(self.profile)._unchecked_bytes()
+        if result != canonical:
             raise SubstratePackingError("LUT object is not the canonical table for its profile")
-        return self._unchecked_bytes()
+        return result
+
+    def to_bytes(self) -> bytes:
+        return self._require_canonical()
 
     @classmethod
     def from_bytes(cls, data: bytes | bytearray | memoryview) -> "SharedLogPolarLUT":
@@ -531,16 +537,11 @@ class SharedLogPolarLUT:
             raise SubstratePackingError("LUT payload is truncated")
         if len(raw) > expected_size:
             raise SubstratePackingError("LUT contains trailing bytes")
-        values = struct.unpack(f"<{resolution * 3}e", raw[_LUT_HEADER.size :])
-        candidate = cls(
-            profile,
-            radius_scale,
-            tuple(values[:resolution]),
-            tuple(values[resolution : resolution * 2]),
-            tuple(values[resolution * 2 :]),
-        )
+        # Decode once so malformed binary16 payloads still fail before the
+        # bytewise canonical comparison below.
+        struct.unpack(f"<{resolution * 3}e", raw[_LUT_HEADER.size :])
         canonical = cls.generate(profile)
-        if candidate._unchecked_bytes() != canonical._unchecked_bytes():
+        if raw != canonical._unchecked_bytes():
             raise SubstratePackingError("LUT bytes are valid binary16 but not canonical")
         return canonical
 
@@ -549,6 +550,7 @@ class SharedLogPolarLUT:
         return hashlib.sha256(self.to_bytes()).hexdigest()
 
     def direction(self, theta: float) -> tuple[float, float]:
+        self._require_canonical()
         angle = _finite(theta, "theta") % (2.0 * math.pi)
         coordinate = angle * self.profile.resolution / (2.0 * math.pi)
         low = int(math.floor(coordinate)) % self.profile.resolution
@@ -559,9 +561,13 @@ class SharedLogPolarLUT:
         length = math.hypot(sine, cosine)
         if length <= 1.0e-12:
             raise SubstratePackingError("interpolated LUT direction is degenerate")
-        return sine / length, cosine / length
+        # Cartesian polar direction is (cos(theta), sin(theta)).  The wire
+        # lanes remain sine then cosine; only their geometric interpretation
+        # is ordered here.
+        return cosine / length, sine / length
 
     def radius(self, rho: float) -> float:
+        self._require_canonical()
         value = _finite(rho, "rho")
         if not self.profile.rho_min <= value <= self.profile.rho_max:
             raise SubstratePackingError("rho lies outside the LUT profile")

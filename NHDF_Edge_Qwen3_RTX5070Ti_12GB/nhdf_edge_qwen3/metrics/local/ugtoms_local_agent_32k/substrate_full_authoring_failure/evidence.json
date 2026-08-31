@@ -1,0 +1,76 @@
+{
+  "all_gates_passed": false,
+  "config_gate": {
+    "mcp_disabled": true,
+    "model": "local-runtime/local-qwen3-30b-a3b",
+    "only_canonical_placeholder_resolved": true,
+    "passed": true,
+    "plugins_disabled": true,
+    "provider": "local-runtime",
+    "resolved_provider_endpoint": "http://127.0.0.1:18084/v1",
+    "source_base_url_placeholder": "{env:UGTOMS_LOCAL_CODER_BASE_URL}/v1"
+  },
+  "failure": {
+    "message": "OpenCode agent timed out after 1200.0s",
+    "type": "GateError"
+  },
+  "finished_at_utc": "2026-08-31T18:08:48.676433Z",
+  "format": "ugtoms-substrate-coder-gate-0.1",
+  "inputs": {
+    "config_path": "<PROJECT_ROOT>/configs/opencode_nhdf_local.json",
+    "config_sha256": "66a6e5adcc98fc80921bc4e0386f341c80a4f824597e26309b8499344f440ab1",
+    "model": "local-runtime/local-qwen3-30b-a3b",
+    "opencode_executable": "<PROJECT_ROOT>/.local-coder/node_modules/opencode-ai/bin/opencode.exe",
+    "opencode_executable_sha256": "ef06e41a35795066e95acde276a42fbbf85d7a683c2787f6a19ed20bcde9b6ff",
+    "server_url": "http://127.0.0.1:18084"
+  },
+  "model_gate": {
+    "alias": "local-qwen3-30b-a3b",
+    "context_field": "meta.n_ctx",
+    "minimum_context_tokens": 32768,
+    "passed": true,
+    "reported_context_tokens": 32768,
+    "request": {
+      "elapsed_seconds": 0.03971929999534041,
+      "request_bytes": 0,
+      "response_bytes": 638,
+      "status": 200
+    }
+  },
+  "native_tool_call_gate": {
+    "arguments": {
+      "label": "gate-ready",
+      "nonce": 20260831
+    },
+    "arguments_were_json_string": true,
+    "finish_reason": "tool_calls",
+    "function": "record_local_probe",
+    "passed": true,
+    "request": {
+      "elapsed_seconds": 0.4975603999919258,
+      "request_bytes": 768,
+      "response_bytes": 813,
+      "status": 200
+    }
+  },
+  "scope": {
+    "classification": "bounded_literal_substrate_acceptance_gate",
+    "does_not_prove": [
+      "broad intelligence or general coding competence",
+      "model compression, NHDF compression, or semantic compression",
+      "production safety, universal substrate correctness, or convergence",
+      "preventive process, filesystem, or network sandboxing"
+    ],
+    "legacy_or_archive_material_loaded": false,
+    "post_run_audits_are_retrospective": true,
+    "preventive_sandbox": false,
+    "proves": [
+      "one local model can complete the exact clean-room SCLP fixture",
+      "the completed fixture passes the named deterministic primitive checks",
+      "the application manifest binds the sealed kernel/profile/replay evidence",
+      "the repository PDF renderer produces reopenable text-validated evidence"
+    ]
+  },
+  "started_at_utc": "2026-08-31T17:48:43.119745Z",
+  "status": "FAILED"
+}

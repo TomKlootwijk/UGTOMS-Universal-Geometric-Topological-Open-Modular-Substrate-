@@ -18,15 +18,16 @@ import json
 import math
 import os
 import re
+import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
 
 
-KERNEL_FORMAT = "ugtoms-kernel-contract-0.1"
-PROFILE_REGISTRY_FORMAT = "ugtoms-profile-registry-0.1"
-PROFILE_FORMAT = "ugtoms-profile-0.1"
-APPLICATION_FORMAT = "ugtoms-application-manifest-0.1"
+KERNEL_FORMAT = "ugtoms-kernel-contract-0.2"
+PROFILE_REGISTRY_FORMAT = "ugtoms-profile-registry-0.2"
+PROFILE_FORMAT = "ugtoms-profile-0.2"
+APPLICATION_FORMAT = "ugtoms-application-manifest-0.2"
 EXTENSION_PROPOSAL_FORMAT = "ugtoms-extension-proposal-0.1"
 
 KERNEL_ID = "ugtoms-kernel-v0.1"
@@ -59,7 +60,7 @@ COMPOSED_EXECUTION = (
     "input_residual",
     "log_polar_address_and_metric",
     "cell_local_nondegenerate_zero_set",
-    "typed_parity_jitter_control_predicates",
+    "typed_payload_topology_parity_jitter_branch_control_predicates",
     "bounded_BST_L_system_or_radix_routing",
     "causal_vector_kinematics",
     "cone_sphere_SDF_sweep_relation_and_projection",
@@ -144,6 +145,138 @@ ADMISSION_FORMS = frozenset(
     }
 )
 
+REQUIRED_SYMBOL_FIREWALL = (
+    (
+        ("T_cone", "t", "X"),
+        "cone slant length, linear time, and modular tick are distinct",
+    ),
+    (
+        ("phi_g", "phase_phi"),
+        "golden ratio and phase or hinge angle are distinct",
+    ),
+    (
+        ("rho_jitter", "rho_spatial"),
+        "residual log magnitude and spatial log radius are distinct",
+    ),
+    (
+        ("epsilon_jitter", "epsilon_guard"),
+        "jitter amplitude must be strictly below a declared guard margin",
+    ),
+    (
+        (
+            "payload_parity_bit",
+            "topology_parity_bit",
+            "jitter_control_bit",
+            "branch_control_bit",
+        ),
+        "the four bit roles cannot be silently aliased",
+    ),
+    (
+        ("comparison_BST", "radix_prefix_trie"),
+        "comparison ordering and packed-prefix refinement are different operators",
+    ),
+    (
+        ("half_turn_bundle_map", "reflective_Klein_gluing"),
+        "source twist and non-orientable quotient are separate profiles",
+    ),
+    (
+        ("cone_implicit_field", "finite_cone_SDF", "sweep_interval"),
+        "an implicit relation, exact finite SDF, and certified sampled sweep are different claim classes",
+    ),
+    (
+        ("circle", "sphere", "apex"),
+        "circle is a base, section, or projection; sphere is a support SDF; apex is a local or distributed anchor",
+    ),
+)
+
+REQUIRED_DEFINITION_GRAPH_INVARIANTS = (
+    (
+        "same_generation",
+        "Merkle content-addressed acyclic typed graph; child content identity binds dependency content hashes",
+    ),
+    (
+        "instance_rule",
+        "instances bind definition content hashes; coordinates and semantic IDs are not content identity",
+    ),
+    (
+        "pipeline_rule",
+        "pipelines bind ordered step content hashes, generation, domain, codomain, and typed adjacency",
+    ),
+    (
+        "self_reference_rule",
+        "feedback binds endpoint content hashes, named typed ports, and enters exactly generation n+1 through an explicit edge",
+    ),
+    (
+        "unproven_claim",
+        "an unrestricted fixed point or same-generation authority cycle is not implemented",
+    ),
+)
+
+REQUIRED_DEFINITION_NODE_FIELDS = (
+    "record_type",
+    "id",
+    "kind",
+    "domain",
+    "codomain",
+    "dependencies",
+    "dependency_hashes",
+    "evaluation_phase",
+    "parameters",
+    "equation",
+    "units",
+    "bounds",
+    "failures",
+    "provenance",
+    "input_ports",
+    "output_ports",
+    "content_hash",
+)
+
+REQUIRED_DEFINITION_INSTANCE_FIELDS = (
+    "record_type",
+    "id",
+    "definition_ref",
+    "definition_hash",
+    "literal",
+    "state",
+    "content_hash",
+)
+
+REQUIRED_PIPELINE_FIELDS = (
+    "record_type",
+    "id",
+    "description",
+    "generation",
+    "domain",
+    "codomain",
+    "steps",
+    "step_hashes",
+    "content_hash",
+)
+
+REQUIRED_FEEDBACK_FIELDS = (
+    "record_type",
+    "id",
+    "source_ref",
+    "source_port",
+    "source_port_type",
+    "source_hash",
+    "source_generation",
+    "target_ref",
+    "target_port",
+    "target_port_type",
+    "target_hash",
+    "target_generation",
+    "semantics",
+    "fixed_point_claim",
+    "provenance",
+    "content_hash",
+)
+
+REQUIRED_SELF_REFERENCE_MAPPING_RULE = (
+    "generated output may propose the next state or an extension but cannot rewrite its own authority"
+)
+
 _IDENTIFIER = re.compile(r"^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$")
 _SHA256 = re.compile(r"^[0-9a-fA-F]{64}$")
 
@@ -166,11 +299,77 @@ class ContractBundle:
     profile_sha256s: dict[str, str]
 
 
-def canonical_json_bytes(value: object) -> bytes:
-    """Return deterministic UTF-8 JSON bytes for content-addressed records."""
+def _canonical_json_value(value: object, location: str = "$") -> object:
+    """Normalize one JSON-compatible value for portable content addressing."""
 
+    if value is None or isinstance(value, bool) or isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        if not math.isfinite(value):
+            raise SubstrateContractError(f"{location}: non-finite numbers are not valid JSON")
+        return 0.0 if value == 0.0 else value
+    if isinstance(value, str):
+        return unicodedata.normalize("NFC", value)
+    if isinstance(value, (list, tuple)):
+        return [
+            _canonical_json_value(item, f"{location}[{index}]")
+            for index, item in enumerate(value)
+        ]
+    if isinstance(value, Mapping):
+        normalized: dict[str, object] = {}
+        for key, item in value.items():
+            if not isinstance(key, str):
+                raise SubstrateContractError(f"{location}: object keys must be strings")
+            normalized_key = unicodedata.normalize("NFC", key)
+            if normalized_key in normalized:
+                raise SubstrateContractError(
+                    f"{location}: duplicate object key after NFC normalization: {normalized_key!r}"
+                )
+            normalized[normalized_key] = _canonical_json_value(
+                item, f"{location}.{normalized_key}"
+            )
+        return normalized
+    raise SubstrateContractError(
+        f"{location}: {type(value).__name__} is not a JSON-compatible value"
+    )
+
+
+def _strict_json_loads(text: str, location: str) -> object:
+    def object_pairs(pairs: list[tuple[str, object]]) -> dict[str, object]:
+        result: dict[str, object] = {}
+        for key, item in pairs:
+            normalized_key = unicodedata.normalize("NFC", key)
+            if normalized_key in result:
+                raise ValueError(
+                    f"duplicate object key after NFC normalization: {normalized_key!r}"
+                )
+            result[normalized_key] = item
+        return result
+
+    def reject_constant(token: str) -> object:
+        raise ValueError(f"non-finite numeric token {token!r} is not valid JSON")
+
+    try:
+        parsed = json.loads(
+            text,
+            object_pairs_hook=object_pairs,
+            parse_constant=reject_constant,
+        )
+        return _canonical_json_value(parsed)
+    except (json.JSONDecodeError, ValueError, SubstrateContractError) as exc:
+        raise SubstrateContractError(f"{location}: is not strict UTF-8 JSON: {exc}") from exc
+
+
+def canonical_json_bytes(value: object) -> bytes:
+    """Return NFC, finite-number, negative-zero-normalized canonical JSON."""
+
+    normalized = _canonical_json_value(value)
     return json.dumps(
-        value, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+        normalized,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+        allow_nan=False,
     ).encode("utf-8")
 
 
@@ -334,9 +533,10 @@ def _repo_reference(root: Path, path: Path) -> str:
 
 def _load_json(path: Path, location: str) -> dict[str, Any]:
     try:
-        value = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeError) as exc:
         _fail(location, f"is not valid UTF-8 JSON: {exc}")
+    value = _strict_json_loads(text, location)
     if not isinstance(value, dict):
         _fail(location, "must contain a JSON object")
     return value
@@ -354,7 +554,7 @@ def _verify_file_record(
         value,
         location,
         required=("id", "role", "path", "bytes", "sha256"),
-        optional=("title", "note"),
+        optional=("title", "note", "claim_coverage"),
     )
     _identifier(record["id"], f"{location}.id")
     if role_values is None:
@@ -680,8 +880,8 @@ def _self_reference(value: object, location: str) -> dict[str, Any]:
         {"QUARANTINED"},
     ) != "QUARANTINED":  # pragma: no cover - _enum already raises
         _fail(location, "invalid proposal disposition")
-    if enabled and (generations < 1 or not may_propose):
-        _fail(location, "enabled self-reference needs a positive generation bound and proposal permission")
+    if enabled and generations < 1:
+        _fail(location, "enabled next-generation feedback needs a positive generation bound")
     if not enabled and (generations != 0 or may_propose):
         _fail(location, "disabled self-reference must have zero generations and no proposal permission")
     return record
@@ -794,17 +994,27 @@ def validate_kernel_contract(
             _fail(f"kernel.state_schema.{name}", f"is missing foundational state {missing!r}")
 
     firewall = _list(value["symbol_firewall"], "kernel.symbol_firewall")
+    firewall_rows: list[tuple[tuple[str, ...], str]] = []
     for index, item in enumerate(firewall):
         location = f"kernel.symbol_firewall[{index}]"
         row = _object(item, location, required=("symbols", "rule"))
-        _string_list(row["symbols"], location + ".symbols")
-        _string(row["rule"], location + ".rule")
+        symbols = tuple(_string_list(row["symbols"], location + ".symbols"))
+        rule = _string(row["rule"], location + ".rule")
+        firewall_rows.append((symbols, rule))
+    if tuple(firewall_rows) != REQUIRED_SYMBOL_FIREWALL:
+        _fail(
+            "kernel.symbol_firewall",
+            "must exactly preserve the required typed symbol roles and separation rules",
+        )
 
     graph = _object(
         value["definition_graph"],
         "kernel.definition_graph",
         required=(
             "node_fields",
+            "instance_fields",
+            "pipeline_fields",
+            "feedback_fields",
             "same_generation",
             "instance_rule",
             "pipeline_rule",
@@ -812,35 +1022,32 @@ def validate_kernel_contract(
             "unproven_claim",
         ),
     )
-    node_fields = set(
-        _string_list(graph["node_fields"], "kernel.definition_graph.node_fields", identifiers=True)
+    graph_field_sets = (
+        ("node_fields", REQUIRED_DEFINITION_NODE_FIELDS),
+        ("instance_fields", REQUIRED_DEFINITION_INSTANCE_FIELDS),
+        ("pipeline_fields", REQUIRED_PIPELINE_FIELDS),
+        ("feedback_fields", REQUIRED_FEEDBACK_FIELDS),
     )
-    graph_required = {
-        "id",
-        "kind",
-        "domain",
-        "codomain",
-        "dependencies",
-        "equation_or_algorithm",
-        "units",
-        "bounds",
-        "failure_modes",
-        "provenance",
-        "content_hash",
-    }
-    if not graph_required.issubset(node_fields):
-        _fail(
-            "kernel.definition_graph.node_fields",
-            f"is missing typed graph fields {sorted(graph_required - node_fields)!r}",
+    for field_name, required_fields in graph_field_sets:
+        actual_fields = tuple(
+            _string_list(
+                graph[field_name],
+                f"kernel.definition_graph.{field_name}",
+                identifiers=True,
+            )
         )
-    for key in (
-        "same_generation",
-        "instance_rule",
-        "pipeline_rule",
-        "self_reference_rule",
-        "unproven_claim",
-    ):
-        _string(graph[key], f"kernel.definition_graph.{key}")
+        if actual_fields != required_fields:
+            _fail(
+                f"kernel.definition_graph.{field_name}",
+                f"must exactly bind the hardened v2 fields {list(required_fields)!r}",
+            )
+    for key, required_value in REQUIRED_DEFINITION_GRAPH_INVARIANTS:
+        actual = _string(graph[key], f"kernel.definition_graph.{key}")
+        if actual != required_value:
+            _fail(
+                f"kernel.definition_graph.{key}",
+                f"must be {required_value!r}",
+            )
 
     composed = _string_list(
         value["composed_execution"], "kernel.composed_execution"
@@ -872,7 +1079,12 @@ def validate_kernel_contract(
                 location + ".required",
                 f"must be {list(KERNEL_MAPPING_REQUIREMENTS[category])!r}",
             )
-        _string(mapping["rule"], location + ".rule")
+        rule = _string(mapping["rule"], location + ".rule")
+        if category == "self_reference" and rule != REQUIRED_SELF_REFERENCE_MAPPING_RULE:
+            _fail(
+                location + ".rule",
+                "must preserve the proposal-only boundary and prohibit self-authority",
+            )
 
     source_summary = _source_records(
         value["source_records"],
@@ -993,7 +1205,7 @@ def _validate_profile_document(
 
     bounds = _string_list(value["resource_bounds"], f"{location}.resource_bounds")
     failures = _string_list(value["failure_modes"], f"{location}.failure_modes")
-    requirements = _string_list(
+    requirements = _evidence_requirements(
         value["evidence_requirements"], f"{location}.evidence_requirements"
     )
     _source_records(
@@ -1174,6 +1386,140 @@ def _evidence_records(
     return records
 
 
+def _json_pointer(value: object, location: str) -> str:
+    pointer = _string(value, location)
+    if not pointer.startswith("/"):
+        _fail(location, "must be an absolute JSON Pointer beginning with '/'")
+    for token in pointer.split("/")[1:]:
+        index = 0
+        while index < len(token):
+            if token[index] == "~":
+                if index + 1 >= len(token) or token[index + 1] not in "01":
+                    _fail(location, "contains an invalid JSON Pointer escape")
+                index += 2
+            else:
+                index += 1
+    return pointer
+
+
+def _resolve_json_pointer(document: object, pointer: str, location: str) -> object:
+    current = document
+    for encoded in pointer.split("/")[1:]:
+        token = encoded.replace("~1", "/").replace("~0", "~")
+        if isinstance(current, Mapping):
+            if token not in current:
+                _fail(location, f"does not resolve; missing object key {token!r}")
+            current = current[token]
+        elif isinstance(current, list):
+            if not token.isdigit() or (len(token) > 1 and token.startswith("0")):
+                _fail(location, f"does not resolve to a canonical array index: {token!r}")
+            index = int(token)
+            if index >= len(current):
+                _fail(location, f"array index {index} is out of range")
+            current = current[index]
+        else:
+            _fail(location, f"cannot traverse through {type(current).__name__}")
+    return current
+
+
+def _validate_selected_profile_claim_coverage(
+    evidence: Sequence[Mapping[str, Any]],
+    *,
+    selected_profile_ids: Sequence[str],
+    bundle: ContractBundle,
+    evidence_root: Path,
+    location: str,
+) -> int:
+    selected = frozenset(selected_profile_ids)
+    declared: dict[tuple[str, str], Mapping[str, Any]] = {}
+    for profile_id in selected_profile_ids:
+        for requirement in bundle.profiles[profile_id]["evidence_requirements"]:
+            declared[(profile_id, str(requirement["id"]))] = requirement
+
+    observed: dict[tuple[str, str], str] = {}
+    documents: dict[str, Mapping[str, Any]] = {}
+    for evidence_index, record in enumerate(evidence):
+        coverage_location = f"{location}[{evidence_index}].claim_coverage"
+        coverage_rows = _list(record.get("claim_coverage", []), coverage_location, nonempty=False)
+        if not coverage_rows:
+            continue
+        path = _contained_file(evidence_root, record["path"], f"{location}[{evidence_index}].path")
+        document = documents.setdefault(str(path), _load_json(path, coverage_location + ".document"))
+        for coverage_index, value_row in enumerate(coverage_rows):
+            row_location = f"{coverage_location}[{coverage_index}]"
+            row = _object(
+                value_row,
+                row_location,
+                required=("profile_id", "requirement_id", "proof_pointer"),
+            )
+            profile_id = _identifier(row["profile_id"], row_location + ".profile_id")
+            requirement_id = _identifier(
+                row["requirement_id"], row_location + ".requirement_id"
+            )
+            if profile_id not in selected:
+                _fail(
+                    row_location + ".profile_id",
+                    f"wrong-profile coverage for unselected profile {profile_id!r}",
+                )
+            key = (profile_id, requirement_id)
+            if key not in declared:
+                _fail(
+                    row_location + ".requirement_id",
+                    f"unknown requirement {requirement_id!r} for selected profile {profile_id!r}",
+                )
+            if key in observed:
+                _fail(
+                    row_location,
+                    f"duplicate coverage for {profile_id!r}/{requirement_id!r}; first seen at {observed[key]}",
+                )
+            proof_pointer = _json_pointer(row["proof_pointer"], row_location + ".proof_pointer")
+            proof_value = _resolve_json_pointer(
+                document, proof_pointer, row_location + ".proof_pointer"
+            )
+            proof = _object(
+                proof_value,
+                row_location + ".proof",
+                required=(
+                    "profile_id",
+                    "requirement_id",
+                    "passed",
+                    "evidence_paths",
+                ),
+            )
+            if _identifier(proof["profile_id"], row_location + ".proof.profile_id") != profile_id:
+                _fail(row_location + ".proof.profile_id", "contradicts the coverage profile_id")
+            if (
+                _identifier(
+                    proof["requirement_id"], row_location + ".proof.requirement_id"
+                )
+                != requirement_id
+            ):
+                _fail(
+                    row_location + ".proof.requirement_id",
+                    "contradicts the coverage requirement_id",
+                )
+            if not _boolean(proof["passed"], row_location + ".proof.passed"):
+                _fail(row_location + ".proof.passed", "must be true for declared claim coverage")
+            evidence_paths = _string_list(
+                proof["evidence_paths"], row_location + ".proof.evidence_paths"
+            )
+            for path_index, evidence_pointer_value in enumerate(evidence_paths):
+                evidence_pointer_location = (
+                    f"{row_location}.proof.evidence_paths[{path_index}]"
+                )
+                evidence_pointer = _json_pointer(
+                    evidence_pointer_value, evidence_pointer_location
+                )
+                _resolve_json_pointer(document, evidence_pointer, evidence_pointer_location)
+            observed[key] = row_location
+
+    missing = sorted(set(declared) - set(observed))
+    if missing:
+        rendered = [f"{profile_id}/{requirement_id}" for profile_id, requirement_id in missing]
+        _fail(location, f"missing selected-profile evidence coverage {rendered!r}")
+    return len(observed)
+
+
 def _profile_selections(
     value: object,
     *,
@@ -1294,6 +1640,13 @@ def validate_application_manifest(
         location="application.evidence",
         verify_files=verify_files,
     )
+    profile_requirement_count = _validate_selected_profile_claim_coverage(
+        evidence,
+        selected_profile_ids=[row["profile_id"] for row in profiles],
+        bundle=bundle,
+        evidence_root=evidence_base,
+        location="application.evidence",
+    )
     bounds = _resource_bounds(value["resource_bounds"], "application.resource_bounds")
     failures = _failure_modes(value["failure_modes"], "application.failure_modes")
     mappings = _validate_application_or_proposal_mappings(
@@ -1313,6 +1666,7 @@ def validate_application_manifest(
         "selected_profiles": [row["profile_id"] for row in profiles],
         "mapping_count": sum(len(rows) for rows in mappings.values()),
         "evidence_count": len(evidence),
+        "profile_requirement_count": profile_requirement_count,
         "self_reference_enabled": self_reference["enabled"],
     }
 
@@ -1490,8 +1844,13 @@ def validate_extension_proposal(
         dispositions={"PROPOSED", "BYPASS", "NOT_APPLICABLE"},
     )
     self_reference = _self_reference(value["self_reference"], "extension.self_reference")
-    if origin_kind == "SELF_REFERENCE" and not self_reference["enabled"]:
-        _fail("extension.self_reference", "a self-referential origin must declare bounded self-reference")
+    if origin_kind == "SELF_REFERENCE" and not (
+        self_reference["enabled"] and self_reference["may_propose_extensions"]
+    ):
+        _fail(
+            "extension.self_reference",
+            "a self-referential extension origin needs bounded feedback and explicit extension-proposal permission",
+        )
 
     promotion = _object(
         value["promotion"],
@@ -1624,7 +1983,10 @@ __all__ = [
     "MAPPING_CATEGORIES",
     "PROFILE_FORMAT",
     "PROFILE_REGISTRY_FORMAT",
+    "REQUIRED_DEFINITION_GRAPH_INVARIANTS",
     "REQUIRED_PROFILE_IDS",
+    "REQUIRED_SELF_REFERENCE_MAPPING_RULE",
+    "REQUIRED_SYMBOL_FIREWALL",
     "SubstrateContractError",
     "canonical_json_bytes",
     "canonical_sha256",

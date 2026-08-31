@@ -328,28 +328,51 @@ def create_hybrid_artifact(
     return _write_manifest(root, manifest)
 
 
-def load_hybrid_manifest(
-    artifact_dir: str | Path, *, verify_manifest: bool = True
-) -> dict[str, Any]:
+def load_hybrid_manifest_snapshot(
+    artifact_dir: str | Path,
+    *,
+    verify_manifest: bool = True,
+    expected_sha256: str | None = None,
+) -> tuple[dict[str, Any], str]:
+    """Read, verify, and parse one manifest byte snapshot.
+
+    ``expected_sha256`` is an external trust anchor.  It is intentionally
+    distinct from the adjacent digest file, which protects against accidental
+    corruption but can be rewritten together with the manifest.
+    """
+
     root = Path(artifact_dir).resolve()
     manifest_path = root / HYBRID_MANIFEST
     if not manifest_path.is_file():
         raise FileNotFoundError(f"hybrid manifest not found: {manifest_path}")
     rendered = manifest_path.read_bytes()
+    actual = hashlib.sha256(rendered).hexdigest()
     if verify_manifest:
         digest_path = root / HYBRID_MANIFEST_SHA256
         if not digest_path.is_file():
             raise OSError(f"hybrid manifest digest not found: {digest_path}")
         expected = digest_path.read_text(encoding="ascii").strip().lower()
-        actual = hashlib.sha256(rendered).hexdigest()
         if actual != expected:
             raise OSError("hybrid manifest SHA-256 mismatch")
+    if expected_sha256 is not None and actual != expected_sha256.lower():
+        raise OSError(
+            "hybrid manifest does not match the externally approved SHA-256"
+        )
     manifest = json.loads(rendered)
     if manifest.get("format") != HYBRID_FORMAT:
         raise ValueError(f"unsupported hybrid format: {manifest.get('format')!r}")
     status = manifest.get("validation", {}).get("status")
     if status not in HYBRID_VALIDATION_STATUSES:
         raise ValueError(f"unsupported hybrid validation status: {status!r}")
+    return manifest, actual
+
+
+def load_hybrid_manifest(
+    artifact_dir: str | Path, *, verify_manifest: bool = True
+) -> dict[str, Any]:
+    manifest, _digest = load_hybrid_manifest_snapshot(
+        artifact_dir, verify_manifest=verify_manifest
+    )
     return manifest
 
 

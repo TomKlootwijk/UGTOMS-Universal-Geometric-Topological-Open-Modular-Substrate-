@@ -16,8 +16,10 @@ from __future__ import annotations
 import hashlib
 import json
 import math
-from dataclasses import asdict, dataclass, is_dataclass
+import unicodedata
+from dataclasses import dataclass, fields, is_dataclass
 from enum import Enum
+from types import MappingProxyType
 from typing import Any, Iterable, Mapping, Sequence
 
 
@@ -183,19 +185,37 @@ class LogPolarLUT:
         return (magnitude * math.cos(theta), magnitude * math.sin(theta))
 
 
-def xor_parity(payload: bytes | bytearray | memoryview, orientation_reversals: int = 0) -> int:
-    """Return the one-bit payload/topology event.
+def payload_parity(payload: bytes | bytearray | memoryview) -> int:
+    """Return payload parity without incorporating any other one-bit role.
 
     This deliberately remains a detector: an even number of bit flips is a
     known blind spot and the result does not identify or repair a damaged bit.
     """
 
-    if isinstance(orientation_reversals, bool) or not isinstance(orientation_reversals, int):
-        raise SubstrateError("orientation_reversals must be an integer")
-    parity = orientation_reversals & 1
+    parity = 0
     for value in bytes(payload):
         parity ^= value.bit_count() & 1
     return parity
+
+
+def topology_parity(orientation_reversals: int) -> int:
+    """Return only the topology orientation-reversal parity bit."""
+
+    if isinstance(orientation_reversals, bool) or not isinstance(orientation_reversals, int):
+        raise SubstrateError("orientation_reversals must be an integer")
+    return orientation_reversals & 1
+
+
+def xor_parity(
+    payload: bytes | bytearray | memoryview, orientation_reversals: int = 0
+) -> int:
+    """Compatibility spelling for payload parity; role mixing is rejected."""
+
+    if orientation_reversals != 0:
+        raise SubstrateError(
+            "payload and topology parity are separate roles; call topology_parity"
+        )
+    return payload_parity(payload)
 
 
 @dataclass(frozen=True)
@@ -854,13 +874,20 @@ class BSTTRouter:
         phase: float,
         phase_acceleration: float,
         generation: int,
-        parity_gate: int,
+        branch_control_bit: int | None = None,
+        parity_gate: int | None = None,
         depth: int,
         active_branches: int,
         path: str = "r",
     ) -> RouteDecision:
-        if parity_gate not in (0, 1):
-            raise SubstrateError("parity_gate must be 0 or 1")
+        if branch_control_bit is None:
+            branch_control_bit = parity_gate
+        elif parity_gate is not None:
+            raise SubstrateError(
+                "supply branch_control_bit only; parity roles cannot be aliased"
+            )
+        if branch_control_bit not in (0, 1):
+            raise SubstrateError("branch_control_bit must be 0 or 1")
         for name, value in (("generation", generation), ("depth", depth), ("active_branches", active_branches)):
             if isinstance(value, bool) or not isinstance(value, int) or value < 0:
                 raise SubstrateError(f"{name} must be a non-negative integer")
@@ -869,7 +896,7 @@ class BSTTRouter:
         phase_bin = int(round(((phase_value + math.pi) % (2 * math.pi) - math.pi) * 1_000_000))
         ordering_key = (address.packed_index, phase_bin, generation)
         can_split = (
-            parity_gate == 1
+            branch_control_bit == 1
             and depth < self.maximum_depth
             and active_branches + 1 <= self.maximum_active_branches
         )
@@ -885,22 +912,50 @@ class BSTTRouter:
             branch_paths=paths,
             geometric_angles=angles,
             bifurcated=can_split,
-            bounded=not (parity_gate == 1 and not can_split),
+            bounded=not (branch_control_bit == 1 and not can_split),
         )
 
 
 def _json_value(value: Any) -> Any:
     if isinstance(value, Enum):
-        return value.value
+        return _json_value(value.value)
     if is_dataclass(value):
-        return _json_value(asdict(value))
+        return {
+            item.name: _json_value(getattr(value, item.name))
+            for item in fields(value)
+        }
     if isinstance(value, Mapping):
-        return {str(key): _json_value(item) for key, item in sorted(value.items(), key=lambda item: str(item[0]))}
+        normalized: dict[str, Any] = {}
+        for key, item in value.items():
+            if not isinstance(key, str):
+                raise SubstrateError("canonical mappings require string keys")
+            canonical_key = unicodedata.normalize("NFC", key)
+            if canonical_key in normalized:
+                raise SubstrateError(
+                    "canonical mapping keys collide after Unicode normalization"
+                )
+            normalized[canonical_key] = _json_value(item)
+        return {key: normalized[key] for key in sorted(normalized)}
     if isinstance(value, (tuple, list)):
         return [_json_value(item) for item in value]
-    if value is None or isinstance(value, (str, int, float, bool)):
+    if value is None or isinstance(value, (int, bool)):
         return value
+    if isinstance(value, float):
+        if not math.isfinite(value):
+            raise SubstrateError("canonical JSON rejects non-finite floats")
+        return 0.0 if value == 0.0 else value
+    if isinstance(value, str):
+        return unicodedata.normalize("NFC", value)
     raise SubstrateError(f"value of type {type(value).__name__} is not canonically serializable")
+
+
+def _freeze_json(value: Any) -> Any:
+    ready = _json_value(value)
+    if isinstance(ready, dict):
+        return MappingProxyType({key: _freeze_json(item) for key, item in ready.items()})
+    if isinstance(ready, list):
+        return tuple(_freeze_json(item) for item in ready)
+    return ready
 
 
 def canonical_json(value: Any) -> bytes:
@@ -915,6 +970,7 @@ class LineageEvent:
     event_type: str
     origin: EventOrigin
     payload: Mapping[str, Any]
+    previous_digest: str
     novelty_digest: str
     lineage_digest: str
 
@@ -929,6 +985,7 @@ class NoveltyLog:
             raise SubstrateError("root_digest must contain 64 hexadecimal characters")
         self.capacity = capacity
         self.root_digest = root_digest.lower()
+        self._verification_root = self.root_digest
         self._events: list[LineageEvent] = []
         self._next_sequence = 0
 
@@ -940,40 +997,62 @@ class NoveltyLog:
     def head_digest(self) -> str:
         return self._events[-1].lineage_digest if self._events else self.root_digest
 
+    @property
+    def verification_root(self) -> str:
+        """Digest immediately preceding the retained, contiguous event suffix."""
+
+        return self._verification_root
+
+    def verify(self) -> str:
+        """Verify the retained suffix from its authenticated compaction anchor."""
+
+        return lineage_digest(self.events, root_digest=self.verification_root)
+
     def append(self, event_type: str, payload: Mapping[str, Any], *, origin: EventOrigin) -> LineageEvent:
         if not event_type or not event_type.strip():
             raise SubstrateError("event_type must be non-empty")
-        canonical_payload = canonical_json(payload)
+        event_type = unicodedata.normalize("NFC", event_type)
+        if not isinstance(origin, EventOrigin):
+            raise SubstrateError("origin must be an EventOrigin")
+        removable = False
+        if len(self._events) >= self.capacity:
+            # Only prefix compaction preserves a contiguous retained chain.  A
+            # closed event behind retained exogenous evidence cannot be removed.
+            if self._events[0].origin is not EventOrigin.CLOSED_DYNAMICS:
+                raise SubstrateError(
+                    "novelty log cannot compact across retained exogenous evidence; "
+                    "increase the declared capacity"
+                )
+            removable = True
+        frozen_payload = _freeze_json(payload)
+        if not isinstance(frozen_payload, Mapping):
+            raise SubstrateError("lineage payload must be a mapping")
+        canonical_payload = canonical_json(frozen_payload)
         novelty = hashlib.sha256(canonical_payload).hexdigest()
+        previous = self.head_digest
         envelope = {
-            "previous": self.head_digest,
+            "previous": previous,
             "sequence": self._next_sequence,
             "event_type": event_type,
             "origin": origin.value,
             "novelty": novelty,
-            "payload": payload,
+            "payload": frozen_payload,
         }
         lineage = hashlib.sha256(canonical_json(envelope)).hexdigest()
         event = LineageEvent(
             sequence=self._next_sequence,
             event_type=event_type,
             origin=origin,
-            payload=dict(payload),
+            payload=frozen_payload,
+            previous_digest=previous,
             novelty_digest=novelty,
             lineage_digest=lineage,
         )
-        self._next_sequence += 1
-        if len(self._events) >= self.capacity:
-            removable = next(
-                (index for index, prior in enumerate(self._events) if prior.origin is EventOrigin.CLOSED_DYNAMICS),
-                None,
-            )
-            if removable is None:
-                raise SubstrateError(
-                    "novelty log is full of exogenous events; increase the declared capacity before appending"
-                )
-            del self._events[removable]
+        if removable:
+            removed = self._events.pop(0)
+            self._verification_root = removed.lineage_digest
         self._events.append(event)
+        self._next_sequence += 1
         return event
 
 
@@ -1038,15 +1117,26 @@ class ClosedDynamicsSeed:
 
 
 def lineage_digest(events: Iterable[LineageEvent], *, root_digest: str = "0" * 64) -> str:
-    """Verify a retained event sequence's recorded chain where possible.
+    """Verify one contiguous event sequence from an explicit trusted root."""
 
-    A bounded log may have compacted older closed-dynamics events.  The stored
-    lineage digests remain stable identifiers, while complete verification
-    requires the un-compacted evidence stream.
-    """
-
-    head = root_digest
+    if len(root_digest) != 64 or any(
+        char not in "0123456789abcdef" for char in root_digest.lower()
+    ):
+        raise SubstrateError("root_digest must contain 64 hexadecimal characters")
+    head = root_digest.lower()
+    prior_sequence: int | None = None
     for event in events:
+        if event.previous_digest != head:
+            raise SubstrateError(
+                f"lineage predecessor mismatch at sequence {event.sequence}"
+            )
+        if prior_sequence is not None and event.sequence != prior_sequence + 1:
+            raise SubstrateError(
+                f"lineage sequence gap at sequence {event.sequence}"
+            )
+        novelty = hashlib.sha256(canonical_json(event.payload)).hexdigest()
+        if novelty != event.novelty_digest:
+            raise SubstrateError(f"novelty mismatch at sequence {event.sequence}")
         envelope = {
             "previous": head,
             "sequence": event.sequence,
@@ -1059,4 +1149,5 @@ def lineage_digest(events: Iterable[LineageEvent], *, root_digest: str = "0" * 6
         if expected != event.lineage_digest:
             raise SubstrateError(f"lineage mismatch at sequence {event.sequence}")
         head = expected
+        prior_sequence = event.sequence
     return head

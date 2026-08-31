@@ -53,14 +53,24 @@ def _load_generic_gate() -> Any:
 _BASE = _load_generic_gate()
 GateError = _BASE.GateError
 
-FORMAT = "ugtoms-substrate-coder-gate-0.1"
+FORMAT = "ugtoms-substrate-coder-gate-0.2"
 MODEL_ID = _BASE.MODEL_ID
 MODEL_ALIAS = _BASE.MODEL_ALIAS
 PINNED_OPENCODE_VERSION = _BASE.PINNED_OPENCODE_VERSION
 APPLICATION_ID = "ugtoms-sclp-bounded-acceptance"
-APPLICATION_VERSION = "0.1.0"
-REPLAY_FORMAT = "ugtoms-sclp-replay-0.1"
+APPLICATION_VERSION = "0.2.0"
+APPLICATION_FORMAT = "ugtoms-application-manifest-0.2"
+REPLAY_FORMAT = "ugtoms-sclp-replay-0.2"
 PROFILE_ID = "sclp-foundational"
+PROFILE_REQUIREMENT_IDS = (
+    "finite-cone-reference-vector",
+    "packed-key-round-trips",
+    "jitter-margin-certificate",
+    "metric-kinematic-reference-vector",
+    "grammar-budget-trace",
+    "sweep-interval",
+)
+EXPECTED_MAPPING_ROWS = 12
 
 MAPPING_CATEGORIES = (
     "typed",
@@ -267,11 +277,25 @@ def _manifest_template(fixture: Path) -> dict[str, Any]:
         profile = next(
             item for item in registry["profiles"] if item.get("profile_id") == PROFILE_ID
         )
+        profile_path = fixture / profile["path"]
+        profile_document = json.loads(profile_path.read_text(encoding="utf-8"))
     except (OSError, UnicodeError, json.JSONDecodeError, KeyError, StopIteration, TypeError) as exc:
         raise GateError(f"could not bind fixture manifest template: {exc}") from exc
     kernel_digest = _sha256_file(kernel_path)
     if registry.get("kernel", {}).get("sha256") != kernel_digest:
         raise GateError("profile registry does not bind the copied kernel digest")
+    if _sha256_file(profile_path) != profile.get("sha256"):
+        raise GateError("profile registry does not bind the copied SCLP profile digest")
+    requirements = profile_document.get("evidence_requirements")
+    if not isinstance(requirements, list):
+        raise GateError("SCLP profile does not declare machine-readable evidence requirements")
+    requirement_ids = tuple(
+        row.get("id") for row in requirements if isinstance(row, Mapping)
+    )
+    if requirement_ids != PROFILE_REQUIREMENT_IDS:
+        raise GateError(
+            "SCLP profile evidence requirements differ from the bounded authoring gate"
+        )
     bounds = [
         {
             "id": "bound-generations",
@@ -320,8 +344,56 @@ def _manifest_template(fixture: Path) -> dict[str, Any]:
                 "disposition": "IMPLEMENTED",
             }
         ]
+    mappings["geometry"].append(
+        {
+            "id": "application-additional-geometry-bypass",
+            "domain": ["unexercised retained geometry mechanisms"],
+            "codomain": ["explicit bypass record"],
+            "definition": (
+                "BYPASS: paired-sphere support, circle relations, and distributed-apex "
+                "geometry are not executed or claimed by this bounded fixture."
+            ),
+            "primitive_refs": ["geometry"],
+            "bound_refs": ["bound-generations", "bound-lineage"],
+            "failure_refs": ["failure-invalid-input", "failure-evidence-mismatch"],
+            "evidence_refs": ["replay-evidence"],
+            "disposition": "BYPASS",
+        }
+    )
+    mappings["topology"].append(
+        {
+            "id": "application-half-turn-bypass",
+            "domain": ["unexercised source half-turn topology"],
+            "codomain": ["explicit bypass record"],
+            "definition": (
+                "BYPASS: the source half-turn bundle map is not executed or inferred "
+                "from any separate topology operation."
+            ),
+            "primitive_refs": ["topology"],
+            "bound_refs": ["bound-generations", "bound-lineage"],
+            "failure_refs": ["failure-invalid-input", "failure-evidence-mismatch"],
+            "evidence_refs": ["replay-evidence"],
+            "disposition": "BYPASS",
+        }
+    )
+    mappings["operator"].append(
+        {
+            "id": "application-radix-bypass",
+            "domain": ["unexercised radix-prefix operator"],
+            "codomain": ["explicit bypass record"],
+            "definition": (
+                "BYPASS: radix-prefix refinement is not executed; the fixture uses "
+                "only its explicitly bounded route."
+            ),
+            "primitive_refs": ["operator"],
+            "bound_refs": ["bound-generations", "bound-lineage"],
+            "failure_refs": ["failure-invalid-input", "failure-evidence-mismatch"],
+            "evidence_refs": ["replay-evidence"],
+            "disposition": "BYPASS",
+        }
+    )
     return {
-        "format": "ugtoms-application-manifest-0.1",
+        "format": APPLICATION_FORMAT,
         "application_id": APPLICATION_ID,
         "application_version": APPLICATION_VERSION,
         "kernel": {
@@ -331,8 +403,10 @@ def _manifest_template(fixture: Path) -> dict[str, Any]:
         },
         "profiles": [{"profile_id": PROFILE_ID, "sha256": profile["sha256"]}],
         "profile_selection_rationale": (
-            "The SCLP foundational profile is selected explicitly for its swept-cone, "
-            "log-polar, typed-bit-role, and 20/18/14/12 packing corrections."
+            "The SCLP foundational profile is selected explicitly for its finite-cone, "
+            "certified translational sign bracket, log-polar, typed-bit-role, bounded "
+            "routing, and 20/18/14/12 packing corrections. Paired-sphere, half-turn, "
+            "circle/apex, and radix mechanisms are explicit BYPASS mappings."
         ),
         "mappings": mappings,
         "resource_bounds": bounds,
@@ -343,6 +417,16 @@ def _manifest_template(fixture: Path) -> dict[str, Any]:
                 "role": "REPLAY",
                 "path": "evidence/replay.json",
                 "bytes": 1,
+                "claim_coverage": [
+                    {
+                        "profile_id": PROFILE_ID,
+                        "requirement_id": requirement_id,
+                        "proof_pointer": (
+                            f"/proof_inventory/{PROFILE_ID}/{requirement_id}"
+                        ),
+                    }
+                    for requirement_id in PROFILE_REQUIREMENT_IDS
+                ],
                 "sha256": "0" * 64,
                 "title": "Deterministic bounded SCLP replay",
             }
@@ -350,7 +434,7 @@ def _manifest_template(fixture: Path) -> dict[str, Any]:
         "self_reference": {
             "enabled": True,
             "bounded_generations": 5,
-            "may_propose_extensions": True,
+            "may_propose_extensions": False,
             "may_promote_extensions": False,
             "proposal_disposition": "QUARANTINED",
         },
@@ -419,9 +503,17 @@ from substrate_app import build_definition_graph, run_application
 EXPECTED_WIDTHS = {"rho": 20, "theta": 18, "time": 14, "phi": 12}
 BIT_ROLES = {
     "payload_parity_bit",
-    "topology_orientation_bit",
+    "topology_parity_bit",
     "jitter_control_bit",
-    "branch_predicate_bit",
+    "branch_control_bit",
+}
+PROFILE_REQUIREMENTS = {
+    "finite-cone-reference-vector",
+    "packed-key-round-trips",
+    "jitter-margin-certificate",
+    "metric-kinematic-reference-vector",
+    "grammar-budget-trace",
+    "sweep-interval",
 }
 
 
@@ -444,7 +536,7 @@ def test_replay_is_deterministic_and_prefix_stable() -> None:
     long = run_application(generations=5, seed=20260831)
     assert short_a == short_b
     assert short_a["generations"] == long["generations"][:3]
-    assert short_a["format"] == "ugtoms-sclp-replay-0.1"
+    assert short_a["format"] == "ugtoms-sclp-replay-0.2"
     assert short_a["key_layout"]["widths"] == EXPECTED_WIDTHS
 
 
@@ -468,8 +560,24 @@ def test_replay_exercises_real_distinct_primitives() -> None:
         assert {arrow["role"] for arrow in row["vectors"]} == {"velocity", "acceleration"}
         assert row["geometry"]["finite_cone"]["kind"] == "exact-finite-cone-sdf"
         assert row["geometry"]["sphere"]["kind"] == "exact-sphere-sdf"
+        sweep = row["geometry"]["sweep_interval"]
+        assert sweep["certified"] is True
+        assert sweep["earliest_impact_claim"] is False
+        assert sweep["parameter_interval"][0] < sweep["parameter_interval"][1]
+        assert sweep["endpoint_distances"][0] > 0.0
+        assert sweep["endpoint_distances"][1] <= 0.0
+        jitter = row["jitter_certificate"]
+        assert jitter["safe_under_margin"] is True
+        assert 0.0 <= jitter["amplitude"] < jitter["guard_margin"]
+        routing = row["routing_budget"]
+        assert routing["bounded"] is True
+        assert routing["used_depth"] <= routing["maximum_depth"]
+        assert routing["used_active_branches"] <= routing["maximum_active_branches"]
         assert row["state_digest"].startswith("sha256:")
         assert len(row["lineage_digest"]) == 64
+    proofs = replay["proof_inventory"]["sclp-foundational"]
+    assert set(proofs) == PROFILE_REQUIREMENTS
+    assert all(proof["passed"] is True for proof in proofs.values())
 
 
 def test_application_rejects_unbounded_generation_requests() -> None:
@@ -554,8 +662,10 @@ four separately typed parity/orientation/jitter/branch roles; 20/18/14/12-bit
 contiguous and Morton packing; vectors and constant-acceleration kinematics;
 exact finite-cone and sphere SDF samples; tri-state event admission; a
 content-addressed definition DAG; a bounded lineage log; and explicit feedback
-from generation n to exactly n + 1. Self-reference may propose a quarantined
-extension but can never promote one.
+from generation n to exactly n + 1. It must record a real finite-cone sweep
+sign bracket, jitter-margin certificate, bounded routing trace, both key-layout
+round trips, and profile-qualified proof inventory. Feedback has no extension
+proposal or promotion authority in this fixture.
 
 This is a bounded acceptance gate. It is not a broad-intelligence or compression
 proof. The outer harness's tool/path/network audit is retrospective evidence,
@@ -638,12 +748,15 @@ def _agent_prompt() -> str:
         "the manifest template, stub application, tests, validator, and report source. "
         "Use Grep or Glob to trace the real APIs. Implement a bounded deterministic SCLP "
         "application in src/substrate_app.py using real log-polar addressing; separate "
-        "payload parity, topology orientation, jitter control, and branch predicate "
-        "roles; exact 20/18/14/12 contiguous and Morton packing; vectors and kinematics; "
-        "exact finite-cone and sphere SDF support; tri-state event admission; a "
+        "payload parity, topology parity, jitter control, and branch control roles; "
+        "exact 20/18/14/12 contiguous and Morton packing; vectors and kinematics; "
+        "exact finite-cone and sphere SDF support; a certified finite-cone sweep sign "
+        "bracket; a jitter-margin certificate; a bounded routing/grammar trace; "
+        "profile-qualified proof inventory for every declared SCLP requirement; "
+        "tri-state event admission; a "
         "content-addressed definition DAG; bounded lineage; and explicit n to n+1 "
-        "feedback. Self-reference may only propose quarantined extensions and cannot "
-        "promote. Complete app/application-manifest.json from the immutable versioned "
+        "feedback. Feedback has no extension-proposal or promotion authority. Complete "
+        "app/application-manifest.json from the immutable versioned "
         "template, bound to the copied kernel and sclp-foundational hashes and the replay "
         "evidence. Complete report/substrate-report-v0.1.md with limitations and state "
         "that auditing is retrospective, not a preventive sandbox. Use Edit only for "
@@ -830,9 +943,9 @@ def _validate_replay_payload(
     lineages: list[str] = []
     bit_roles = {
         "payload_parity_bit",
-        "topology_orientation_bit",
+        "topology_parity_bit",
         "jitter_control_bit",
-        "branch_predicate_bit",
+        "branch_control_bit",
     }
     for generation, row in enumerate(rows):
         if not isinstance(row, Mapping) or row.get("generation") != generation:
@@ -883,6 +996,72 @@ def _validate_replay_payload(
             raise GateError(f"generation {generation} lacks exact sphere support")
         _number(cone.get("distance"), label=f"generation {generation} cone distance")
         _number(sphere.get("distance"), label=f"generation {generation} sphere distance")
+        sweep = geometry.get("sweep_interval") if isinstance(geometry, Mapping) else None
+        if not isinstance(sweep, Mapping) or sweep.get("certified") is not True:
+            raise GateError(f"generation {generation} lacks a certified sweep interval")
+        if sweep.get("earliest_impact_claim") is not False:
+            raise GateError(f"generation {generation} sweep makes an unsupported earliest-impact claim")
+        parameter_interval = sweep.get("parameter_interval")
+        endpoint_distances = sweep.get("endpoint_distances")
+        if not isinstance(parameter_interval, list) or len(parameter_interval) != 2:
+            raise GateError(f"generation {generation} sweep parameter interval is not a pair")
+        if not isinstance(endpoint_distances, list) or len(endpoint_distances) != 2:
+            raise GateError(f"generation {generation} sweep endpoint distances are not a pair")
+        lower_parameter = _number(
+            parameter_interval[0], label=f"generation {generation} sweep lower parameter"
+        )
+        upper_parameter = _number(
+            parameter_interval[1], label=f"generation {generation} sweep upper parameter"
+        )
+        lower_distance = _number(
+            endpoint_distances[0], label=f"generation {generation} sweep lower distance"
+        )
+        upper_distance = _number(
+            endpoint_distances[1], label=f"generation {generation} sweep upper distance"
+        )
+        if not (0.0 <= lower_parameter < upper_parameter <= 1.0):
+            raise GateError(f"generation {generation} sweep interval is not ordered inside [0,1]")
+        if not (lower_distance > 0.0 and upper_distance <= 0.0):
+            raise GateError(f"generation {generation} sweep endpoints do not retain a sign bracket")
+        jitter = row.get("jitter_certificate")
+        if not isinstance(jitter, Mapping) or jitter.get("safe_under_margin") is not True:
+            raise GateError(f"generation {generation} lacks a passing jitter-margin certificate")
+        amplitude = _number(jitter.get("amplitude"), label=f"generation {generation} jitter amplitude")
+        guard_margin = _number(
+            jitter.get("guard_margin"), label=f"generation {generation} jitter guard margin"
+        )
+        jitter_interval = jitter.get("interval")
+        if not isinstance(jitter_interval, list) or len(jitter_interval) != 2:
+            raise GateError(f"generation {generation} jitter interval is not a pair")
+        interval_low = _number(
+            jitter_interval[0], label=f"generation {generation} jitter interval lower"
+        )
+        interval_high = _number(
+            jitter_interval[1], label=f"generation {generation} jitter interval upper"
+        )
+        if not (0.0 <= amplitude < guard_margin and interval_low < interval_high):
+            raise GateError(f"generation {generation} jitter certificate exceeds its guard margin")
+        routing = row.get("routing_budget")
+        if not isinstance(routing, Mapping) or routing.get("bounded") is not True:
+            raise GateError(f"generation {generation} lacks a bounded routing trace")
+        for used_name, maximum_name in (
+            ("used_depth", "maximum_depth"),
+            ("used_active_branches", "maximum_active_branches"),
+        ):
+            used = routing.get(used_name)
+            maximum = routing.get(maximum_name)
+            if (
+                isinstance(used, bool)
+                or not isinstance(used, int)
+                or isinstance(maximum, bool)
+                or not isinstance(maximum, int)
+                or used < 0
+                or maximum < 1
+                or used > maximum
+            ):
+                raise GateError(
+                    f"generation {generation} routing {used_name} exceeds {maximum_name}"
+                )
         event = row.get("event")
         if not isinstance(event, Mapping):
             raise GateError(f"generation {generation} lacks event admission evidence")
@@ -901,9 +1080,32 @@ def _validate_replay_payload(
         raise GateError("lineage digest did not advance uniquely per generation")
     if payload.get("lineage_head") != lineages[-1]:
         raise GateError("replay lineage_head does not bind the final generation")
+    proof_inventory = payload.get("proof_inventory")
+    proofs = proof_inventory.get(PROFILE_ID) if isinstance(proof_inventory, Mapping) else None
+    if not isinstance(proofs, Mapping) or set(proofs) != set(PROFILE_REQUIREMENT_IDS):
+        raise GateError("replay proof inventory does not exactly cover the selected SCLP profile")
+    for requirement_id in PROFILE_REQUIREMENT_IDS:
+        proof = proofs.get(requirement_id)
+        if (
+            not isinstance(proof, Mapping)
+            or proof.get("profile_id") != PROFILE_ID
+            or proof.get("requirement_id") != requirement_id
+            or proof.get("passed") is not True
+            or not isinstance(proof.get("evidence_paths"), list)
+            or not proof["evidence_paths"]
+            or any(
+                not isinstance(pointer, str) or not pointer.startswith("/")
+                for pointer in proof["evidence_paths"]
+            )
+        ):
+            raise GateError(f"replay proof inventory has invalid coverage for {requirement_id}")
     distinctions = payload.get("distinctions")
-    if not isinstance(distinctions, Mapping) or distinctions.get("self_reference_may_promote") is not False:
-        raise GateError("replay must keep self-reference promotion forbidden")
+    if (
+        not isinstance(distinctions, Mapping)
+        or distinctions.get("self_reference_may_propose_extensions") is not False
+        or distinctions.get("self_reference_may_promote") is not False
+    ):
+        raise GateError("replay feedback must have no extension proposal or promotion authority")
     return {
         "passed": True,
         "generations": len(rows),
@@ -911,6 +1113,7 @@ def _validate_replay_payload(
         "definition_count": len(definition_hashes),
         "lineage_head": lineages[-1],
         "exact_key_widths": KEY_WIDTHS,
+        "profile_requirement_count": len(proofs),
     }
 
 
@@ -1019,8 +1222,10 @@ def _evaluate_manifest_and_pdf_cli(
         raise GateError("substrate_contract did not validate the application manifest")
     if manifest.get("selected_profiles") != [PROFILE_ID]:
         raise GateError("application manifest did not select exactly sclp-foundational")
-    if manifest.get("mapping_count") != len(MAPPING_CATEGORIES):
-        raise GateError("application manifest did not bind every kernel mapping category")
+    if manifest.get("mapping_count") != EXPECTED_MAPPING_ROWS:
+        raise GateError("application manifest did not bind every implemented and bypass mapping")
+    if manifest.get("profile_requirement_count") != len(PROFILE_REQUIREMENT_IDS):
+        raise GateError("application manifest did not cover every selected-profile requirement")
     if manifest.get("self_reference_enabled") is not True:
         raise GateError("application manifest omitted bounded self-reference")
     return dict(manifest), _evaluate_pdf(fixture)

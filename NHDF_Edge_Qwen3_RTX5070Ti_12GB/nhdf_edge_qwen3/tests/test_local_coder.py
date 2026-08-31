@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import copy
+import hashlib
 import importlib.util
 import json
 import subprocess
@@ -24,6 +26,47 @@ def _load_launcher() -> ModuleType:
     return module
 
 
+def _validated_canonical_manifest(launcher: ModuleType) -> dict:
+    manifest = copy.deepcopy(
+        launcher.hybrid.load_hybrid_manifest(launcher.DEFAULT_ARTIFACT)
+    )
+    evidence = launcher.DEFAULT_ARTIFACT / "evidence" / "functional_gate.json"
+    manifest["validation"].update(
+        {
+            "status": "VALIDATED",
+            "deployment_loadable": True,
+            "evidence": {
+                "path": "evidence/functional_gate.json",
+                "bytes": evidence.stat().st_size,
+                "sha256": launcher._sha256_file(evidence),
+            },
+        }
+    )
+    records = {
+        launcher.CANONICAL_PAYLOAD_PATH: manifest["payload"],
+        launcher.CANONICAL_SOURCE_RECORD_PATH: manifest["source_record"],
+        launcher.CANONICAL_SPECIFICATION_PATH: manifest["substrate"]["specification"],
+        **{
+            path: record
+            for path, record in zip(
+                launcher.CANONICAL_RUNTIME_PATHS, manifest["runtime"]["files"]
+            )
+        },
+        **{
+            path: record
+            for path, record in zip(
+                launcher.CANONICAL_ASSURANCE_PATHS,
+                manifest["assurance_evidence"],
+            )
+        },
+        launcher.CANONICAL_VALIDATION_EVIDENCE_PATH: manifest["validation"]["evidence"],
+    }
+    for path, record in records.items():
+        expected_bytes, expected_sha256 = launcher.CANONICAL_REFERENCE_RECORDS[path]
+        record.update(bytes=expected_bytes, sha256=expected_sha256)
+    return manifest
+
+
 def test_config_is_local_only_and_has_large_context() -> None:
     value = json.loads(CONFIG.read_text(encoding="utf-8"))
     model_id = "local-runtime/local-qwen3-30b-a3b"
@@ -44,6 +87,27 @@ def test_config_is_local_only_and_has_large_context() -> None:
     prompt = value["agent"]["local-coder"]["prompt"]
     assert prompt == _load_launcher().CANONICAL_AGENT_PROMPT
     assert "digest-verified UGTOMS contract" in prompt
+
+
+def test_agent_contract_names_graph_v2_roles_evidence_and_feedback_boundaries() -> None:
+    launcher = _load_launcher()
+    contract = launcher.SUBSTRATE_CONTRACT.read_text(encoding="utf-8")
+
+    for required in (
+        "graph-v2",
+        "dependency ID-to-hash",
+        "definition_ref",
+        "definition_hash",
+        "b_payload",
+        "b_topology",
+        "b_jitter",
+        "b_branch",
+        "separately recorded, typed feedback",
+        "unrelated to mathematical fixed-point iteration",
+        "Selecting a profile is an evidence-bearing act",
+        "automatic promotion remains prohibited",
+    ):
+        assert required in contract
 
 
 def test_config_permissions_fail_closed() -> None:
@@ -84,6 +148,8 @@ def test_isolated_environment_overrides_project_config_layers(
 ) -> None:
     launcher = _load_launcher()
     state = tmp_path / "state"
+    config = launcher.validate_config(CONFIG)
+    monkeypatch.setattr(launcher, "PROJECT_ROOT", tmp_path)
     monkeypatch.setattr(launcher, "LOCAL_STATE_ROOT", state)
     monkeypatch.setenv("OPENCODE_CONFIG", "inherited.json")
     monkeypatch.setenv("OPENCODE_CONFIG_CONTENT", '{"share":"auto"}')
@@ -92,11 +158,11 @@ def test_isolated_environment_overrides_project_config_layers(
     monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "must-not-leak")
 
     environment = launcher.isolated_environment(
-        CONFIG, "http://127.0.0.1:19090"
+        config, "http://127.0.0.1:19090"
     )
     inline = json.loads(environment["OPENCODE_CONFIG_CONTENT"])
 
-    assert environment["OPENCODE_CONFIG"] == str(CONFIG)
+    assert environment["OPENCODE_CONFIG"] == str(state / "config-dir" / "opencode.json")
     assert environment["OPENCODE_CONFIG_DIR"] == str(state / "config-dir")
     assert environment["OPENCODE_DISABLE_PROJECT_CONFIG"] == "1"
     assert environment["OPENCODE_DISABLE_DEFAULT_PLUGINS"] == "1"
@@ -167,6 +233,316 @@ def test_validate_git_target_rejects_plain_directory(tmp_path: Path) -> None:
         launcher.validate_git_target(tmp_path)
 
 
+def test_canonical_artifact_path_rejects_an_alternate_self_signed_pack(
+    tmp_path: Path,
+) -> None:
+    launcher = _load_launcher()
+    alternate = tmp_path / "self-signed-artifact"
+    alternate.mkdir()
+    (alternate / launcher.hybrid.HYBRID_MANIFEST).write_text(
+        json.dumps({"format": launcher.hybrid.HYBRID_FORMAT}),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(launcher.LocalCoderError, match="only the canonical sealed"):
+        launcher.resolve_canonical_artifact(alternate)
+
+    alias = launcher.DEFAULT_ARTIFACT / ".." / launcher.DEFAULT_ARTIFACT.name
+    assert launcher.resolve_canonical_artifact(alias) == launcher.DEFAULT_ARTIFACT.resolve()
+
+
+def test_artifact_reference_resolver_rejects_relative_and_absolute_escape(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    launcher = _load_launcher()
+    project = tmp_path / "project"
+    artifact = project / "packs" / "canonical"
+    artifact.mkdir(parents=True)
+    outside = tmp_path / "outside.json"
+    outside.write_text("{}\n", encoding="utf-8")
+    monkeypatch.setattr(launcher, "PROJECT_ROOT", project)
+
+    with pytest.raises(launcher.LocalCoderError, match="outside the intended project"):
+        launcher._resolve_artifact_reference(
+            artifact, "../../../outside.json", "escaped evidence"
+        )
+    with pytest.raises(launcher.LocalCoderError, match="repository-relative"):
+        launcher._resolve_artifact_reference(
+            artifact, str(outside.resolve()), "absolute evidence"
+        )
+
+
+def test_canonical_manifest_references_and_sealed_records_are_accepted() -> None:
+    launcher = _load_launcher()
+    manifest = _validated_canonical_manifest(launcher)
+
+    launcher._validate_artifact_references(
+        launcher.DEFAULT_ARTIFACT.resolve(), manifest
+    )
+
+
+def test_rewritten_evidence_and_self_resealed_record_cannot_replace_snapshot(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    launcher = _load_launcher()
+    project = tmp_path / "project"
+    artifact = project / "packs" / "qwen3-30b-a3b-iq2m-32k-q4kv"
+    evidence = artifact / "evidence" / "functional_gate.json"
+    snapshot = project / "metrics" / "local" / "ugtoms_local_agent_32k" / "functional_gate.json"
+    evidence.parent.mkdir(parents=True)
+    snapshot.parent.mkdir(parents=True)
+    trusted = b'{"passed":true}\n'
+    rewritten = b'{"passed":true,"fabricated":true}\n'
+    snapshot.write_bytes(trusted)
+    evidence.write_bytes(rewritten)
+    trusted_digest = hashlib.sha256(trusted).hexdigest()
+    rewritten_digest = hashlib.sha256(rewritten).hexdigest()
+    monkeypatch.setattr(launcher, "PROJECT_ROOT", project)
+    monkeypatch.setattr(launcher, "EXPECTED_VALIDATION_EVIDENCE_BYTES", len(trusted))
+    monkeypatch.setattr(launcher, "EXPECTED_VALIDATION_EVIDENCE_SHA256", trusted_digest)
+    monkeypatch.setitem(
+        launcher.CANONICAL_REFERENCE_RECORDS,
+        launcher.CANONICAL_VALIDATION_EVIDENCE_PATH,
+        (len(trusted), trusted_digest),
+    )
+    self_resealed = {
+        "path": "evidence/functional_gate.json",
+        "bytes": len(rewritten),
+        "sha256": rewritten_digest,
+    }
+
+    with pytest.raises(launcher.LocalCoderError, match="byte contract changed|canonical SHA-256"):
+        launcher._validate_evidence_snapshot(artifact, self_resealed)
+
+
+def test_local_state_reparse_point_is_rejected(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    launcher = _load_launcher()
+    project = tmp_path / "project"
+    outside = tmp_path / "outside"
+    project.mkdir()
+    outside.mkdir()
+    link = project / ".local-coder"
+    try:
+        link.symlink_to(outside, target_is_directory=True)
+    except OSError:
+        pytest.skip("directory symlinks are unavailable on this Windows host")
+    monkeypatch.setattr(launcher, "PROJECT_ROOT", project)
+
+    with pytest.raises(launcher.LocalCoderError, match="symlink/reparse"):
+        launcher._ensure_safe_project_directory(link / "state")
+
+
+@pytest.mark.parametrize(
+    ("mutation", "message"),
+    (
+        (
+            lambda value: value["payload"].update(path="../../README.md"),
+            "model payload must reference exactly",
+        ),
+        (
+            lambda value: value["payload"].update(sha256="0" * 64),
+            "canonical SHA-256",
+        ),
+        (
+            lambda value: value["runtime"].update(
+                entrypoint=value["runtime"]["benchmark_entrypoint"]
+            ),
+            "runtime entrypoint must reference exactly",
+        ),
+        (
+            lambda value: value["runtime"]["files"].reverse(),
+            "runtime files:0 must reference exactly",
+        ),
+        (
+            lambda value: value["assurance_evidence"].pop(),
+            "exactly 3 canonical records",
+        ),
+        (
+            lambda value: value["validation"]["evidence"].update(
+                path="../../../../outside.json"
+            ),
+            "does not resolve|outside the intended project",
+        ),
+    ),
+)
+def test_artifact_reference_mutations_fail_closed(mutation, message: str) -> None:
+    launcher = _load_launcher()
+    manifest = _validated_canonical_manifest(launcher)
+    mutation(manifest)
+
+    with pytest.raises(launcher.LocalCoderError, match=message):
+        launcher._validate_artifact_references(
+            launcher.DEFAULT_ARTIFACT.resolve(), manifest
+        )
+
+
+def test_validate_agent_artifact_rejects_identity_mutation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    launcher = _load_launcher()
+    manifest = _validated_canonical_manifest(launcher)
+    manifest["model"]["source_revision"] = "0" * 40
+    monkeypatch.setattr(
+        launcher.hybrid,
+        "load_hybrid_manifest_snapshot",
+        lambda _artifact: (copy.deepcopy(manifest), "1" * 64),
+    )
+
+    with pytest.raises(launcher.LocalCoderError, match="model identity"):
+        launcher.validate_agent_artifact(launcher.DEFAULT_ARTIFACT)
+
+
+def test_validate_agent_artifact_accepts_only_the_canonical_bound_manifest(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    launcher = _load_launcher()
+    manifest = _validated_canonical_manifest(launcher)
+    monkeypatch.setattr(
+        launcher.hybrid,
+        "load_hybrid_manifest_snapshot",
+        lambda _artifact: (copy.deepcopy(manifest), "1" * 64),
+    )
+
+    accepted = launcher.validate_agent_artifact(launcher.DEFAULT_ARTIFACT)
+
+    assert accepted.manifest["model"]["id"] == "Qwen/Qwen3-30B-A3B-Instruct-2507"
+    assert (
+        accepted.manifest["runtime"]["revision"]
+        == "f8dbcd61893702976f9ab03be89c2b9f436d532c"
+    )
+
+
+def test_local_install_requires_digest_before_executing(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    launcher = _load_launcher()
+    assert launcher.EXPECTED_OPENCODE_SHA256 == (
+        "ef06e41a35795066e95acde276a42fbbf85d7a683c2787f6a19ed20bcde9b6ff"
+    )
+    executable = tmp_path / "opencode.exe"
+    executable.write_bytes(b"tampered executable")
+    monkeypatch.setattr(launcher, "PROJECT_ROOT", tmp_path)
+    monkeypatch.setattr(launcher, "OPENCODE_EXE", executable)
+    called = False
+
+    def forbidden_run(*_args, **_kwargs):
+        nonlocal called
+        called = True
+        raise AssertionError("a digest-mismatched executable must not run")
+
+    monkeypatch.setattr(launcher.subprocess, "run", forbidden_run)
+    with pytest.raises(launcher.LocalCoderError, match="digest mismatch"):
+        launcher.validate_local_install(executable)
+    assert called is False
+
+
+def test_local_install_accepts_only_matching_digest_and_version(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    launcher = _load_launcher()
+    executable = tmp_path / "opencode.exe"
+    content = b"pinned executable fixture"
+    executable.write_bytes(content)
+    monkeypatch.setattr(launcher, "PROJECT_ROOT", tmp_path)
+    monkeypatch.setattr(launcher, "OPENCODE_EXE", executable)
+    monkeypatch.setattr(
+        launcher, "EXPECTED_OPENCODE_SHA256", hashlib.sha256(content).hexdigest()
+    )
+
+    def pinned_version(command, **_kwargs):
+        return subprocess.CompletedProcess(command, 0, stdout="1.18.25\n", stderr="")
+
+    monkeypatch.setattr(launcher.subprocess, "run", pinned_version)
+    launcher.validate_local_install(executable)
+
+    executable.write_bytes(content + b"mutation")
+    with pytest.raises(launcher.LocalCoderError, match="digest mismatch"):
+        launcher.validate_local_install(executable)
+
+
+def test_local_install_rejects_matching_binary_from_noncanonical_path(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    launcher = _load_launcher()
+    project = tmp_path / "project"
+    canonical = project / ".local-coder/node_modules/opencode-ai/bin/opencode.exe"
+    alternate = tmp_path / "alternate/opencode.exe"
+    canonical.parent.mkdir(parents=True)
+    alternate.parent.mkdir(parents=True)
+    content = b"same pinned bytes"
+    canonical.write_bytes(content)
+    alternate.write_bytes(content)
+    monkeypatch.setattr(launcher, "PROJECT_ROOT", project)
+    monkeypatch.setattr(launcher, "OPENCODE_EXE", canonical)
+    monkeypatch.setattr(
+        launcher, "EXPECTED_OPENCODE_SHA256", hashlib.sha256(content).hexdigest()
+    )
+
+    with pytest.raises(launcher.LocalCoderError, match="canonical project-local"):
+        launcher.validate_local_install(alternate)
+
+
+def test_final_execution_rehash_rejects_every_mutable_client_input(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    launcher = _load_launcher()
+    project = tmp_path / "project"
+    executable = project / ".local-coder" / "opencode.exe"
+    source_config = project / "configs" / "opencode.json"
+    isolated_config = project / ".local-coder" / "state" / "config-dir" / "opencode.json"
+    source_contract = project / "substrate" / "AGENT_CONTRACT.md"
+    installed_contract = (
+        project / ".local-coder" / "state" / "xdg-config" / "opencode" / "AGENTS.md"
+    )
+    for path in (
+        executable,
+        source_config,
+        isolated_config,
+        source_contract,
+        installed_contract,
+    ):
+        path.parent.mkdir(parents=True, exist_ok=True)
+    executable_bytes = b"executable"
+    config_bytes = b'{"pinned":true}\n'
+    contract_bytes = b"contract\n"
+    executable.write_bytes(executable_bytes)
+    source_config.write_bytes(config_bytes)
+    isolated_config.write_bytes(config_bytes)
+    source_contract.write_bytes(contract_bytes)
+    installed_contract.write_bytes(contract_bytes)
+    monkeypatch.setattr(launcher, "PROJECT_ROOT", project)
+    monkeypatch.setattr(launcher, "SUBSTRATE_CONTRACT", source_contract)
+    monkeypatch.setattr(
+        launcher, "EXPECTED_OPENCODE_SHA256", hashlib.sha256(executable_bytes).hexdigest()
+    )
+    monkeypatch.setattr(
+        launcher, "EXPECTED_CONTRACT_SHA256", hashlib.sha256(contract_bytes).hexdigest()
+    )
+    validated = launcher.ValidatedConfig(
+        source_config, config_bytes, hashlib.sha256(config_bytes).hexdigest()
+    )
+    environment = {
+        "OPENCODE_CONFIG": str(isolated_config),
+        "XDG_CONFIG_HOME": str(installed_contract.parents[1]),
+    }
+    launcher.verify_execution_inputs(executable, validated, environment)
+
+    for path in (
+        executable,
+        source_config,
+        isolated_config,
+        source_contract,
+        installed_contract,
+    ):
+        original = path.read_bytes()
+        path.write_bytes(original + b"mutation")
+        with pytest.raises(launcher.LocalCoderError, match="changed"):
+            launcher.verify_execution_inputs(executable, validated, environment)
+        path.write_bytes(original)
+
+
 @pytest.mark.skipif(
     not (ROOT / ".local-coder/node_modules/opencode-ai/bin/opencode.exe").is_file(),
     reason="project-local OpenCode has not been installed",
@@ -175,6 +551,7 @@ def test_pinned_client_resolves_only_the_isolated_config(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     launcher = _load_launcher()
+    config = launcher.validate_config(CONFIG)
     repository = tmp_path / "untrusted-project-config"
     repository.mkdir()
     subprocess.run(["git", "init", "--quiet", str(repository)], check=True)
@@ -189,9 +566,10 @@ def test_pinned_client_resolves_only_the_isolated_config(
         ),
         encoding="utf-8",
     )
+    monkeypatch.setattr(launcher, "PROJECT_ROOT", tmp_path)
     monkeypatch.setattr(launcher, "LOCAL_STATE_ROOT", tmp_path / "isolated-state")
     environment = launcher.isolated_environment(
-        CONFIG, "http://127.0.0.1:19090"
+        config, "http://127.0.0.1:19090"
     )
 
     launcher.validate_resolved_config(
@@ -236,8 +614,12 @@ def test_owned_server_is_stopped_and_quick_mode_is_forwarded(
     monkeypatch.setattr(launcher, "OPENCODE_EXE", executable)
     monkeypatch.setattr(launcher, "validate_git_target", lambda path: (target, target))
     monkeypatch.setattr(launcher, "validate_local_install", lambda _path: None)
-    monkeypatch.setattr(launcher, "validate_agent_artifact", lambda _path: {})
+    monkeypatch.setattr(launcher, "resolve_canonical_artifact", lambda _path: artifact)
+    approval = object()
+    validated = type("Validated", (), {"server_approval": approval})()
+    monkeypatch.setattr(launcher, "validate_agent_artifact", lambda _path: validated)
     monkeypatch.setattr(launcher, "isolated_environment", lambda *_args: {"isolated": "yes"})
+    monkeypatch.setattr(launcher, "verify_execution_inputs", lambda *_args: None)
     monkeypatch.setattr(launcher, "validate_resolved_config", lambda *_args, **_kwargs: None)
     options = launcher.LaunchOptions(
         target=target,
@@ -258,7 +640,8 @@ def test_owned_server_is_stopped_and_quick_mode_is_forwarded(
     assert observed["started"] is True
     assert observed["stopped"] is True
     _, server_kwargs = observed["server_init"]
-    assert server_kwargs["verify_payload_hash"] is False
+    assert server_kwargs["verify_payload_hash"] is True
+    assert server_kwargs["artifact_approval"] is approval
     command, client_kwargs = observed["client"]
     assert command == [
         str(executable),
@@ -307,7 +690,11 @@ def test_owned_server_is_stopped_when_client_fails(
     monkeypatch.setattr(launcher, "OPENCODE_EXE", executable)
     monkeypatch.setattr(launcher, "validate_git_target", lambda path: (target, target))
     monkeypatch.setattr(launcher, "validate_local_install", lambda _path: None)
-    monkeypatch.setattr(launcher, "validate_agent_artifact", lambda _path: {})
+    monkeypatch.setattr(launcher, "resolve_canonical_artifact", lambda _path: artifact)
+    validated = type("Validated", (), {"server_approval": object()})()
+    monkeypatch.setattr(launcher, "validate_agent_artifact", lambda _path: validated)
+    monkeypatch.setattr(launcher, "isolated_environment", lambda *_args: {"isolated": "yes"})
+    monkeypatch.setattr(launcher, "verify_execution_inputs", lambda *_args: None)
     monkeypatch.setattr(launcher, "validate_resolved_config", lambda *_args, **_kwargs: None)
     options = launcher.LaunchOptions(
         target=target,
@@ -332,6 +719,21 @@ def test_setup_script_pins_a_project_local_install() -> None:
     script = (ROOT / "scripts" / "setup_local_coder.ps1").read_text(encoding="utf-8")
 
     assert 'PinnedVersion = "1.18.25"' in script
+    assert (
+        'PinnedSha256 = "ef06e41a35795066e95acde276a42fbbf85d7a683c2787f6a19ed20bcde9b6ff"'
+        in script
+    )
+    assert "Get-FileHash -LiteralPath $OpenCodeExe -Algorithm SHA256" in script
+    assert "digest differs from the pinned package output" in script
+    assert "Assert-SafeProjectPath" in script
+    assert "FileAttributes]::ReparsePoint" in script
+    post_install = script.split(
+        'throw "The project-local OpenCode installation failed with exit code $LASTEXITCODE."',
+        maxsplit=1,
+    )[1]
+    assert post_install.index("Assert-SafeProjectPath -Path $OpenCodeExe") < (
+        post_install.index("if (-not (Test-PinnedOpenCode))")
+    )
     assert "--prefix $InstallRoot" in script
     assert "--cache $NpmCache" in script
     assert "--save-exact" in script

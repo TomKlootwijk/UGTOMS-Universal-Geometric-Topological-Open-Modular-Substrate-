@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import subprocess
 from pathlib import Path
@@ -88,6 +89,50 @@ def _patch_valid_artifact(monkeypatch, tmp_path, *, manifest=None):
     return root, value, process, observed
 
 
+def _approved_artifact(root: Path) -> tuple[server.ArtifactApproval, dict[str, Any]]:
+    manifest = _manifest(root)
+    runtime = root / "runtime" / "llama-server.exe"
+    model = root / "model.gguf"
+    runtime_digest = hashlib.sha256(runtime.read_bytes()).hexdigest()
+    model_digest = hashlib.sha256(model.read_bytes()).hexdigest()
+    manifest["format"] = server.hybrid.HYBRID_FORMAT
+    manifest["artifact_kind"] = "external-codec-reference"
+    manifest["validation"] = {"status": "VALIDATED"}
+    manifest["events"] = []
+    manifest["runtime"]["files"] = [
+        {
+            "path": "runtime/llama-server.exe",
+            "bytes": runtime.stat().st_size,
+            "sha256": runtime_digest,
+        }
+    ]
+    manifest["payload"] = {
+        "path": "model.gguf",
+        "bytes": model.stat().st_size,
+        "sha256": model_digest,
+    }
+    rendered = (json.dumps(manifest, indent=2, sort_keys=True) + "\n").encode("utf-8")
+    manifest_digest = hashlib.sha256(rendered).hexdigest()
+    (root / server.hybrid.HYBRID_MANIFEST).write_bytes(rendered)
+    (root / server.hybrid.HYBRID_MANIFEST_SHA256).write_text(
+        manifest_digest + "\n", encoding="ascii"
+    )
+    runtime_file = server.ApprovedArtifactFile(
+        runtime, runtime.stat().st_size, runtime_digest
+    )
+    approval = server.ArtifactApproval(
+        artifact_dir=root,
+        reference_root=root,
+        manifest_sha256=manifest_digest,
+        payload=server.ApprovedArtifactFile(
+            model, model.stat().st_size, model_digest
+        ),
+        runtime_files=(runtime_file,),
+        server=runtime_file,
+    )
+    return approval, manifest
+
+
 def test_start_verifies_once_then_launches_fixed_resident_profile(monkeypatch, tmp_path) -> None:
     root, manifest, process, observed = _patch_valid_artifact(monkeypatch, tmp_path)
     runtime = server.HybridServer(root, port=18081, threads=20).start(wait_ready=False)
@@ -124,6 +169,119 @@ def test_start_verifies_once_then_launches_fixed_resident_profile(monkeypatch, t
     assert popen_kwargs["cwd"] == str((root / "runtime").resolve())
     assert runtime.preflight_result == {"gpu": "RTX", "free_mib": 11_000}
     assert process.terminated is False
+
+
+def test_externally_approved_start_uses_exact_snapshot_and_rehashes_before_popen(
+    monkeypatch, tmp_path
+) -> None:
+    root = tmp_path / "artifact"
+    root.mkdir()
+    approval, manifest = _approved_artifact(root)
+    observed: dict[str, Any] = {}
+    process = _Process()
+
+    def fake_preflight(value, **kwargs):
+        observed["preflight"] = (value, kwargs)
+        return {"gpu": "RTX"}
+
+    def fake_popen(command, **kwargs):
+        observed["popen"] = (command, kwargs)
+        return process
+
+    monkeypatch.setattr(server.hybrid, "_preflight", fake_preflight)
+    monkeypatch.setattr(server.subprocess, "Popen", fake_popen)
+
+    runtime = server.HybridServer(root, artifact_approval=approval)
+    runtime.start(wait_ready=False)
+
+    command = observed["popen"][0]
+    assert command[0] == str(approval.server.path)
+    assert command[command.index("-m") + 1] == str(approval.payload.path)
+    assert observed["preflight"][0] == manifest
+    with pytest.raises(server.HybridServerConfigurationError, match="cannot skip"):
+        server.HybridServer(
+            root, artifact_approval=approval, verify_payload_hash=False
+        )
+
+
+def test_artifact_approval_rejects_any_out_of_root_execution_file(tmp_path) -> None:
+    root = tmp_path / "project"
+    artifact = root / "artifact"
+    runtime = root / "runtime" / "llama-server.exe"
+    outside = tmp_path / "outside.gguf"
+    artifact.mkdir(parents=True)
+    runtime.parent.mkdir()
+    runtime.write_bytes(b"server")
+    outside.write_bytes(b"model")
+    runtime_file = server.ApprovedArtifactFile(
+        runtime, 6, hashlib.sha256(b"server").hexdigest()
+    )
+
+    with pytest.raises(server.HybridServerConfigurationError, match="outside"):
+        server.ArtifactApproval(
+            artifact_dir=artifact,
+            reference_root=root,
+            manifest_sha256="1" * 64,
+            payload=server.ApprovedArtifactFile(
+                outside, 5, hashlib.sha256(b"model").hexdigest()
+            ),
+            runtime_files=(runtime_file,),
+            server=runtime_file,
+        )
+
+
+def test_approved_manifest_reseal_or_file_mutation_fails_before_popen(
+    monkeypatch, tmp_path
+) -> None:
+    root = tmp_path / "artifact"
+    root.mkdir()
+    approval, manifest = _approved_artifact(root)
+    original_manifest = (root / server.hybrid.HYBRID_MANIFEST).read_bytes()
+    original_sidecar = (root / server.hybrid.HYBRID_MANIFEST_SHA256).read_bytes()
+    monkeypatch.setattr(server.hybrid, "_preflight", lambda *_args, **_kwargs: {})
+    monkeypatch.setattr(
+        server.subprocess,
+        "Popen",
+        lambda *_args, **_kwargs: pytest.fail("mutated approval must not execute"),
+    )
+
+    manifest["validation"]["rewritten"] = True
+    rendered = (json.dumps(manifest, indent=2, sort_keys=True) + "\n").encode("utf-8")
+    (root / server.hybrid.HYBRID_MANIFEST).write_bytes(rendered)
+    (root / server.hybrid.HYBRID_MANIFEST_SHA256).write_text(
+        hashlib.sha256(rendered).hexdigest() + "\n", encoding="ascii"
+    )
+    with pytest.raises(OSError, match="externally approved"):
+        server.HybridServer(root, artifact_approval=approval).start(wait_ready=False)
+
+    (root / server.hybrid.HYBRID_MANIFEST).write_bytes(original_manifest)
+    (root / server.hybrid.HYBRID_MANIFEST_SHA256).write_bytes(original_sidecar)
+    (root / "runtime" / "llama-server.exe").write_bytes(b"tamper")
+    with pytest.raises(server.HybridServerConfigurationError, match="SHA-256 changed"):
+        server.HybridServer(root, artifact_approval=approval).start(wait_ready=False)
+
+
+def test_approved_manifest_mutation_during_preflight_fails_before_popen(
+    monkeypatch, tmp_path
+) -> None:
+    root = tmp_path / "artifact"
+    root.mkdir()
+    approval, _manifest = _approved_artifact(root)
+    manifest_path = root / server.hybrid.HYBRID_MANIFEST
+
+    def mutate_during_preflight(*_args, **_kwargs):
+        manifest_path.write_bytes(manifest_path.read_bytes() + b" ")
+        return {}
+
+    monkeypatch.setattr(server.hybrid, "_preflight", mutate_during_preflight)
+    monkeypatch.setattr(
+        server.subprocess,
+        "Popen",
+        lambda *_args, **_kwargs: pytest.fail("mutated approval must not execute"),
+    )
+
+    with pytest.raises(server.HybridServerConfigurationError, match="manifest SHA-256 changed"):
+        server.HybridServer(root, artifact_approval=approval).start(wait_ready=False)
 
 
 def test_start_fails_closed_before_manifest_or_process_on_bad_integrity(

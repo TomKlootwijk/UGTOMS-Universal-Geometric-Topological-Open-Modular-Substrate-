@@ -54,6 +54,7 @@ from nhdf_edge.substrate_runtime import (  # noqa: E402
     NoveltyLog,
     OneBitJitter,
     PredicateValue,
+    SCLPKeyLayout64,
     SpatialLogPolarChart,
     SphereSDF,
     canonical_json as runtime_json,
@@ -67,7 +68,7 @@ from nhdf_edge.substrate_runtime import (  # noqa: E402
 
 APPLICATION_ID = "ugtoms-sclp-reference"
 APPLICATION_VERSION = "0.1.0"
-EVIDENCE_FORMAT = "ugtoms-sclp-reference-evidence-0.1"
+EVIDENCE_FORMAT = "ugtoms-sclp-reference-evidence-0.2"
 
 
 def _sha256(data: bytes) -> str:
@@ -85,14 +86,71 @@ def _qv(values: tuple[float, ...]) -> list[float]:
     return [_q(value) for value in values]
 
 
+def _certified_translational_sweep_interval(
+    cone: FiniteConeSDF,
+    start: tuple[float, float, float],
+    end: tuple[float, float, float],
+    *,
+    iterations: int = 32,
+) -> dict[str, Any]:
+    """Bracket one SDF zero on a linear path; this is not an earliest-hit claim."""
+
+    lower_t, upper_t = 0.0, 1.0
+    lower_distance = cone.evaluate(start)
+    upper_distance = cone.evaluate(end)
+    if not (lower_distance > 0.0 and upper_distance < 0.0):
+        raise RuntimeError("reference sweep endpoints must strictly bracket a cone SDF zero")
+    for _ in range(iterations):
+        middle_t = (lower_t + upper_t) * 0.5
+        middle = tuple(
+            start[axis] + (end[axis] - start[axis]) * middle_t for axis in range(3)
+        )
+        middle_distance = cone.evaluate(middle)
+        if middle_distance > 0.0:
+            lower_t, lower_distance = middle_t, middle_distance
+        else:
+            upper_t, upper_distance = middle_t, middle_distance
+    certified = (
+        math.isfinite(lower_distance)
+        and math.isfinite(upper_distance)
+        and lower_t < upper_t
+        and lower_distance > 0.0
+        and upper_distance <= 0.0
+        and upper_t - lower_t <= 2.0**-iterations
+    )
+    if not certified:
+        raise RuntimeError("reference sweep interval did not retain a finite sign bracket")
+    return {
+        "certified": True,
+        "earliest_impact_claim": False,
+        "iterations": iterations,
+        "method": "opposite-sign bisection of the exact finite-cone SDF along a linear path",
+        "parameter_interval": [_q(lower_t), _q(upper_t)],
+        "endpoint_distances": [_q(lower_distance), _q(upper_distance)],
+        "translation_length": _q(
+            math.sqrt(sum((end[axis] - start[axis]) ** 2 for axis in range(3)))
+        ),
+    }
+
+
 def _definition_graph() -> tuple[SubstrateGraph, FeedbackEdge]:
     descriptions = (
         ("def:input", "input", (), "residual and generation input"),
         ("def:log-polar", "coordinate", ("def:input",), "residual address and spatial metric"),
-        ("def:predicates", "predicate", ("def:log-polar",), "separate parity, jitter, and branch control"),
+        (
+            "def:predicates",
+            "predicate",
+            ("def:log-polar",),
+            "separate payload parity, topology parity, jitter control, and branch control",
+        ),
         ("def:routing", "routing", ("def:predicates",), "bounded BST-T bifurcation"),
         ("def:kinematics", "kinematic", ("def:routing",), "causal vector kinematics"),
-        ("def:geometry", "geometry", ("def:kinematics",), "finite cone and sphere support"),
+        (
+            "def:geometry",
+            "geometry",
+            ("def:kinematics",),
+            "finite cone, sphere support, and certified translational sign bracket",
+        ),
         ("def:event", "admission", ("def:geometry", "def:predicates"), "tri-state event admission"),
         ("def:transition", "transition", ("def:event",), "single canonical atomic commit"),
         ("def:packing", "packing", ("def:transition",), "bounded pose, motion, LUT, and recipe packing"),
@@ -134,15 +192,15 @@ def _definition_graph() -> tuple[SubstrateGraph, FeedbackEdge]:
         target_generation=1,
         provenance={"source_refs": ("first-party:ugtoms-sclp-reference-v0.1",)},
     )
-    return (
-        SubstrateGraph(
-            nodes,
-            instances=(instance,),
-            pipelines=(pipeline,),
-            feedback_edges=(feedback,),
-        ),
-        feedback,
+    graph = SubstrateGraph(
+        nodes,
+        instances=(instance,),
+        pipelines=(pipeline,),
+        feedback_edges=(feedback,),
     )
+    # The constructor resolves transitive hashes and typed ports.  Returning
+    # the input edge here would expose an intentionally unbound draft record.
+    return graph, graph.feedback_edges[0]
 
 
 def build_reference_result() -> dict[str, Any]:
@@ -185,7 +243,7 @@ def build_reference_result() -> dict[str, Any]:
         phase=0.25,
         phase_acceleration=0.02,
         generation=0,
-        parity_gate=branch_control,
+        branch_control_bit=branch_control,
         depth=1,
         active_branches=2,
     )
@@ -202,6 +260,9 @@ def build_reference_result() -> dict[str, Any]:
     cone_before = cone.evaluate(initial.position)
     cone_after = cone.evaluate(advanced.position)
     sphere_after = sphere.evaluate(advanced.position)
+    sweep_interval = _certified_translational_sweep_interval(
+        cone, initial.position, advanced.position
+    )
     event = verify_event(
         support=PredicateValue.TRUE if sphere_after <= 0.0 else PredicateValue.FALSE,
         compatibility=PredicateValue.TRUE if route.bounded else PredicateValue.FALSE,
@@ -265,6 +326,13 @@ def build_reference_result() -> dict[str, Any]:
         raise RuntimeError("shared LUT round trip failed")
     motion_bounds = MotionBounds(2.0, 2.0, 2.0, 2.0)
     pose = PackedPose64.from_values(rho, theta, 0, route.geometric_angles[0], rho_min=-4.0, rho_max=4.0)
+    key_layout = SCLPKeyLayout64(rho_min=-4.0, rho_max=4.0)
+    contiguous_key = key_layout.pack_contiguous(pose.codes)
+    morton_key = key_layout.pack_morton(pose.codes)
+    contiguous_round_trip = key_layout.unpack_contiguous(contiguous_key) == pose.codes
+    morton_round_trip = key_layout.unpack_morton(morton_key) == pose.codes
+    if not (contiguous_key == pose.word and contiguous_round_trip and morton_round_trip):
+        raise RuntimeError("both SCLP key layouts must exactly round-trip the pose codes")
     motion = PackedMotion64.from_values(
         rho_rate,
         theta_rate,
@@ -311,7 +379,42 @@ def build_reference_result() -> dict[str, Any]:
 
     graph_manifest = graph.manifest()
     graph_bytes = graph_json(graph_manifest)
-    return {
+    resource_trace = {
+        "branch_depth": {
+            "limit": router.maximum_depth,
+            "observed": 1,
+            "passed": 1 <= router.maximum_depth,
+        },
+        "branches": {
+            "limit": router.maximum_active_branches,
+            "observed": 3,
+            "passed": 3 <= router.maximum_active_branches and route.bounded,
+        },
+        "display_records": {
+            "limit": 16,
+            "observed": len(long_prefix),
+            "passed": len(long_prefix) <= 16,
+        },
+        "generations": {
+            "limit": 1,
+            "observed": feedback.generation_delay,
+            "passed": feedback.generation_delay == 1,
+        },
+        "lut_samples_per_lane": {
+            "limit": polar_profile.resolution,
+            "observed": shared_lut.profile.resolution,
+            "passed": shared_lut.profile.resolution <= polar_profile.resolution,
+        },
+        "recipe_instances": {
+            "limit": 64,
+            "observed": recipe.instance_count,
+            "passed": recipe.instance_count <= 64,
+        },
+    }
+    if not all(bool(row["passed"]) for row in resource_trace.values()):
+        raise RuntimeError("reference resource trace exceeded a declared bound")
+
+    result = {
         "application_id": APPLICATION_ID,
         "application_version": APPLICATION_VERSION,
         "display_boundary": {
@@ -333,6 +436,7 @@ def build_reference_result() -> dict[str, Any]:
                 "base_radius": _q(cone.base_radius),
             },
             "sphere_support_sdf": _q(sphere_after),
+            "translational_sweep": sweep_interval,
         },
         "graph": {
             "content_hash": graph.content_hash,
@@ -344,7 +448,13 @@ def build_reference_result() -> dict[str, Any]:
                 "source_generation": feedback.source_generation,
                 "target_generation": feedback.target_generation,
                 "generation_delay": feedback.generation_delay,
+                "source_hash": feedback.source_hash,
+                "source_port": feedback.source_port,
+                "source_port_type": feedback.source_port_type,
                 "semantics": feedback.semantics,
+                "target_hash": feedback.target_hash,
+                "target_port": feedback.target_port,
+                "target_port_type": feedback.target_port_type,
                 "fixed_point_claim": feedback.fixed_point_claim,
             },
             "fixed_point_engine": graph.fixed_point_engine,
@@ -398,6 +508,19 @@ def build_reference_result() -> dict[str, Any]:
             "motion_word": motion.word,
             "pose_bytes": len(pose.to_bytes()),
             "motion_bytes": len(motion.to_bytes()),
+            "key_round_trips": {
+                "field_widths": [20, 18, 14, 12],
+                "source_codes": {
+                    "rho": pose.codes.rho,
+                    "theta": pose.codes.theta,
+                    "time": pose.codes.time,
+                    "phi": pose.codes.phi,
+                },
+                "contiguous_word": contiguous_key,
+                "contiguous_round_trip": contiguous_round_trip,
+                "morton_word": morton_key,
+                "morton_round_trip": morton_round_trip,
+            },
             "shared_lut": {"optional": True, "resolution": 32, "bytes": len(lut_bytes), "sha256": _sha256(lut_bytes)},
             "component_pack": {"records": 1, "bytes": len(component_bytes), "sha256": _sha256(component_bytes)},
             "recipe": {
@@ -427,6 +550,7 @@ def build_reference_result() -> dict[str, Any]:
             "klein_orientation": klein.orientation,
             "klein_sheet": klein.sheet,
         },
+        "resource_trace": resource_trace,
         "routing": {
             "maximum_depth": router.maximum_depth,
             "maximum_active_branches": router.maximum_active_branches,
@@ -435,6 +559,16 @@ def build_reference_result() -> dict[str, Any]:
             "geometric_angles": _qv(route.geometric_angles),
             "bifurcated": route.bifurcated,
             "bounded": route.bounded,
+            "grammar_budget": {
+                "initial_active_branches": 2,
+                "resulting_active_branches": 3,
+                "used_depth": 1,
+                "maximum_active_branches": router.maximum_active_branches,
+                "maximum_depth": router.maximum_depth,
+                "passed": route.bounded
+                and 1 <= router.maximum_depth
+                and 3 <= router.maximum_active_branches,
+            },
         },
         "transition": {
             "admission_required": "VERIFIED",
@@ -448,6 +582,165 @@ def build_reference_result() -> dict[str, Any]:
             "generation": {"source": 0, "target": 1},
         },
     }
+    result["scope"] = {
+        "executed": [
+            "finite-cone-sdf",
+            "sphere-sdf",
+            "translational-cone-sign-bracket",
+            "reflective-klein-gluing",
+            "bounded-bst-t-l-system-style-route",
+            "contiguous-and-morton-sclp-keys",
+        ],
+        "bypassed": {
+            "circle-and-distributed-apex": {
+                "bypassed": True,
+                "reason": "Retained kernel geometry primitives are outside this bounded replay.",
+            },
+            "paired-sphere-support": {
+                "bypassed": True,
+                "reason": "The replay evaluates one sphere SDF and makes no paired-sphere claim.",
+            },
+            "radix-prefix-refinement": {
+                "bypassed": True,
+                "reason": "The replay uses BST-T ordering and does not execute a radix trie.",
+            },
+            "source-half-turn-bundle-map": {
+                "bypassed": True,
+                "reason": "The replay executes reflective Klein gluing only.",
+            },
+        },
+    }
+    result["proof_inventory"] = {
+        "nhdf-v0.1": {
+            "operator-mapping": {
+                "profile_id": "nhdf-v0.1",
+                "requirement_id": "operator-mapping",
+                "passed": graph.verify_content_hash(),
+                "evidence_paths": [
+                    "/graph/content_hash",
+                    "/graph/topological_order",
+                    "/graph/feedback/source_port_type",
+                    "/graph/feedback/target_port_type",
+                ],
+            },
+            "reference-vectors": {
+                "profile_id": "nhdf-v0.1",
+                "requirement_id": "reference-vectors",
+                "passed": all(
+                    math.isfinite(value)
+                    for value in (
+                        rho,
+                        theta,
+                        cone_before,
+                        cone_after,
+                        sphere_after,
+                        *initial.velocity,
+                        *initial.acceleration,
+                    )
+                ),
+                "evidence_paths": ["/log_polar", "/kinematics", "/geometry"],
+            },
+            "bounded-resource-trace": {
+                "profile_id": "nhdf-v0.1",
+                "requirement_id": "bounded-resource-trace",
+                "passed": all(bool(row["passed"]) for row in resource_trace.values()),
+                "evidence_paths": [
+                    "/resource_trace/branch_depth/passed",
+                    "/resource_trace/branches/passed",
+                    "/resource_trace/display_records/passed",
+                    "/resource_trace/generations/passed",
+                    "/resource_trace/lut_samples_per_lane/passed",
+                    "/resource_trace/recipe_instances/passed",
+                ],
+            },
+            "next-generation-replay": {
+                "profile_id": "nhdf-v0.1",
+                "requirement_id": "next-generation-replay",
+                "passed": feedback.generation_delay == 1
+                and not feedback.fixed_point_claim
+                and not graph.fixed_point_engine,
+                "evidence_paths": [
+                    "/graph/feedback/source_generation",
+                    "/graph/feedback/target_generation",
+                    "/graph/feedback/fixed_point_claim",
+                    "/graph/fixed_point_engine",
+                    "/transition/generation",
+                ],
+            },
+        },
+        "sclp-foundational": {
+            "finite-cone-reference-vector": {
+                "profile_id": "sclp-foundational",
+                "requirement_id": "finite-cone-reference-vector",
+                "passed": math.isfinite(cone_before) and math.isfinite(cone_after),
+                "evidence_paths": [
+                    "/geometry/cone/before",
+                    "/geometry/cone/after",
+                    "/geometry/cone/height",
+                    "/geometry/cone/base_radius",
+                ],
+            },
+            "packed-key-round-trips": {
+                "profile_id": "sclp-foundational",
+                "requirement_id": "packed-key-round-trips",
+                "passed": contiguous_round_trip and morton_round_trip,
+                "evidence_paths": [
+                    "/packing/key_round_trips/contiguous_round_trip",
+                    "/packing/key_round_trips/morton_round_trip",
+                    "/packing/key_round_trips/source_codes",
+                ],
+            },
+            "jitter-margin-certificate": {
+                "profile_id": "sclp-foundational",
+                "requirement_id": "jitter-margin-certificate",
+                "passed": bool(jitter_certificate["safe_under_margin"]),
+                "evidence_paths": [
+                    "/predicates/roles_are_distinct",
+                    "/predicates/jitter_control_bit",
+                    "/predicates/jitter_interval",
+                    "/predicates/jitter_safe_under_margin",
+                ],
+            },
+            "metric-kinematic-reference-vector": {
+                "profile_id": "sclp-foundational",
+                "requirement_id": "metric-kinematic-reference-vector",
+                "passed": all(
+                    math.isfinite(value)
+                    for value in (*initial.velocity, *initial.acceleration, rho, theta)
+                ),
+                "evidence_paths": ["/log_polar/spatial_metric", "/kinematics"],
+            },
+            "grammar-budget-trace": {
+                "profile_id": "sclp-foundational",
+                "requirement_id": "grammar-budget-trace",
+                "passed": bool(result["routing"]["grammar_budget"]["passed"]),
+                "evidence_paths": [
+                    "/routing/grammar_budget",
+                    "/routing/branch_paths",
+                    "/routing/geometric_angles",
+                ],
+            },
+            "sweep-interval": {
+                "profile_id": "sclp-foundational",
+                "requirement_id": "sweep-interval",
+                "passed": bool(sweep_interval["certified"])
+                and not bool(sweep_interval["earliest_impact_claim"]),
+                "evidence_paths": [
+                    "/geometry/translational_sweep/certified",
+                    "/geometry/translational_sweep/parameter_interval",
+                    "/geometry/translational_sweep/endpoint_distances",
+                    "/geometry/translational_sweep/earliest_impact_claim",
+                ],
+            },
+        },
+    }
+    if not all(
+        bool(proof["passed"])
+        for profile in result["proof_inventory"].values()
+        for proof in profile.values()
+    ):
+        raise RuntimeError("reference proof inventory contains a failed claim")
+    return result
 
 
 def canonical_result_bytes(result: Mapping[str, Any]) -> bytes:

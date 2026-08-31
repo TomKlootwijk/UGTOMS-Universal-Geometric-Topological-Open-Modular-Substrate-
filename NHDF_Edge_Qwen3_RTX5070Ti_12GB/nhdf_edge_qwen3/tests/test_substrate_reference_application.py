@@ -39,10 +39,38 @@ def test_reference_manifest_validates_current_kernel_profiles_and_evidence() -> 
 
     assert result["ok"] is True
     assert result["selected_profiles"] == ["nhdf-v0.1", "sclp-foundational"]
-    assert result["mapping_count"] == 9
+    assert result["mapping_count"] == 12
+    assert result["profile_requirement_count"] == 10
+    assert manifest["format"] == "ugtoms-application-manifest-0.2"
+    assert set(manifest["mappings"]) == {
+        "typed",
+        "vector",
+        "kinematic",
+        "geometry",
+        "topology",
+        "packing",
+        "predicate",
+        "operator",
+        "self_reference",
+    }
     evidence_record = next(row for row in manifest["evidence"] if row["id"] == "reference-replay")
     assert evidence_record["bytes"] == EVIDENCE.stat().st_size
     assert evidence_record["sha256"] == hashlib.sha256(EVIDENCE.read_bytes()).hexdigest()
+    coverage = {
+        (row["profile_id"], row["requirement_id"])
+        for row in evidence_record["claim_coverage"]
+    }
+    declared = {
+        (profile_id, requirement["id"])
+        for profile_id in ("nhdf-v0.1", "sclp-foundational")
+        for requirement in json.loads(
+            (ROOT / "substrate" / "profiles" / f"{profile_id}.json").read_text(
+                encoding="utf-8"
+            )
+        )["evidence_requirements"]
+    }
+    assert coverage == declared
+    assert manifest["self_reference"]["may_propose_extensions"] is False
 
 
 def test_reference_has_bounded_next_generation_semantics_and_stable_display_prefix() -> None:
@@ -50,6 +78,8 @@ def test_reference_has_bounded_next_generation_semantics_and_stable_display_pref
     feedback = result["graph"]["feedback"]
     logic = result["logic"]
     prefix = result["packing"]["stable_display_prefix"]
+    key_round_trips = result["packing"]["key_round_trips"]
+    sweep = result["geometry"]["translational_sweep"]
 
     assert result["graph"]["fixed_point_engine"] is False
     assert feedback["fixed_point_claim"] is False
@@ -66,6 +96,21 @@ def test_reference_has_bounded_next_generation_semantics_and_stable_display_pref
         "VERIFIED",
     }
     assert logic["indeterminate_probe"] == "INDETERMINATE"
+    assert key_round_trips["contiguous_round_trip"] is True
+    assert key_round_trips["morton_round_trip"] is True
+    assert sweep["certified"] is True
+    assert sweep["earliest_impact_claim"] is False
+    assert sweep["parameter_interval"][0] < sweep["parameter_interval"][1]
+    assert sweep["endpoint_distances"][0] > 0.0
+    assert sweep["endpoint_distances"][1] <= 0.0
+    assert all(
+        proof["passed"] is True
+        for profile in result["proof_inventory"].values()
+        for proof in profile.values()
+    )
+    assert all(
+        row["bypassed"] is True for row in result["scope"]["bypassed"].values()
+    )
 
     assert prefix["short_ids"] == prefix["long_prefix_ids"]
     assert prefix["short_count"] < prefix["long_count"] < result["packing"]["recipe"]["instance_count"]

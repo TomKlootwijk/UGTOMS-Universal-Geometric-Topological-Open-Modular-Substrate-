@@ -1,10 +1,10 @@
 {
-  "format": "ugtoms-profile-0.1",
+  "format": "ugtoms-profile-0.2",
   "profile_id": "nhdf-v0.3-ccd",
   "title": "NHDF v0.3 general-purpose continuous collision detection profile",
   "classification": "SELECTABLE_PROFILE",
   "kernel_id": "ugtoms-kernel-v0.1",
-  "kernel_sha256": "ee4dad2b85c8816ef718b4a9f36c2da090b8b9a14525e17f30d65bf17fba23d7",
+  "kernel_sha256": "9b5fa7cff4483129e80e1c234055d57e0f79a574dcd2e131c418bbe0259448c3",
   "kernel_stage_mapping": {
     "C_in_E_LP_A_B_X_xi_B0_P_C_phi_R_BST_K_T": "base NHDF conditioning, addressing, zero-set, predicates, routing, and motion",
     "B_CCD_D_CCD_T_TOI_M_C_R_C": "optional CCD candidate, dispatch, certified event, manifold, and response stages",
@@ -23,7 +23,13 @@
   },
   "resource_bounds": ["bounded candidates", "bounded subdivisions", "bounded iterations", "bounded contacts", "runtime reserve"],
   "failure_modes": ["unsupported backend", "indeterminate predicate", "initial overlap", "iteration exhaustion", "invalid motion bound", "deadline or resource failure"],
-  "evidence_requirements": ["K1-K15 mapping", "CCD C/B/N/R/P requirement mapping", "geometry-motion-backend matrix", "certificate corpus", "resource trace"],
+  "evidence_requirements": [
+    {"id": "k1-k15-mapping", "claim": "The application maps the K1-K15 profile requirements.", "method": "Bind every K1-K15 item to an implemented or explicit bypass mapping.", "pass_condition": "Every item has one non-contradictory mapping and sealed evidence reference."},
+    {"id": "ccd-requirement-mapping", "claim": "The CCD C/B/N/R/P requirement families are mapped explicitly.", "method": "Record typed candidate, bound, numeric, response, and policy mappings.", "pass_condition": "Every selected requirement family is implemented or explicitly bypassed with rationale."},
+    {"id": "geometry-motion-backend-matrix", "claim": "Geometry, motion, and numeric backend support are declared as a finite matrix.", "method": "Enumerate each tested combination and its disposition.", "pass_condition": "The matrix is finite, typed, and contains no implicit unsupported combination."},
+    {"id": "certificate-corpus", "claim": "CCD event decisions are backed by a bounded certificate corpus.", "method": "Replay declared positive, negative, and indeterminate certificate cases.", "pass_condition": "Every corpus case has a deterministic disposition and evidence path."},
+    {"id": "resource-trace", "claim": "CCD candidates, subdivisions, iterations, contacts, and runtime reserve stay bounded.", "method": "Record declared limits and observed use for each resource.", "pass_condition": "All observed values remain within limits or fail closed explicitly."}
+  ],
   "source_records": [
     {"path": "sources/NHDF_Formal_Specification_v0.3_General_Purpose_CCD_Tom_Klootwijk.pdf", "sha256": "019f7da2b97cd73b169e8133b52f4d4bd4d687f9444281364fdb962977ab0956", "bytes": 794122, "pages": 93, "availability": "COMMITTED"}
   ]

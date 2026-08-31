@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+from dataclasses import replace
 
 import pytest
 
@@ -31,6 +32,9 @@ from nhdf_edge.substrate_runtime import (
     lineage_digest,
     verify_event,
     VectorArrow3,
+    canonical_json,
+    payload_parity,
+    topology_parity,
     xor_parity,
     zero_predicate,
 )
@@ -48,14 +52,17 @@ def test_log_polar_lut_is_bounded_deterministic_and_has_apex_sentinel() -> None:
     assert lut.encode((100.0, 0.0)).saturated
 
 
-def test_one_bit_parity_keeps_its_known_even_flip_blind_spot() -> None:
+def test_one_bit_roles_are_separate_and_payload_parity_keeps_its_even_flip_blind_spot() -> None:
     original = bytes([0b00000000])
     one_flip = bytes([0b00000001])
     two_flips = bytes([0b00000011])
-    assert xor_parity(original) == 0
-    assert xor_parity(one_flip) == 1
-    assert xor_parity(two_flips) == 0
-    assert xor_parity(original, orientation_reversals=1) == 1
+    assert payload_parity(original) == xor_parity(original) == 0
+    assert payload_parity(one_flip) == 1
+    assert payload_parity(two_flips) == 0
+    assert topology_parity(1) == 1
+    assert topology_parity(2) == 0
+    with pytest.raises(SubstrateError, match="separate roles"):
+        xor_parity(original, orientation_reversals=1)
     state = ParityDebounce().update(1, required_samples=2)
     assert state.stable_bit == 0
     assert state.update(1, required_samples=2).stable_bit == 1
@@ -165,7 +172,7 @@ def test_bst_t_keeps_order_key_separate_from_bifurcation_geometry_and_bounds() -
         phase=0.25,
         phase_acceleration=0.1,
         generation=7,
-        parity_gate=1,
+        branch_control_bit=1,
         depth=1,
         active_branches=2,
     )
@@ -177,12 +184,23 @@ def test_bst_t_keeps_order_key_separate_from_bifurcation_geometry_and_bounds() -
         phase=0.25,
         phase_acceleration=0.1,
         generation=7,
-        parity_gate=1,
+        branch_control_bit=1,
         depth=2,
         active_branches=2,
     )
     assert not bounded.bifurcated
     assert not bounded.bounded
+    with pytest.raises(SubstrateError, match="cannot be aliased"):
+        router.route(
+            address,
+            phase=0.25,
+            phase_acceleration=0.1,
+            generation=7,
+            branch_control_bit=1,
+            parity_gate=1,
+            depth=1,
+            active_branches=2,
+        )
 
 
 def test_seed_replay_is_deterministic_and_exogenous_log_cannot_be_silently_lost() -> None:
@@ -202,14 +220,54 @@ def test_seed_replay_is_deterministic_and_exogenous_log_cannot_be_silently_lost(
     event_a = log.append("sensor", {"value": 4}, origin=EventOrigin.EXOGENOUS)
     event_b = log.append("user-correction", {"value": 5}, origin=EventOrigin.EXOGENOUS)
     assert lineage_digest((event_a, event_b)) == event_b.lineage_digest
-    with pytest.raises(SubstrateError, match="full of exogenous"):
+    with pytest.raises(SubstrateError, match="exogenous evidence"):
         log.append("sensor", {"value": 6}, origin=EventOrigin.EXOGENOUS)
 
 
 def test_closed_dynamics_can_be_compacted_before_exogenous_evidence() -> None:
     log = NoveltyLog(2)
-    log.append("derived", {"generation": 1}, origin=EventOrigin.CLOSED_DYNAMICS)
+    removed = log.append("derived", {"generation": 1}, origin=EventOrigin.CLOSED_DYNAMICS)
     kept = log.append("sensor", {"sample": 9}, origin=EventOrigin.EXOGENOUS)
     newest = log.append("sensor", {"sample": 10}, origin=EventOrigin.EXOGENOUS)
     assert [event.event_type for event in log.events] == ["sensor", "sensor"]
     assert kept in log.events and newest in log.events
+    assert log.verification_root == removed.lineage_digest
+    assert log.verify() == newest.lineage_digest
+    assert lineage_digest(log.events, root_digest=log.verification_root) == newest.lineage_digest
+    with pytest.raises(SubstrateError, match="predecessor"):
+        lineage_digest(log.events)
+
+
+def test_canonical_json_rejects_key_collisions_nonfinite_values_and_normalizes_zero() -> None:
+    assert canonical_json({"value": -0.0}) == canonical_json({"value": 0.0})
+    with pytest.raises(SubstrateError, match="string keys"):
+        canonical_json({1: "integer", "1": "string"})
+    with pytest.raises(SubstrateError, match="collide"):
+        canonical_json({"é": 1, "e\u0301": 2})
+    with pytest.raises(SubstrateError, match="non-finite"):
+        canonical_json({"value": float("inf")})
+
+
+def test_lineage_payload_is_detached_immutable_and_tampering_is_detected() -> None:
+    payload = {"nested": [1, {"value": -0.0}]}
+    log = NoveltyLog(3)
+    event = log.append("derived", payload, origin=EventOrigin.CLOSED_DYNAMICS)
+    payload["nested"].append(2)
+    assert event.payload["nested"] == (1, {"value": 0.0})
+    with pytest.raises(TypeError):
+        event.payload["new"] = True  # type: ignore[index]
+    assert log.verify() == event.lineage_digest
+
+    tampered = replace(event, payload={"nested": [999]})
+    with pytest.raises(SubstrateError, match="novelty"):
+        lineage_digest((tampered,))
+
+
+def test_compaction_never_removes_a_middle_event_across_exogenous_evidence() -> None:
+    log = NoveltyLog(2)
+    first = log.append("sensor", {"sample": 1}, origin=EventOrigin.EXOGENOUS)
+    second = log.append("derived", {"generation": 1}, origin=EventOrigin.CLOSED_DYNAMICS)
+    with pytest.raises(SubstrateError, match="cannot compact"):
+        log.append("derived", {"generation": 2}, origin=EventOrigin.CLOSED_DYNAMICS)
+    assert log.events == (first, second)
+    assert log.verify() == second.lineage_digest

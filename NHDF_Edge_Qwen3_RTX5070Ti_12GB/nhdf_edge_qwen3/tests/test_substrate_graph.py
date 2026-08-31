@@ -19,6 +19,7 @@ from nhdf_edge.substrate_graph import (
     SubstrateGraphError,
     SymbolFirewallError,
     SymbolRole,
+    TypeCompatibilityError,
     canonical_hash,
     canonical_json,
     validate_symbol_firewall,
@@ -31,12 +32,14 @@ def _definition(
     dependencies: tuple[str, ...] = (),
     phase: int = 0,
     kind: str = "typed-operator",
+    domain: str = "TypedState",
+    codomain: str = "TypedState",
 ) -> DefinitionNode:
     return DefinitionNode(
         id=id,
         kind=kind,
-        domain="TypedInput",
-        codomain="TypedOutput",
+        domain=domain,
+        codomain=codomain,
         dependencies=dependencies,
         evaluation_phase=phase,
         parameters={"bounded": True},
@@ -53,12 +56,17 @@ def _definition(
 
 def test_canonical_json_and_definition_hash_are_order_independent_and_detached() -> None:
     parameters = {"z": [3, 2, 1], "a": {"right": 2, "left": 1}}
+    dependency_hashes = {
+        "def:clock": "sha256:" + "1" * 64,
+        "def:input": "sha256:" + "2" * 64,
+    }
     first = DefinitionNode(
         id="def:log-polar",
         kind="coordinate-transform",
         domain="Residual2",
         codomain="LogPolarAddress",
         dependencies=("def:clock", "def:input"),
+        dependency_hashes=dependency_hashes,
         evaluation_phase=1,
         parameters=parameters,
         equation="rho_jitter = log1p(gamma * magnitude)",
@@ -73,6 +81,10 @@ def test_canonical_json_and_definition_hash_are_order_independent_and_detached()
         domain="Residual2",
         codomain="LogPolarAddress",
         dependencies=("def:input", "def:clock"),
+        dependency_hashes={
+            "def:input": "sha256:" + "2" * 64,
+            "def:clock": "sha256:" + "1" * 64,
+        },
         evaluation_phase=1,
         parameters={"a": {"left": 1, "right": 2}, "z": [3, 2, 1]},
         equation="rho_jitter = log1p(gamma * magnitude)",
@@ -99,6 +111,14 @@ def test_supplied_definition_hash_is_verified() -> None:
         {**node.semantic_record(), "content_hash": node.content_hash}
     )
     assert loaded == node
+    with pytest.raises(ContentHashError, match="must supply"):
+        DefinitionNode.from_record(node.semantic_record())
+    with pytest.raises(ContentHashError, match="must supply"):
+        DefinitionNode.from_record({**node.semantic_record(), "content_hash": ""})
+    missing_type = {**node.semantic_record(), "content_hash": node.content_hash}
+    missing_type.pop("record_type")
+    with pytest.raises(SubstrateGraphError, match="record_type"):
+        DefinitionNode.from_record(missing_type)
     with pytest.raises(ContentHashError, match="does not match"):
         DefinitionNode(
             id="def:verified",
@@ -149,8 +169,15 @@ def test_instances_and_explicit_pipeline_resolve_to_typed_definitions() -> None:
         "def:field",
         "def:gate",
     )
-    assert resolved[1].instance is instance
-    assert graph.definition(field.content_hash) is field
+    assert resolved[1].instance is graph.instance(instance.id)
+    bound_field = graph.definition(field.id)
+    assert bound_field.content_hash
+    assert bound_field.dependency_hashes == {
+        "def:address": graph.definition(address.id).content_hash
+    }
+    assert graph.definition(bound_field.content_hash) is bound_field
+    assert graph.instance(instance.id).definition_hash == bound_field.content_hash
+    assert graph.pipeline(pipeline.id).step_hashes[1] == graph.instance(instance.id).content_hash
     assert graph.content_hash == canonical_hash(graph.manifest())
 
 
@@ -210,9 +237,14 @@ def test_feedback_is_next_generation_only_and_not_a_fixed_point_claim() -> None:
         input_node.id,
         observable.id,
     )
-    assert feedback.generation_delay == 1
-    assert feedback.semantics == "referential-next-generation"
-    assert feedback.fixed_point_claim is False
+    bound_feedback = graph.feedback_edges[0]
+    assert bound_feedback.generation_delay == 1
+    assert bound_feedback.semantics == "referential-next-generation"
+    assert bound_feedback.fixed_point_claim is False
+    assert bound_feedback.source_port_type == "TypedState"
+    assert bound_feedback.target_port_type == "TypedState"
+    assert bound_feedback.source_hash == graph.definition(observable.id).content_hash
+    assert bound_feedback.target_hash == graph.definition(input_node.id).content_hash
     assert graph.fixed_point_engine is False
     assert graph.manifest()["closure"] == {
         "semantics": "source-grounded-referential-closure",
@@ -312,3 +344,233 @@ def test_canonical_hash_rejects_unordered_or_nonfinite_content() -> None:
         canonical_hash({"unordered": {1, 2, 3}})
     with pytest.raises(SubstrateGraphError, match="non-finite"):
         canonical_hash({"not_a_number": float("nan")})
+
+
+def test_graph_is_immutable_and_its_root_digest_remains_verifiable() -> None:
+    root = _definition("def:root")
+    instance = DefinitionInstance("instance:root", root.id)
+    pipeline = Pipeline("pipeline:root", (instance.id,))
+    feedback = FeedbackEdge(
+        "feedback:root",
+        root.id,
+        root.id,
+        provenance={"source_refs": ("first-party:test",)},
+    )
+    graph = SubstrateGraph(
+        (root,),
+        instances=(instance,),
+        pipelines=(pipeline,),
+        feedback_edges=(feedback,),
+    )
+    assert graph.verify_content_hash()
+    assert not hasattr(graph, "__dict__")
+
+    mutations = {
+        "definitions": (),
+        "instances": (),
+        "pipelines": (),
+        "feedback_edges": (),
+        "symbol_bindings": {},
+        "closure_semantics": "unrestricted-fixed-point",
+        "fixed_point_engine": True,
+        "content_hash": "sha256:" + "0" * 64,
+    }
+    for attribute, value in mutations.items():
+        with pytest.raises(AttributeError, match="immutable"):
+            setattr(graph, attribute, value)
+    assert graph.fixed_point_engine is False
+    assert graph.verify_content_hash()
+
+
+def test_all_manifest_record_loaders_require_type_hash_and_verify_round_trip() -> None:
+    root = _definition("def:root")
+    instance = DefinitionInstance("instance:root", root.id, state={"generation": 0})
+    pipeline = Pipeline("pipeline:root", (instance.id,))
+    feedback = FeedbackEdge(
+        "feedback:root",
+        root.id,
+        root.id,
+        provenance={"source_refs": ("first-party:test",)},
+    )
+    graph = SubstrateGraph(
+        (root,),
+        instances=(instance,),
+        pipelines=(pipeline,),
+        feedback_edges=(feedback,),
+    )
+    records_and_loaders = (
+        (
+            {
+                **graph.instance(instance.id).semantic_record(),
+                "content_hash": graph.instance(instance.id).content_hash,
+            },
+            DefinitionInstance.from_record,
+        ),
+        (
+            {
+                **graph.pipeline(pipeline.id).semantic_record(),
+                "content_hash": graph.pipeline(pipeline.id).content_hash,
+            },
+            Pipeline.from_record,
+        ),
+        (
+            {
+                **graph.feedback_edges[0].semantic_record(),
+                "content_hash": graph.feedback_edges[0].content_hash,
+            },
+            FeedbackEdge.from_record,
+        ),
+    )
+    for record, loader in records_and_loaders:
+        assert loader(record).content_hash == record["content_hash"]
+        without_type = dict(record)
+        without_type.pop("record_type")
+        with pytest.raises(SubstrateGraphError, match="record_type"):
+            loader(without_type)
+        without_hash = dict(record)
+        without_hash.pop("content_hash")
+        with pytest.raises(ContentHashError, match="must supply"):
+            loader(without_hash)
+        forged = dict(record)
+        forged["content_hash"] = "sha256:" + "f" * 64
+        with pytest.raises(ContentHashError, match="does not match"):
+            loader(forged)
+
+
+def test_merkle_bindings_propagate_definition_instance_pipeline_and_feedback_changes() -> None:
+    def build(root_parameter: int) -> SubstrateGraph:
+        root = DefinitionNode(
+            "def:root",
+            "input",
+            "State",
+            "State",
+            parameters={"version": root_parameter},
+        )
+        child = DefinitionNode(
+            "def:child",
+            "operator",
+            "State",
+            "State",
+            dependencies=(root.id,),
+            evaluation_phase=1,
+        )
+        instance = DefinitionInstance("instance:child", child.id, state={"generation": 0})
+        pipeline = Pipeline("pipeline:merkle", (root.id, instance.id))
+        feedback = FeedbackEdge(
+            "feedback:merkle",
+            child.id,
+            root.id,
+            provenance={"source_refs": ("first-party:test",)},
+        )
+        return SubstrateGraph(
+            (root, child),
+            instances=(instance,),
+            pipelines=(pipeline,),
+            feedback_edges=(feedback,),
+        )
+
+    first = build(1)
+    second = build(2)
+    assert first.definition("def:root").content_hash != second.definition("def:root").content_hash
+    assert first.definition("def:child").content_hash != second.definition("def:child").content_hash
+    assert first.instance("instance:child").content_hash != second.instance("instance:child").content_hash
+    assert first.pipeline("pipeline:merkle").content_hash != second.pipeline("pipeline:merkle").content_hash
+    assert first.feedback_edges[0].content_hash != second.feedback_edges[0].content_hash
+    assert first.content_hash != second.content_hash
+
+
+def test_unbound_or_forged_merkle_content_is_not_accepted_as_identity() -> None:
+    child = _definition("def:child", dependencies=("def:root",), phase=1)
+    assert child.content_hash == ""
+    assert child.verify_content_hash() is False
+    with pytest.raises(ContentHashError, match="cannot be verified"):
+        _definition("def:child", dependencies=("def:root",), phase=1).__class__(
+            id="def:child",
+            kind="typed-operator",
+            domain="TypedState",
+            codomain="TypedState",
+            dependencies=("def:root",),
+            content_hash="sha256:" + "0" * 64,
+        )
+
+    root = _definition("def:root")
+    forged = DefinitionNode(
+        "def:child",
+        "typed-operator",
+        "TypedState",
+        "TypedState",
+        dependencies=(root.id,),
+        dependency_hashes={root.id: "sha256:" + "f" * 64},
+        evaluation_phase=1,
+    )
+    with pytest.raises(ContentHashError, match="do not match the resolved graph"):
+        SubstrateGraph((root, forged))
+
+
+def test_pipeline_and_feedback_type_boundaries_fail_closed() -> None:
+    source = _definition("def:source", codomain="Address")
+    sink = _definition(
+        "def:sink",
+        dependencies=(source.id,),
+        phase=1,
+        domain="Metric",
+        codomain="Observable",
+    )
+    with pytest.raises(TypeCompatibilityError, match="codomain.*domain"):
+        SubstrateGraph(
+            (source, sink),
+            pipelines=(Pipeline("pipeline:bad-types", (source.id, sink.id)),),
+        )
+
+    observable = DefinitionNode(
+        "def:observable",
+        "typed-operator",
+        "State",
+        "Observable",
+        output_ports={"observable": "Observable"},
+    )
+    residual = DefinitionNode(
+        "def:residual",
+        "typed-operator",
+        "Residual",
+        "State",
+        input_ports={"residual": "Residual"},
+    )
+    feedback = FeedbackEdge(
+        "feedback:bad-types",
+        observable.id,
+        residual.id,
+        source_port_type="Observable",
+        target_port_type="Residual",
+        provenance={"source_refs": ("first-party:test",)},
+    )
+    with pytest.raises(TypeCompatibilityError, match="incompatible"):
+        SubstrateGraph((observable, residual), feedback_edges=(feedback,))
+
+    port_source = DefinitionNode(
+        "def:port-source",
+        "typed-operator",
+        "State",
+        "State",
+        output_ports={"declared-output": "State"},
+    )
+    port_target = DefinitionNode(
+        "def:port-target",
+        "typed-operator",
+        "State",
+        "State",
+        input_ports={"declared-input": "State"},
+    )
+    undeclared_port = FeedbackEdge(
+        "feedback:undeclared-port",
+        port_source.id,
+        port_target.id,
+        provenance={"source_refs": ("first-party:test",)},
+    )
+    with pytest.raises(ReferenceResolutionError, match="no declared output port"):
+        SubstrateGraph(
+            (port_source, port_target), feedback_edges=(undeclared_port,)
+        )
+
+    with pytest.raises(SubstrateGraphError, match="generation"):
+        Pipeline("pipeline:negative-generation", (source.id,), generation=-1)

@@ -1,0 +1,69 @@
+FFFF                                                                     [100%]
+================================== FAILURES ===================================
+___________ test_content_addressed_dag_and_next_generation_feedback ___________
+
+    def test_content_addressed_dag_and_next_generation_feedback() -> None:
+>       graph = build_definition_graph()
+                ^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_substrate_app.py:20:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    def build_definition_graph() -> SubstrateGraph:
+        """Return a content-addressed typed DAG with explicit n -> n + 1 feedback."""
+>       raise NotImplementedError("implement the bounded definition graph")
+E       NotImplementedError: implement the bounded definition graph
+
+src\substrate_app.py:13: NotImplementedError
+_______________ test_replay_is_deterministic_and_prefix_stable ________________
+
+    def test_replay_is_deterministic_and_prefix_stable() -> None:
+>       short_a = run_application(generations=3, seed=20260831)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_substrate_app.py:33:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    def run_application(*, generations: int = 5, seed: int = 20260831) -> dict:
+        """Return a canonical JSON-compatible replay using the copied primitives."""
+>       raise NotImplementedError("implement the bounded SCLP replay")
+E       NotImplementedError: implement the bounded SCLP replay
+
+src\substrate_app.py:18: NotImplementedError
+_______________ test_replay_exercises_real_distinct_primitives ________________
+
+    def test_replay_exercises_real_distinct_primitives() -> None:
+>       replay = run_application(generations=5, seed=20260831)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_substrate_app.py:43:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    def run_application(*, generations: int = 5, seed: int = 20260831) -> dict:
+        """Return a canonical JSON-compatible replay using the copied primitives."""
+>       raise NotImplementedError("implement the bounded SCLP replay")
+E       NotImplementedError: implement the bounded SCLP replay
+
+src\substrate_app.py:18: NotImplementedError
+___________ test_application_rejects_unbounded_generation_requests ____________
+
+    def test_application_rejects_unbounded_generation_requests() -> None:
+        for invalid in (0, 6):
+            try:
+>               run_application(generations=invalid, seed=1)
+
+tests\test_substrate_app.py:69:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    def run_application(*, generations: int = 5, seed: int = 20260831) -> dict:
+        """Return a canonical JSON-compatible replay using the copied primitives."""
+>       raise NotImplementedError("implement the bounded SCLP replay")
+E       NotImplementedError: implement the bounded SCLP replay
+
+src\substrate_app.py:18: NotImplementedError
+=========================== short test summary info ===========================
+FAILED tests/test_substrate_app.py::test_content_addressed_dag_and_next_generation_feedback
+FAILED tests/test_substrate_app.py::test_replay_is_deterministic_and_prefix_stable
+FAILED tests/test_substrate_app.py::test_replay_exercises_real_distinct_primitives
+FAILED tests/test_substrate_app.py::test_application_rejects_unbounded_generation_requests
+4 failed in 0.10s

@@ -1,5 +1,5 @@
 {
-  "format": "ugtoms-kernel-contract-0.1",
+  "format": "ugtoms-kernel-contract-0.2",
   "kernel_id": "ugtoms-kernel-v0.1",
   "title": "Compact deterministic geometric-topological generative substrate",
   "lineage": {
@@ -19,7 +19,7 @@
   },
   "state_schema": {
     "continuous": ["position", "linear_time", "residual_log_radius", "spatial_log_radius", "polar_angle", "phase_or_hinge_angle", "phase_rate", "phase_acceleration", "distributed_apex", "velocity", "acceleration"],
-    "discrete": ["generation", "chart", "sheet", "orientation", "winding", "payload_parity_bit", "topology_parity_bit", "jitter_bit", "branch_bit", "grammar_state", "comparison_key", "radix_or_codec_key", "generative_address", "lineage_head", "mode", "policy"],
+    "discrete": ["generation", "chart", "sheet", "orientation", "winding", "payload_parity_bit", "topology_parity_bit", "jitter_control_bit", "branch_control_bit", "grammar_state", "comparison_key", "radix_or_codec_key", "generative_address", "lineage_head", "mode", "policy"],
     "quality": ["uncertainty_interval", "numeric_policy", "resource_status", "failure_status"]
   },
   "symbol_firewall": [
@@ -27,28 +27,31 @@
     {"symbols": ["phi_g", "phase_phi"], "rule": "golden ratio and phase or hinge angle are distinct"},
     {"symbols": ["rho_jitter", "rho_spatial"], "rule": "residual log magnitude and spatial log radius are distinct"},
     {"symbols": ["epsilon_jitter", "epsilon_guard"], "rule": "jitter amplitude must be strictly below a declared guard margin"},
-    {"symbols": ["payload_parity_bit", "topology_parity_bit", "jitter_bit", "branch_bit"], "rule": "the four bit roles cannot be silently aliased"},
+    {"symbols": ["payload_parity_bit", "topology_parity_bit", "jitter_control_bit", "branch_control_bit"], "rule": "the four bit roles cannot be silently aliased"},
     {"symbols": ["comparison_BST", "radix_prefix_trie"], "rule": "comparison ordering and packed-prefix refinement are different operators"},
     {"symbols": ["half_turn_bundle_map", "reflective_Klein_gluing"], "rule": "source twist and non-orientable quotient are separate profiles"},
     {"symbols": ["cone_implicit_field", "finite_cone_SDF", "sweep_interval"], "rule": "an implicit relation, exact finite SDF, and certified sampled sweep are different claim classes"},
     {"symbols": ["circle", "sphere", "apex"], "rule": "circle is a base, section, or projection; sphere is a support SDF; apex is a local or distributed anchor"}
   ],
   "definition_graph": {
-    "node_fields": ["id", "kind", "domain", "codomain", "dependencies", "evaluation_phase", "equation_or_algorithm", "units", "bounds", "failure_modes", "provenance", "content_hash"],
-    "same_generation": "content-addressed acyclic typed graph",
-    "instance_rule": "instances reference definitions; coordinates are not identity",
-    "pipeline_rule": "execution order is explicit and topologically resolved",
-    "self_reference_rule": "referential closure is source-grounded; feedback enters generation n+1 through an explicit edge",
+    "node_fields": ["record_type", "id", "kind", "domain", "codomain", "dependencies", "dependency_hashes", "evaluation_phase", "parameters", "equation", "units", "bounds", "failures", "provenance", "input_ports", "output_ports", "content_hash"],
+    "instance_fields": ["record_type", "id", "definition_ref", "definition_hash", "literal", "state", "content_hash"],
+    "pipeline_fields": ["record_type", "id", "description", "generation", "domain", "codomain", "steps", "step_hashes", "content_hash"],
+    "feedback_fields": ["record_type", "id", "source_ref", "source_port", "source_port_type", "source_hash", "source_generation", "target_ref", "target_port", "target_port_type", "target_hash", "target_generation", "semantics", "fixed_point_claim", "provenance", "content_hash"],
+    "same_generation": "Merkle content-addressed acyclic typed graph; child content identity binds dependency content hashes",
+    "instance_rule": "instances bind definition content hashes; coordinates and semantic IDs are not content identity",
+    "pipeline_rule": "pipelines bind ordered step content hashes, generation, domain, codomain, and typed adjacency",
+    "self_reference_rule": "feedback binds endpoint content hashes, named typed ports, and enters exactly generation n+1 through an explicit edge",
     "unproven_claim": "an unrestricted fixed point or same-generation authority cycle is not implemented"
   },
-  "composed_execution": ["input_residual", "log_polar_address_and_metric", "cell_local_nondegenerate_zero_set", "typed_parity_jitter_control_predicates", "bounded_BST_L_system_or_radix_routing", "causal_vector_kinematics", "cone_sphere_SDF_sweep_relation_and_projection", "event_admission_discipline", "atomic_transition", "lineage_and_novelty", "explicit_next_generation_feedback"],
+  "composed_execution": ["input_residual", "log_polar_address_and_metric", "cell_local_nondegenerate_zero_set", "typed_payload_topology_parity_jitter_branch_control_predicates", "bounded_BST_L_system_or_radix_routing", "causal_vector_kinematics", "cone_sphere_SDF_sweep_relation_and_projection", "event_admission_discipline", "atomic_transition", "lineage_and_novelty", "explicit_next_generation_feedback"],
   "canonical_chain": [
     {"id": "local_support", "role": "admit only a declared local domain"},
     {"id": "compatibility", "role": "check mode, sheet, orientation, type, units, and policy"},
     {"id": "guard_crossing", "role": "evaluate a deterministic zero or interval guard"},
     {"id": "verified_event", "role": "certify, conservatively classify, or return INDETERMINATE"},
     {"id": "route_transition", "role": "apply one bounded declared branch and atomic transition"},
-    {"id": "lineage", "role": "append previous-state and event hashes"},
+    {"id": "lineage", "role": "append the previous lineage digest and canonical event-payload novelty digest; state hashes are explicit payload fields when present"},
     {"id": "novelty_log", "role": "retain exogenous or non-regenerable change under an explicit budget"}
   ],
   "mappings": {
@@ -72,7 +75,7 @@
     {"source_id": "nhdf-v0.3-ccd", "class": "OPTIONAL_LATER_PROFILE", "availability": "COMMITTED", "path": "sources/NHDF_Formal_Specification_v0.3_General_Purpose_CCD_Tom_Klootwijk.pdf", "bytes": 794122, "sha256": "019f7da2b97cd73b169e8133b52f4d4bd4d687f9444281364fdb962977ab0956"}
   ],
   "policy": {
-    "determinism": {"required": true, "discrete_state": "fixed-width integer, canonical JSON, SHA-256, declared ordering", "geometric_numeric_backend": "declared IEEE-754 binary64 reference profile or separately validated fixed-point profile", "rounding": "explicit per codec", "uncertainty": "bounded interval or INDETERMINATE, never fuzzy logic", "randomness": "forbidden unless replaced by a recorded content-addressed seed and deterministic generator"},
+    "determinism": {"required": true, "discrete_state": "fixed-width integer, canonical JSON, SHA-256, declared ordering", "geometric_numeric_backend": "declared IEEE-754 binary64 reference profile or separately validated fixed-point numeric-arithmetic profile; neither implies a fixed-point iteration engine", "rounding": "explicit per codec", "uncertainty": "bounded interval or INDETERMINATE, never fuzzy logic", "randomness": "forbidden unless replaced by a recorded content-addressed seed and deterministic generator"},
     "resource_bounds_required": true,
     "automatic_extension_promotion": false,
     "same_generation_cycles": false,

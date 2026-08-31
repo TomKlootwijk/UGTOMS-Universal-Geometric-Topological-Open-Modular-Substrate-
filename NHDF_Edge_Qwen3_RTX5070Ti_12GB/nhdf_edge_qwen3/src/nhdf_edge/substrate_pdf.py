@@ -1,10 +1,11 @@
-"""Deterministic PDF publication pipeline for versioned substrate sources.
+"""Versioned PDF publication pipeline with a recorded determinism scope.
 
 The renderer accepts local Markdown or JSON only.  It never follows links,
-loads remote assets, or reads an archive implicitly.  A build writes a PDF and
-a deterministic JSON sidecar containing the exact source and output SHA-256
-digests.  Text verification is performed by reopening the PDF with ``pypdf``;
-Poppler page rendering is exposed separately for visual QA.
+loads remote assets, or reads an archive implicitly.  A build publishes a PDF,
+optional Poppler pages, and a stable JSON sidecar as one rollback-capable file
+set.  The sidecar records exact source/output hashes plus the renderer, font,
+and dependency fingerprint within which byte repeatability is claimed.  Text
+verification is performed by reopening the staged PDF with ``pypdf``.
 """
 
 from __future__ import annotations
@@ -12,26 +13,37 @@ from __future__ import annotations
 import hashlib
 import html
 import json
+import math
 import os
+import platform
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 import textwrap
 import unicodedata
+import zlib
+from contextlib import ExitStack
 from dataclasses import dataclass
 from pathlib import Path
 from types import MappingProxyType
 from typing import Any, Iterable, Mapping, Sequence
 
 
-SIDECAR_SCHEMA = "nhdf.substrate-pdf-build.v1"
+SIDECAR_SCHEMA = "nhdf.substrate-pdf-build.v2"
 RENDERER_ID = "nhdf-edge-substrate-pdf-1"
 _VERSION = re.compile(r"^[0-9A-Za-z][0-9A-Za-z._+-]*$")
 _HEADING = re.compile(r"^(#{1,4})\s+(.+?)\s*$")
 _UNORDERED = re.compile(r"^\s*[-*+]\s+(.+)$")
 _ORDERED = re.compile(r"^\s*(\d+)[.)]\s+(.+)$")
 _TABLE_DIVIDER = re.compile(r"^:?-{3,}:?$")
+_FONT_SPECS = (
+    ("normal", "NHDFSans", "Vera.ttf"),
+    ("bold", "NHDFSans-Bold", "VeraBd.ttf"),
+    ("italic", "NHDFSans-Italic", "VeraIt.ttf"),
+    ("bold_italic", "NHDFSans-BoldItalic", "VeraBI.ttf"),
+)
 _DASH_TRANSLATION = str.maketrans(
     {
         "\u2010": "-",
@@ -119,16 +131,58 @@ def _clean_text(value: Any, name: str, *, required: bool = True) -> str:
 def _freeze_json(value: Any, path: str = "$") -> Any:
     if isinstance(value, Mapping):
         frozen: dict[str, Any] = {}
-        for key in sorted(value):
+        for key, item in value.items():
             if not isinstance(key, str):
                 raise SourceFormatError(f"{path} contains a non-string key")
-            frozen[key] = _freeze_json(value[key], f"{path}.{key}")
-        return MappingProxyType(frozen)
-    if isinstance(value, list):
+            normalized_key = unicodedata.normalize("NFC", key)
+            if normalized_key in frozen:
+                raise SourceFormatError(
+                    f"{path} contains a duplicate key after NFC normalization: {normalized_key!r}"
+                )
+            frozen[normalized_key] = _freeze_json(
+                item, f"{path}.{normalized_key}"
+            )
+        return MappingProxyType({key: frozen[key] for key in sorted(frozen)})
+    if isinstance(value, (list, tuple)):
         return tuple(_freeze_json(item, f"{path}[]") for item in value)
-    if value is None or isinstance(value, (str, int, float, bool)):
+    if value is None or isinstance(value, bool) or isinstance(value, int):
         return value
+    if isinstance(value, float):
+        if not math.isfinite(value):
+            raise SourceFormatError(f"{path} contains a non-finite number")
+        return 0.0 if value == 0.0 else value
+    if isinstance(value, str):
+        return unicodedata.normalize("NFC", value)
     raise SourceFormatError(f"{path} contains unsupported {type(value).__name__}")
+
+
+def _strict_json_loads(value: str) -> dict[str, Any]:
+    def object_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+        result: dict[str, Any] = {}
+        for key, item in pairs:
+            normalized_key = unicodedata.normalize("NFC", key)
+            if normalized_key in result:
+                raise ValueError(
+                    f"duplicate object key after NFC normalization: {normalized_key!r}"
+                )
+            result[normalized_key] = item
+        return result
+
+    def reject_constant(token: str) -> Any:
+        raise ValueError(f"non-finite numeric token {token!r} is not valid JSON")
+
+    try:
+        parsed = json.loads(
+            value,
+            object_pairs_hook=object_pairs,
+            parse_constant=reject_constant,
+        )
+    except (json.JSONDecodeError, ValueError) as error:
+        raise SourceFormatError(f"invalid strict JSON source: {error}") from error
+    if not isinstance(parsed, dict):
+        raise SourceFormatError("JSON source root must be an object")
+    normalized = _plain_json(_freeze_json(parsed))
+    return dict(normalized)
 
 
 def _plain_json(value: Any) -> Any:
@@ -206,12 +260,7 @@ def load_versioned_source(
         metadata, body = _front_matter(decoded)
     else:
         source_format = "json"
-        try:
-            parsed = json.loads(decoded)
-        except json.JSONDecodeError as error:
-            raise SourceFormatError(f"invalid JSON source: {error}") from error
-        if not isinstance(parsed, dict):
-            raise SourceFormatError("JSON source root must be an object")
+        parsed = _strict_json_loads(decoded)
         raw_metadata = parsed.get("metadata", {})
         if raw_metadata is None:
             raw_metadata = {}
@@ -355,23 +404,139 @@ def _json_as_markdown(body: Mapping[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def _document_markdown(document: SourceDocument) -> str:
+    return (
+        document.body
+        if document.source_format == "markdown"
+        else _json_as_markdown(document.body)
+    )
+
+
+def _visible_markdown_text(value: str) -> str:
+    text = value.strip()
+    text = re.sub(r"!\[([^]]*)\]\([^)]+\)", r"\1", text)
+    text = re.sub(r"\[([^]]+)\]\([^)]+\)", r"\1", text)
+    text = re.sub(r"`([^`]+)`", r"\1", text)
+    text = re.sub(r"\*\*([^*]+)\*\*", r"\1", text)
+    text = re.sub(r"(?<!\*)\*([^*]+)\*(?!\*)", r"\1", text)
+    return " ".join(_safe_display_text(html.unescape(text)).split())
+
+
+def _validation_excerpt(value: str, maximum: int = 120) -> str:
+    if len(value) <= maximum:
+        return value
+    prefix = value[: maximum + 1]
+    if " " in prefix:
+        prefix = prefix.rsplit(" ", 1)[0]
+    return prefix.rstrip()
+
+
+def _body_validation_inventory(
+    document: SourceDocument,
+) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """Derive body-only validation evidence independent of caller hints."""
+
+    markdown = _document_markdown(document)
+    if not markdown.strip():
+        raise SourceFormatError("document body must contain renderable content")
+    headings: list[str] = []
+    candidates: list[str] = []
+    in_fence = False
+    for raw_line in markdown.splitlines():
+        stripped = raw_line.strip()
+        if stripped.startswith("```"):
+            in_fence = not in_fence
+            continue
+        if not stripped:
+            continue
+        heading = _HEADING.fullmatch(stripped)
+        if heading is not None and not in_fence:
+            visible = _visible_markdown_text(heading.group(2))
+            if visible and visible not in headings:
+                headings.append(visible)
+            continue
+        if not in_fence and _is_table_divider(stripped):
+            continue
+        unordered = _UNORDERED.fullmatch(stripped) if not in_fence else None
+        ordered = _ORDERED.fullmatch(stripped) if not in_fence else None
+        if unordered is not None:
+            stripped = unordered.group(1)
+        elif ordered is not None:
+            stripped = ordered.group(2)
+        elif stripped.startswith(">") and not in_fence:
+            stripped = stripped[1:].lstrip()
+        elif "|" in stripped and not in_fence:
+            stripped = " ".join(_split_table_row(stripped))
+        visible = _visible_markdown_text(stripped)
+        if visible:
+            candidates.append(_validation_excerpt(visible))
+
+    cover_values = {
+        _normalize_extracted_text(str(value))
+        for value in (
+            document.title,
+            document.version,
+            document.path.name,
+            document.source_format,
+            document.source_sha256,
+            *document.metadata.values(),
+        )
+        if isinstance(value, (str, int, float))
+    }
+    sentinel = next(
+        (
+            item
+            for item in (*candidates, *headings)
+            if _normalize_extracted_text(item) not in cover_values
+        ),
+        None,
+    )
+    if sentinel is None:
+        raise SourceFormatError(
+            "document body needs text distinct from cover metadata for PDF validation"
+        )
+    return tuple(headings), (sentinel,)
+
+
+def _font_records() -> tuple[dict[str, Any], ...]:
+    """Resolve the exact ReportLab font assets included in the renderer scope."""
+
+    import reportlab
+
+    fonts_dir = Path(reportlab.__file__).resolve().parent / "fonts"
+    records: list[dict[str, Any]] = []
+    for role, name, filename in _FONT_SPECS:
+        font_path = fonts_dir / filename
+        if not font_path.is_file():
+            raise SubstratePdfError(
+                f"required pinned ReportLab font is missing: {font_path}"
+            )
+        records.append(
+            {
+                "role": role,
+                "postscript_name": name,
+                "file": filename,
+                "bytes": font_path.stat().st_size,
+                "sha256": sha256_file(font_path),
+            }
+        )
+    return tuple(records)
+
+
 def _font_names() -> tuple[str, str, str, str]:
-    """Register ReportLab's bundled Vera family for deterministic Unicode text."""
+    """Register ReportLab's hash-recorded Vera family."""
 
     import reportlab
     from reportlab.pdfbase import pdfmetrics
     from reportlab.pdfbase.ttfonts import TTFont
 
-    names = ("NHDFSans", "NHDFSans-Bold", "NHDFSans-Italic", "NHDFSans-BoldItalic")
     fonts_dir = Path(reportlab.__file__).resolve().parent / "fonts"
-    files = ("Vera.ttf", "VeraBd.ttf", "VeraIt.ttf", "VeraBI.ttf")
-    registered = set(pdfmetrics.getRegisteredFontNames())
-    for name, filename in zip(names, files):
-        if name not in registered:
-            font_path = fonts_dir / filename
-            if not font_path.is_file():
-                return ("Helvetica", "Helvetica-Bold", "Helvetica-Oblique", "Helvetica-BoldOblique")
-            pdfmetrics.registerFont(TTFont(name, str(font_path)))
+    records = _font_records()
+    names = tuple(str(record["postscript_name"]) for record in records)
+    for record in records:
+        name = str(record["postscript_name"])
+        font_path = fonts_dir / str(record["file"])
+        pdfmetrics.registerFont(TTFont(name, str(font_path)))
     pdfmetrics.registerFontFamily(
         "NHDFSans",
         normal=names[0],
@@ -773,11 +938,7 @@ def _build_pdf(document: SourceDocument, destination: Path) -> None:
             Spacer(1, 8 * mm),
         )
     )
-    body_markdown = (
-        document.body
-        if document.source_format == "markdown"
-        else _json_as_markdown(document.body)
-    )
+    body_markdown = _document_markdown(document)
     story.extend(_markdown_flowables(body_markdown, styles, palette))
 
     def fit_text(value: str, maximum_width: float, font: str, size: float) -> str:
@@ -886,6 +1047,178 @@ def _resolve_executable(command: str | os.PathLike[str]) -> str:
     return resolved
 
 
+def _poppler_metadata(executable: str, timeout_seconds: float) -> dict[str, Any]:
+    try:
+        completed = subprocess.run(
+            [executable, "-v"],
+            capture_output=True,
+            text=True,
+            timeout=min(timeout_seconds, 15.0),
+            check=False,
+        )
+        lines = [
+            line.strip()
+            for line in (
+                (completed.stderr or "") + "\n" + (completed.stdout or "")
+            ).splitlines()
+            if line.strip()
+        ]
+    except (OSError, subprocess.SubprocessError) as error:
+        lines = [f"version probe failed: {type(error).__name__}"]
+    path = Path(executable).resolve()
+    return {
+        "name": path.name,
+        "version": lines[0] if lines else "unreported",
+        "bytes": path.stat().st_size,
+        "sha256": sha256_file(path),
+    }
+
+
+def _render_pdf_pages_staged(
+    pdf: Path,
+    staging_directory: Path,
+    *,
+    dpi: int,
+    pdftoppm: str | os.PathLike[str],
+    timeout_seconds: float,
+) -> tuple[tuple[Path, ...], dict[str, Any]]:
+    executable = _resolve_executable(pdftoppm)
+    metadata = _poppler_metadata(executable, timeout_seconds)
+    prefix = staging_directory / "page"
+    completed = subprocess.run(
+        [executable, "-png", "-r", str(dpi), str(pdf), str(prefix)],
+        capture_output=True,
+        text=True,
+        timeout=timeout_seconds,
+        check=False,
+    )
+    if completed.returncode != 0:
+        detail = (completed.stderr or completed.stdout).strip()
+        raise SubstratePdfError(
+            f"pdftoppm failed with exit code {completed.returncode}: {detail}"
+        )
+
+    def page_number(path: Path) -> int:
+        match = re.search(r"-(\d+)$", path.stem)
+        if match is None:
+            raise SubstratePdfError(f"unexpected pdftoppm page name: {path.name}")
+        return int(match.group(1))
+
+    generated = tuple(
+        sorted(staging_directory.glob("page-*.png"), key=page_number)
+    )
+    if not generated:
+        raise SubstratePdfError("pdftoppm produced no page images")
+    actual_numbers = [page_number(path) for path in generated]
+    if actual_numbers != list(range(1, len(generated) + 1)):
+        raise SubstratePdfError(
+            f"pdftoppm produced a non-contiguous page set: {actual_numbers!r}"
+        )
+    return generated, metadata
+
+
+def _page_targets(pdf: Path, output: Path, count: int) -> tuple[Path, ...]:
+    return tuple(
+        output / f"{pdf.stem}-page-{number:03d}.png"
+        for number in range(1, count + 1)
+    )
+
+
+def _published_page_files(pdf: Path, output: Path) -> tuple[Path, ...]:
+    if not output.is_dir():
+        return ()
+    pattern = re.compile(rf"^{re.escape(pdf.stem)}-page-\d{{3,}}\.png$")
+    return tuple(
+        sorted(
+            path
+            for path in output.iterdir()
+            if path.is_file() and pattern.fullmatch(path.name)
+        )
+    )
+
+
+def _target_key(path: Path) -> str:
+    return os.path.normcase(os.path.abspath(os.fspath(path)))
+
+
+def _publish_transaction(
+    replacements: Sequence[tuple[Path, Path]],
+    removals: Iterable[Path] = (),
+) -> None:
+    """Publish a file set with process-local rollback on any replace failure."""
+
+    replacement_rows = tuple((Path(source), Path(target)) for source, target in replacements)
+    removal_paths = tuple(Path(path) for path in removals)
+    target_keys: set[str] = set()
+    for source, target in replacement_rows:
+        if not source.is_file():
+            raise SubstratePdfError(f"staged publication file is missing: {source}")
+        key = _target_key(target)
+        if key in target_keys:
+            raise SubstratePdfError(f"duplicate publication target: {target}")
+        target_keys.add(key)
+        if not target.parent.is_dir():
+            raise SubstratePdfError(f"publication directory does not exist: {target.parent}")
+        if target.exists() and not target.is_file():
+            raise SubstratePdfError(f"publication target is not a file: {target}")
+    unique_removals: list[Path] = []
+    for target in removal_paths:
+        key = _target_key(target)
+        if key in target_keys:
+            continue
+        target_keys.add(key)
+        if target.exists() and not target.is_file():
+            raise SubstratePdfError(f"removal target is not a file: {target}")
+        unique_removals.append(target)
+
+    affected = [target for _, target in replacement_rows]
+    affected.extend(unique_removals)
+    backups: list[tuple[Path, Path]] = []
+    published: list[Path] = []
+    try:
+        for target in affected:
+            if not target.exists():
+                continue
+            with tempfile.NamedTemporaryFile(
+                prefix=f".{target.name}.",
+                suffix=".rollback",
+                dir=target.parent,
+                delete=False,
+            ) as stream:
+                backup = Path(stream.name)
+            backup.unlink()
+            os.replace(target, backup)
+            backups.append((target, backup))
+        for source, target in replacement_rows:
+            os.replace(source, target)
+            published.append(target)
+    except Exception as error:
+        rollback_errors: list[str] = []
+        for target in reversed(published):
+            try:
+                target.unlink(missing_ok=True)
+            except OSError as rollback_error:
+                rollback_errors.append(f"remove {target}: {rollback_error}")
+        for target, backup in reversed(backups):
+            try:
+                if backup.exists():
+                    os.replace(backup, target)
+            except OSError as rollback_error:
+                rollback_errors.append(f"restore {target}: {rollback_error}")
+        if rollback_errors:
+            raise SubstratePdfError(
+                "publication failed and rollback was incomplete: "
+                + "; ".join(rollback_errors)
+            ) from error
+        raise
+    else:
+        for _, backup in backups:
+            try:
+                backup.unlink(missing_ok=True)
+            except OSError:
+                pass
+
+
 def render_pdf_pages(
     pdf_path: str | os.PathLike[str],
     output_directory: str | os.PathLike[str],
@@ -905,43 +1238,34 @@ def render_pdf_pages(
         raise SubstratePdfError(f"PDF does not exist: {pdf}")
     output = Path(output_directory).expanduser().resolve()
     output.mkdir(parents=True, exist_ok=True)
-    executable = _resolve_executable(pdftoppm)
     with tempfile.TemporaryDirectory(prefix="nhdf-pdf-pages-", dir=output) as temporary:
-        prefix = Path(temporary) / "page"
-        completed = subprocess.run(
-            [executable, "-png", "-r", str(dpi), str(pdf), str(prefix)],
-            capture_output=True,
-            text=True,
-            timeout=timeout_seconds,
-            check=False,
+        generated, _ = _render_pdf_pages_staged(
+            pdf,
+            Path(temporary),
+            dpi=dpi,
+            pdftoppm=pdftoppm,
+            timeout_seconds=timeout_seconds,
         )
-        if completed.returncode != 0:
-            detail = (completed.stderr or completed.stdout).strip()
-            raise SubstratePdfError(
-                f"pdftoppm failed with exit code {completed.returncode}: {detail}"
-            )
-        def page_number(path: Path) -> int:
-            match = re.search(r"-(\d+)$", path.stem)
-            if match is None:
-                raise SubstratePdfError(f"unexpected pdftoppm page name: {path.name}")
-            return int(match.group(1))
-
-        generated = sorted(Path(temporary).glob("page-*.png"), key=page_number)
-        if not generated:
-            raise SubstratePdfError("pdftoppm produced no page images")
-        stable: list[Path] = []
-        for number, source in enumerate(generated, start=1):
-            target = output / f"{pdf.stem}-page-{number:03d}.png"
-            os.replace(source, target)
-            stable.append(target)
-    return tuple(stable)
+        stable = _page_targets(pdf, output, len(generated))
+        stale = set(_published_page_files(pdf, output)) - set(stable)
+        _publish_transaction(tuple(zip(generated, stable)), stale)
+    return stable
 
 
-def _write_json_atomic(path: Path, payload: Mapping[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    serialized = json.dumps(
-        _plain_json(payload), ensure_ascii=False, indent=2, sort_keys=True
+def _serialized_json(payload: Mapping[str, Any]) -> str:
+    normalized = _plain_json(_freeze_json(payload))
+    return json.dumps(
+        normalized,
+        ensure_ascii=False,
+        indent=2,
+        sort_keys=True,
+        allow_nan=False,
     ) + "\n"
+
+
+def _stage_json_file(path: Path, payload: Mapping[str, Any]) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    serialized = _serialized_json(payload)
     temporary: Path | None = None
     try:
         with tempfile.NamedTemporaryFile(
@@ -953,12 +1277,84 @@ def _write_json_atomic(path: Path, payload: Mapping[str, Any]) -> None:
             dir=path.parent,
             delete=False,
         ) as stream:
-            stream.write(serialized)
             temporary = Path(stream.name)
-        os.replace(temporary, path)
+            stream.write(serialized)
+            stream.flush()
+            os.fsync(stream.fileno())
+        return temporary
+    except Exception:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
+        raise
+
+
+def _write_json_atomic(path: Path, payload: Mapping[str, Any]) -> None:
+    temporary = _stage_json_file(path, payload)
+    try:
+        _publish_transaction(((temporary, path),))
     finally:
-        if temporary is not None and temporary.exists():
-            temporary.unlink()
+        temporary.unlink(missing_ok=True)
+
+
+def _module_dependency(module: Any, version: str) -> dict[str, Any]:
+    module_path = Path(module.__file__).resolve()
+    return {
+        "version": version,
+        "module_file": module_path.name,
+        "module_sha256": sha256_file(module_path),
+    }
+
+
+def _renderer_manifest(poppler: Mapping[str, Any] | None) -> dict[str, Any]:
+    try:
+        import pypdf
+        import reportlab
+    except ImportError as error:  # pragma: no cover - imports are required earlier
+        raise SubstratePdfError("reportlab and pypdf are required") from error
+    executable = Path(sys.executable).resolve()
+    dependencies: dict[str, Any] = {
+        "python": {
+            "implementation": platform.python_implementation(),
+            "version": platform.python_version(),
+            "byteorder": sys.byteorder,
+            "executable_name": executable.name,
+            "executable_sha256": sha256_file(executable),
+        },
+        "zlib": {"version": zlib.ZLIB_VERSION},
+        "reportlab": _module_dependency(reportlab, str(reportlab.Version)),
+        "pypdf": _module_dependency(pypdf, str(pypdf.__version__)),
+    }
+    if poppler is not None:
+        dependencies["poppler"] = dict(poppler)
+    manifest: dict[str, Any] = {
+        "id": RENDERER_ID,
+        "determinism": {
+            "scope": (
+                "identical source bytes, render options, renderer source, dependency "
+                "versions and hashes, platform, and font hashes"
+            ),
+            "cross_environment_guarantee": False,
+        },
+        "platform": {
+            "system": platform.system(),
+            "machine": platform.machine(),
+        },
+        "renderer_source": {
+            "name": Path(__file__).name,
+            "sha256": sha256_file(__file__),
+        },
+        "dependencies": dependencies,
+        "fonts": list(_font_records()),
+    }
+    fingerprint_bytes = json.dumps(
+        _plain_json(_freeze_json(manifest)),
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+        allow_nan=False,
+    ).encode("utf-8")
+    manifest["fingerprint_sha256"] = hashlib.sha256(fingerprint_bytes).hexdigest()
+    return manifest
 
 
 def render_substrate_pdf(
@@ -993,81 +1389,117 @@ def render_substrate_pdf(
     if isinstance(expected_text, str):
         raise SubstratePdfError("expected_text must be an iterable of complete strings")
     requested = tuple(expected_text)
-    validation_terms = tuple(dict.fromkeys((document.title, document.version, *requested)))
-    temporary: Path | None = None
-    try:
+    body_headings, body_sentinels = _body_validation_inventory(document)
+    validation_terms = tuple(
+        dict.fromkeys(
+            (
+                document.title,
+                document.version,
+                *body_headings,
+                *body_sentinels,
+                *requested,
+            )
+        )
+    )
+    sidecar.parent.mkdir(parents=True, exist_ok=True)
+    page_output = (
+        Path(render_pages_to).expanduser().resolve()
+        if render_pages_to is not None
+        else None
+    )
+    if page_output is not None:
+        page_output.mkdir(parents=True, exist_ok=True)
+
+    with ExitStack() as stack:
         with tempfile.NamedTemporaryFile(
             suffix=".pdf.tmp",
             prefix=output.stem + ".",
             dir=output.parent,
             delete=False,
         ) as stream:
-            temporary = Path(stream.name)
-        _build_pdf(document, temporary)
-        validation = validate_pdf_text(temporary, validation_terms)
-        os.replace(temporary, output)
-        temporary = None
-    finally:
-        if temporary is not None and temporary.exists():
-            temporary.unlink()
+            staged_pdf = Path(stream.name)
+        stack.callback(staged_pdf.unlink, missing_ok=True)
+        _build_pdf(document, staged_pdf)
+        validation = validate_pdf_text(staged_pdf, validation_terms)
+        output_digest = sha256_file(staged_pdf)
 
-    output_digest = sha256_file(output)
-    rendered_pages = (
-        render_pdf_pages(
-            output,
-            render_pages_to,
-            dpi=render_dpi,
-            pdftoppm=pdftoppm,
-        )
-        if render_pages_to is not None
-        else ()
-    )
-    try:
-        import pypdf
-        import reportlab
-    except ImportError as error:  # pragma: no cover - imports already needed above
-        raise SubstratePdfError("reportlab and pypdf are required") from error
-    sidecar_payload = {
-        "schema": SIDECAR_SCHEMA,
-        "document": {
-            "title": document.title,
-            "version": document.version,
-            "metadata": document.metadata,
-        },
-        "source": {
-            "name": document.path.name,
-            "format": document.source_format,
-            "bytes": document.source_bytes,
-            "sha256": document.source_sha256,
-        },
-        "output": {
-            "name": output.name,
-            "bytes": output.stat().st_size,
-            "pages": validation.page_count,
-            "sha256": output_digest,
-        },
-        "validation": {
-            "method": "pypdf-text-extraction",
-            "expected_text": validation.matched_text,
-            "extracted_text_sha256": validation.extracted_text_sha256,
-            "passed": True,
-        },
-        "renderer": {
-            "id": RENDERER_ID,
-            "deterministic": True,
-            "reportlab_version": str(reportlab.Version),
-            "pypdf_version": str(pypdf.__version__),
-        },
-        "visual_qa": {
-            "renderer": "pdftoppm" if rendered_pages else None,
-            "dpi": render_dpi if rendered_pages else None,
-            "pages": [
-                {"name": page.name, "sha256": sha256_file(page)}
-                for page in rendered_pages
-            ],
-        },
-    }
-    _write_json_atomic(sidecar, sidecar_payload)
+        generated_pages: tuple[Path, ...] = ()
+        rendered_pages: tuple[Path, ...] = ()
+        stale_pages: tuple[Path, ...] = ()
+        poppler_metadata: dict[str, Any] | None = None
+        if page_output is not None:
+            page_staging = Path(
+                stack.enter_context(
+                    tempfile.TemporaryDirectory(
+                        prefix="nhdf-pdf-pages-", dir=page_output
+                    )
+                )
+            )
+            generated_pages, poppler_metadata = _render_pdf_pages_staged(
+                staged_pdf,
+                page_staging,
+                dpi=render_dpi,
+                pdftoppm=pdftoppm,
+                timeout_seconds=120.0,
+            )
+            rendered_pages = _page_targets(
+                output, page_output, len(generated_pages)
+            )
+            stale_pages = tuple(
+                set(_published_page_files(output, page_output))
+                - set(rendered_pages)
+            )
+
+        renderer = _renderer_manifest(poppler_metadata)
+        sidecar_payload = {
+            "schema": SIDECAR_SCHEMA,
+            "document": {
+                "title": document.title,
+                "version": document.version,
+                "metadata": document.metadata,
+            },
+            "source": {
+                "name": document.path.name,
+                "format": document.source_format,
+                "bytes": document.source_bytes,
+                "sha256": document.source_sha256,
+            },
+            "output": {
+                "name": output.name,
+                "bytes": staged_pdf.stat().st_size,
+                "pages": validation.page_count,
+                "sha256": output_digest,
+            },
+            "validation": {
+                "method": "pypdf-text-extraction",
+                "expected_text": validation.matched_text,
+                "body_heading_inventory": body_headings,
+                "body_sentinels": body_sentinels,
+                "extracted_text_sha256": validation.extracted_text_sha256,
+                "passed": True,
+            },
+            "renderer": renderer,
+            "visual_qa": {
+                "renderer": "pdftoppm" if rendered_pages else None,
+                "renderer_fingerprint_sha256": (
+                    renderer["fingerprint_sha256"] if rendered_pages else None
+                ),
+                "dpi": render_dpi if rendered_pages else None,
+                "pages": [
+                    {"name": target.name, "sha256": sha256_file(staged)}
+                    for staged, target in zip(generated_pages, rendered_pages)
+                ],
+            },
+        }
+        staged_sidecar = _stage_json_file(sidecar, sidecar_payload)
+        stack.callback(staged_sidecar.unlink, missing_ok=True)
+        replacements = [
+            (staged_pdf, output),
+            (staged_sidecar, sidecar),
+            *zip(generated_pages, rendered_pages),
+        ]
+        _publish_transaction(replacements, stale_pages)
+
     return PdfBuildResult(
         source_path=document.path,
         output_path=output,

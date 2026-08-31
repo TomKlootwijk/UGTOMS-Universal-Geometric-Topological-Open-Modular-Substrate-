@@ -3,11 +3,23 @@
   "application_version": "0.1.0",
   "evidence": [
     {
-      "bytes": 5490,
+      "bytes": 10154,
+      "claim_coverage": [
+        {"profile_id": "nhdf-v0.1", "proof_pointer": "/proof_inventory/nhdf-v0.1/operator-mapping", "requirement_id": "operator-mapping"},
+        {"profile_id": "nhdf-v0.1", "proof_pointer": "/proof_inventory/nhdf-v0.1/reference-vectors", "requirement_id": "reference-vectors"},
+        {"profile_id": "nhdf-v0.1", "proof_pointer": "/proof_inventory/nhdf-v0.1/bounded-resource-trace", "requirement_id": "bounded-resource-trace"},
+        {"profile_id": "nhdf-v0.1", "proof_pointer": "/proof_inventory/nhdf-v0.1/next-generation-replay", "requirement_id": "next-generation-replay"},
+        {"profile_id": "sclp-foundational", "proof_pointer": "/proof_inventory/sclp-foundational/finite-cone-reference-vector", "requirement_id": "finite-cone-reference-vector"},
+        {"profile_id": "sclp-foundational", "proof_pointer": "/proof_inventory/sclp-foundational/packed-key-round-trips", "requirement_id": "packed-key-round-trips"},
+        {"profile_id": "sclp-foundational", "proof_pointer": "/proof_inventory/sclp-foundational/jitter-margin-certificate", "requirement_id": "jitter-margin-certificate"},
+        {"profile_id": "sclp-foundational", "proof_pointer": "/proof_inventory/sclp-foundational/metric-kinematic-reference-vector", "requirement_id": "metric-kinematic-reference-vector"},
+        {"profile_id": "sclp-foundational", "proof_pointer": "/proof_inventory/sclp-foundational/grammar-budget-trace", "requirement_id": "grammar-budget-trace"},
+        {"profile_id": "sclp-foundational", "proof_pointer": "/proof_inventory/sclp-foundational/sweep-interval", "requirement_id": "sweep-interval"}
+      ],
       "id": "reference-replay",
       "path": "substrate/applications/evidence/ugtoms-sclp-reference-v0.1.json",
       "role": "REPLAY",
-      "sha256": "bd646a3c1eff265abeacab95f843c47fb232fbe55d87cb2904b0f1391911c37e",
+      "sha256": "1d0dc094d9649b667739fc2a202316097ae980baf5585cba22b8e33675282a42",
       "title": "Deterministic bounded UGTOMS SCLP reference replay"
     }
   ],
@@ -31,23 +43,34 @@
       "observable": "The event decision has status INDETERMINATE."
     }
   ],
-  "format": "ugtoms-application-manifest-0.1",
+  "format": "ugtoms-application-manifest-0.2",
   "kernel": {
     "kernel_id": "ugtoms-kernel-v0.1",
     "path": "substrate/kernel/contract.json",
-    "sha256": "ee4dad2b85c8816ef718b4a9f36c2da090b8b9a14525e17f30d65bf17fba23d7"
+    "sha256": "9b5fa7cff4483129e80e1c234055d57e0f79a574dcd2e131c418bbe0259448c3"
   },
   "mappings": {
     "geometry": [
       {
         "bound_refs": ["reference-generation-bound"],
-        "codomain": ["signed cone distance", "signed sphere support distance"],
-        "definition": "Evaluate an exact finite filled right-circular cone SDF and a separate sphere support SDF at the causal kinematic state.",
+        "codomain": ["signed cone distance", "signed sphere support distance", "certified translational sign bracket"],
+        "definition": "Evaluate an exact finite filled right-circular cone SDF, a separate sphere support SDF, and an opposite-sign bisection bracket for one cone SDF zero along the linear path; no earliest-impact claim is made.",
         "disposition": "IMPLEMENTED",
         "domain": ["binary64 point", "finite cone parameters", "sphere parameters"],
         "evidence_refs": ["reference-replay"],
         "failure_refs": ["invalid-domain"],
         "id": "reference-geometry",
+        "primitive_refs": ["geometry"]
+      },
+      {
+        "bound_refs": ["reference-generation-bound"],
+        "codomain": ["explicit bypass record"],
+        "definition": "BYPASS: paired-sphere support, circle relations, and distributed-apex geometry are retained profile mechanisms but are not executed or claimed by this bounded replay.",
+        "disposition": "BYPASS",
+        "domain": ["unexercised retained geometry mechanisms"],
+        "evidence_refs": ["reference-replay"],
+        "failure_refs": ["invalid-domain"],
+        "id": "reference-additional-geometry-bypass",
         "primitive_refs": ["geometry"]
       }
     ],
@@ -74,6 +97,17 @@
         "evidence_refs": ["reference-replay"],
         "failure_refs": ["invalid-domain", "resource-bound"],
         "id": "reference-operator",
+        "primitive_refs": ["operator"]
+      },
+      {
+        "bound_refs": ["reference-branch-bound"],
+        "codomain": ["explicit bypass record"],
+        "definition": "BYPASS: radix-prefix refinement is not executed; this replay uses bounded BST-T ordering with separate L-system-style geometric angles.",
+        "disposition": "BYPASS",
+        "domain": ["unexercised radix-prefix operator"],
+        "evidence_refs": ["reference-replay"],
+        "failure_refs": ["resource-bound"],
+        "id": "reference-radix-bypass",
         "primitive_refs": ["operator"]
       }
     ],
@@ -107,7 +141,7 @@
       {
         "bound_refs": ["reference-generation-bound"],
         "codomain": ["generation one input proposal", "lineage-bound feedback record"],
-        "definition": "Commit one source-grounded observable generation through an explicit FeedbackEdge from n to n+1; no same-generation cycle or fixed-point engine is present.",
+        "definition": "Commit one source-grounded observable generation through an explicit FeedbackEdge from n to n+1; this feedback-only replay has no extension-proposal authority, same-generation cycle, or fixed-point engine.",
         "disposition": "IMPLEMENTED",
         "domain": ["generation zero observable", "definition hash", "lineage head"],
         "evidence_refs": ["reference-replay"],
@@ -126,6 +160,17 @@
         "evidence_refs": ["reference-replay"],
         "failure_refs": ["invalid-domain", "resource-bound"],
         "id": "reference-topology",
+        "primitive_refs": ["topology"]
+      },
+      {
+        "bound_refs": ["reference-branch-bound"],
+        "codomain": ["explicit bypass record"],
+        "definition": "BYPASS: the source half-turn bundle map is not executed or inferred from the separate reflective Klein gluing used by this replay.",
+        "disposition": "BYPASS",
+        "domain": ["unexercised source half-turn topology"],
+        "evidence_refs": ["reference-replay"],
+        "failure_refs": ["invalid-domain"],
+        "id": "reference-half-turn-bypass",
         "primitive_refs": ["topology"]
       }
     ],
@@ -156,15 +201,15 @@
       }
     ]
   },
-  "profile_selection_rationale": "NHDF v0.1 supplies the normalized next-generation operator chain, while sclp-foundational supplies the finite-cone, log-polar metric, one-bit guard, and bounded packing semantics exercised by this application.",
+  "profile_selection_rationale": "NHDF v0.1 supplies the normalized next-generation operator chain. The SCLP foundational profile supplies the finite-cone, log-polar metric, one-bit guard, bounded routing, both key layouts, and translational sign-bracket semantics exercised here; paired-sphere, half-turn, circle/apex, and radix mechanisms are explicit BYPASS mappings rather than claims.",
   "profiles": [
     {
       "profile_id": "nhdf-v0.1",
-      "sha256": "831977e6542664917d38ff449bed36a60fcce123546d19a6c810d46e2ac70794"
+      "sha256": "f70ceec98d9029f057e7ac71187a18fe28e9108ee8e79b45130d0942a22a8625"
     },
     {
       "profile_id": "sclp-foundational",
-      "sha256": "2a1a6d973a6508caf4def0100354a95becfd41accc58fcad9c9dfeaf9ee7860a"
+      "sha256": "4c21f81bf73c863065963b9296f053781079c19c6c2b22ac5783d7ea957e9d13"
     }
   ],
   "resource_bounds": [
@@ -208,7 +253,7 @@
     "bounded_generations": 1,
     "enabled": true,
     "may_promote_extensions": false,
-    "may_propose_extensions": true,
+    "may_propose_extensions": false,
     "proposal_disposition": "QUARANTINED"
   }
 }

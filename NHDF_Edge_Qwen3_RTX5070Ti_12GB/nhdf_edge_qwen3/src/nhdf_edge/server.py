@@ -48,6 +48,139 @@ def _same_path(left: Path, right: Path) -> bool:
     return os.path.normcase(str(left.resolve())) == os.path.normcase(str(right.resolve()))
 
 
+def _within(path: Path, parent: Path) -> bool:
+    try:
+        path.relative_to(parent)
+        return True
+    except ValueError:
+        return False
+
+
+@dataclass(frozen=True, slots=True)
+class ApprovedArtifactFile:
+    """One externally trusted canonical file used by a resident server."""
+
+    path: Path
+    bytes: int
+    sha256: str
+
+    def __post_init__(self) -> None:
+        try:
+            resolved = Path(self.path).resolve(strict=True)
+        except OSError as error:
+            raise HybridServerConfigurationError(
+                f"approved artifact file does not resolve: {self.path}"
+            ) from error
+        if not resolved.is_file():
+            raise HybridServerConfigurationError(
+                f"approved artifact path is not a file: {resolved}"
+            )
+        if isinstance(self.bytes, bool) or not isinstance(self.bytes, int) or self.bytes <= 0:
+            raise HybridServerConfigurationError("approved file byte length must be positive")
+        digest = self.sha256.lower()
+        if len(digest) != 64 or any(character not in "0123456789abcdef" for character in digest):
+            raise HybridServerConfigurationError(
+                "approved file SHA-256 must contain 64 hexadecimal characters"
+            )
+        object.__setattr__(self, "path", resolved)
+        object.__setattr__(self, "sha256", digest)
+
+
+@dataclass(frozen=True, slots=True)
+class ArtifactApproval:
+    """External trust anchor for one exact manifest and executable file set."""
+
+    artifact_dir: Path
+    reference_root: Path
+    manifest_sha256: str
+    payload: ApprovedArtifactFile
+    runtime_files: tuple[ApprovedArtifactFile, ...]
+    server: ApprovedArtifactFile
+
+    def __post_init__(self) -> None:
+        try:
+            artifact = Path(self.artifact_dir).resolve(strict=True)
+            root = Path(self.reference_root).resolve(strict=True)
+        except OSError as error:
+            raise HybridServerConfigurationError(
+                "approved artifact or reference root does not resolve"
+            ) from error
+        if not artifact.is_dir() or not root.is_dir() or not _within(artifact, root):
+            raise HybridServerConfigurationError(
+                "approved artifact must be a directory inside its reference root"
+            )
+        digest = self.manifest_sha256.lower()
+        if len(digest) != 64 or any(character not in "0123456789abcdef" for character in digest):
+            raise HybridServerConfigurationError(
+                "approved manifest SHA-256 must contain 64 hexadecimal characters"
+            )
+        runtime_files = tuple(self.runtime_files)
+        if not runtime_files:
+            raise HybridServerConfigurationError("approved runtime file set must not be empty")
+        for item in (self.payload, *runtime_files):
+            if not _within(item.path, root):
+                raise HybridServerConfigurationError(
+                    f"approved file resolves outside the reference root: {item.path}"
+                )
+        if not any(item == self.server for item in runtime_files):
+            raise HybridServerConfigurationError(
+                "approved server must be an exact member of the runtime file set"
+            )
+        if self.server.path.name.lower() not in {"llama-server", "llama-server.exe"}:
+            raise HybridServerConfigurationError("approved server has an unexpected filename")
+        object.__setattr__(self, "artifact_dir", artifact)
+        object.__setattr__(self, "reference_root", root)
+        object.__setattr__(self, "manifest_sha256", digest)
+        object.__setattr__(self, "runtime_files", runtime_files)
+
+    def verify_files(self) -> None:
+        """Rehash every execution input immediately before process creation."""
+
+        manifest_path = self.artifact_dir / hybrid.HYBRID_MANIFEST
+        try:
+            resolved_manifest = manifest_path.resolve(strict=True)
+        except OSError as error:
+            raise HybridServerConfigurationError(
+                "approved manifest disappeared before launch"
+            ) from error
+        if (
+            resolved_manifest != manifest_path
+            or not _within(resolved_manifest, self.artifact_dir)
+        ):
+            raise HybridServerConfigurationError(
+                "approved manifest path changed or escaped before launch"
+            )
+        if hybrid.sha256_file(resolved_manifest).lower() != self.manifest_sha256:
+            raise HybridServerConfigurationError(
+                "approved manifest SHA-256 changed before launch"
+            )
+
+        seen: set[Path] = set()
+        for item in (self.payload, *self.runtime_files):
+            if item.path in seen:
+                continue
+            seen.add(item.path)
+            try:
+                resolved = item.path.resolve(strict=True)
+                size = resolved.stat().st_size
+            except OSError as error:
+                raise HybridServerConfigurationError(
+                    f"approved file disappeared before launch: {item.path}"
+                ) from error
+            if resolved != item.path or not _within(resolved, self.reference_root):
+                raise HybridServerConfigurationError(
+                    f"approved file path changed or escaped before launch: {item.path}"
+                )
+            if size != item.bytes:
+                raise HybridServerConfigurationError(
+                    f"approved file byte length changed before launch: {item.path}"
+                )
+            if hybrid.sha256_file(resolved).lower() != item.sha256:
+                raise HybridServerConfigurationError(
+                    f"approved file SHA-256 changed before launch: {item.path}"
+                )
+
+
 def _require_loopback(host: str) -> None:
     # A hostname such as ``localhost`` can be redirected through the hosts file.
     # Requiring the IPv4 loopback literal makes accidental network exposure
@@ -239,6 +372,7 @@ class HybridServer:
     request_timeout_seconds: float = 120.0
     threads: int | None = None
     verify_payload_hash: bool = True
+    artifact_approval: ArtifactApproval | None = None
     _process: subprocess.Popen[Any] | None = field(default=None, init=False, repr=False)
     _command: tuple[str, ...] | None = field(default=None, init=False, repr=False)
     _preflight_result: dict[str, Any] | None = field(default=None, init=False, repr=False)
@@ -250,6 +384,15 @@ class HybridServer:
     def __post_init__(self) -> None:
         self.artifact_dir = Path(self.artifact_dir).resolve()
         _require_loopback(self.host)
+        if self.artifact_approval is not None:
+            if not _same_path(self.artifact_dir, self.artifact_approval.artifact_dir):
+                raise HybridServerConfigurationError(
+                    "artifact directory does not match the externally approved artifact"
+                )
+            if not self.verify_payload_hash:
+                raise HybridServerConfigurationError(
+                    "externally approved launches cannot skip the final payload hash"
+                )
         if isinstance(self.port, bool) or not isinstance(self.port, int):
             raise HybridServerConfigurationError("server port must be an integer")
         if not 1 <= self.port <= 65_535:
@@ -299,29 +442,46 @@ class HybridServer:
         return process
 
     def start(self, *, wait_ready: bool = True) -> "HybridServer":
-        """Verify once, perform the resource preflight, and launch the server."""
+        """Verify, preflight, then rehash approved inputs immediately before launch."""
 
         with self._lock:
             if self._process is not None and self._process.poll() is None:
                 raise HybridServerError("llama-server is already running")
 
-            verification = hybrid.verify_hybrid_artifact(
-                self.artifact_dir,
-                verify_payload_hash=self.verify_payload_hash,
-                require_validated=True,
-            )
-            if not verification.get("ok") or not verification.get("deployment_loadable"):
-                raise OSError(
-                    "refusing to launch hybrid server because artifact verification failed: "
-                    f"{verification.get('failures', [])}"
+            approval = self.artifact_approval
+            if approval is None:
+                verification = hybrid.verify_hybrid_artifact(
+                    self.artifact_dir,
+                    verify_payload_hash=self.verify_payload_hash,
+                    require_validated=True,
                 )
-
-            manifest = hybrid.load_hybrid_manifest(self.artifact_dir)
+                if not verification.get("ok") or not verification.get("deployment_loadable"):
+                    raise OSError(
+                        "refusing to launch hybrid server because artifact verification failed: "
+                        f"{verification.get('failures', [])}"
+                    )
+                manifest = hybrid.load_hybrid_manifest(self.artifact_dir)
+                server = _sealed_server_entrypoint(self.artifact_dir, manifest)
+                model = hybrid._resolve_reference(
+                    self.artifact_dir, manifest["payload"]["path"]
+                )
+            else:
+                manifest, _manifest_digest = hybrid.load_hybrid_manifest_snapshot(
+                    self.artifact_dir,
+                    expected_sha256=approval.manifest_sha256,
+                )
+                if manifest.get("validation", {}).get("status") != "VALIDATED":
+                    raise HybridServerConfigurationError(
+                        "externally approved manifest is no longer VALIDATED"
+                    )
+                # Do not resolve executable paths from the mutable manifest in
+                # approved mode.  The caller supplied exact canonical paths and
+                # digests from the same manifest snapshot it validated.
+                server = approval.server.path
+                model = approval.payload.path
             _require_validated_profile(manifest)
             profile = manifest["execution_profile"]
             context = int(profile["maximum_context_tokens"])
-            server = _sealed_server_entrypoint(self.artifact_dir, manifest)
-            model = hybrid._resolve_reference(self.artifact_dir, manifest["payload"]["path"])
             runtime_profile = manifest["runtime"].get("argument_profile", "b6014")
             if runtime_profile == "b6014":
                 flash_arguments = ["-fa"]
@@ -384,6 +544,10 @@ class HybridServer:
                 "--metrics",
                 "--slots",
             ]
+            if approval is not None:
+                # Keep this immediately adjacent to Popen: it closes the long
+                # validation/preflight window for every executable input.
+                approval.verify_files()
             process = subprocess.Popen(
                 command,
                 cwd=str(server.parent),
