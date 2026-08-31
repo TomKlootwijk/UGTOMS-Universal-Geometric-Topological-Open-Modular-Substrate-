@@ -19,6 +19,7 @@ from contextlib import nullcontext
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
+from types import MappingProxyType
 from typing import Any, Iterable, Mapping, Sequence
 
 
@@ -29,6 +30,31 @@ HYBRID_VALIDATION_STATUSES = frozenset(
     {"UNCALIBRATED", "QUALITY_FAILED", "RESOURCE_FAILED", "VALIDATED"}
 )
 VALIDATED_KV_CACHE_TYPES = frozenset({"q8_0", "q4_0"})
+WINDOWS_CUDA_VERSION = "12.8"
+WINDOWS_CUDA_DEPENDENCY_RECORDS: Mapping[str, tuple[int, str]] = MappingProxyType({
+    "cudart64_12.dll": (
+        573_952,
+        "9d9b868955149875ac4ef43442aaaa8913d4a7b3e4d6dd60ee871626aa045768",
+    ),
+    "cublas64_12.dll": (
+        113_712_640,
+        "0a60a7ecbf906f7f3842826fecaf412f1587ff6269729339245a1ec224364161",
+    ),
+    "cublasLt64_12.dll": (
+        692_441_600,
+        "a21ddfc1c9cd090ab07d2c6aad235aa4f15fe60fe896d5db28adf7a279c09ef3",
+    ),
+})
+
+
+@dataclass(frozen=True, slots=True)
+class WindowsCudaDependencyPreflight:
+    """Read-only result for the exact CUDA toolkit dependency set."""
+
+    version: str
+    binary_directory: Path
+    verified_dependency_count: int
+    dependency_names: tuple[str, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -234,6 +260,127 @@ def _windows_system_directory() -> Path:
     return Path(buffer.value).resolve(strict=True)
 
 
+def _windows_program_files_directory() -> Path:
+    """Resolve 64-bit Program Files through the Windows Known Folder API."""
+
+    if os.name != "nt":
+        raise OSError("Windows Program Files requested on a non-Windows host")
+    import ctypes
+    from ctypes import wintypes
+
+    class _Guid(ctypes.Structure):
+        _fields_ = (
+            ("Data1", wintypes.DWORD),
+            ("Data2", wintypes.WORD),
+            ("Data3", wintypes.WORD),
+            ("Data4", ctypes.c_ubyte * 8),
+        )
+
+    # FOLDERID_ProgramFiles: {905E63B6-C1BF-494E-B29C-65B732D3D21A}
+    folder_id = _Guid(
+        0x905E63B6,
+        0xC1BF,
+        0x494E,
+        (ctypes.c_ubyte * 8)(0xB2, 0x9C, 0x65, 0xB7, 0x32, 0xD3, 0xD2, 0x1A),
+    )
+    output = ctypes.c_wchar_p()
+    get_known_folder = ctypes.WinDLL(
+        "shell32", use_last_error=True
+    ).SHGetKnownFolderPath
+    get_known_folder.argtypes = (
+        ctypes.POINTER(_Guid),
+        wintypes.DWORD,
+        wintypes.HANDLE,
+        ctypes.POINTER(ctypes.c_wchar_p),
+    )
+    get_known_folder.restype = ctypes.c_long
+    result = get_known_folder(ctypes.byref(folder_id), 0, None, ctypes.byref(output))
+    if result != 0 or not output.value:
+        raise OSError(result & 0xFFFFFFFF, "could not resolve 64-bit Program Files")
+    free_memory = ctypes.WinDLL("ole32", use_last_error=True).CoTaskMemFree
+    free_memory.argtypes = (ctypes.c_void_p,)
+    free_memory.restype = None
+    try:
+        resolved = Path(output.value).resolve(strict=True)
+    finally:
+        free_memory(ctypes.cast(output, ctypes.c_void_p))
+    if not resolved.is_dir():
+        raise OSError(f"Windows Program Files is not a directory: {resolved}")
+    return resolved
+
+
+def _windows_cuda_bin_directory() -> Path:
+    """Resolve the exact CUDA 12.8 binary directory without inherited state."""
+
+    program_files = _windows_program_files_directory()
+    lexical = (
+        program_files
+        / "NVIDIA GPU Computing Toolkit"
+        / "CUDA"
+        / f"v{WINDOWS_CUDA_VERSION}"
+        / "bin"
+    )
+    try:
+        resolved = lexical.resolve(strict=True)
+    except OSError as exc:
+        raise OSError(
+            f"required CUDA {WINDOWS_CUDA_VERSION} binary directory is unavailable: "
+            f"{lexical}"
+        ) from exc
+    if not resolved.is_dir() or os.path.normcase(str(resolved)) != os.path.normcase(
+        str(lexical)
+    ):
+        raise OSError(
+            f"CUDA {WINDOWS_CUDA_VERSION} binary directory is not an unaliased directory: "
+            f"{lexical}"
+        )
+    return resolved
+
+
+def _cuda_execution_file_specs() -> tuple[_LockedFileSpec, ...]:
+    """Return exact external CUDA DLLs required by the pinned Windows runtime."""
+
+    if os.name != "nt":
+        return ()
+    directory = _windows_cuda_bin_directory()
+    specs = tuple(
+        _LockedFileSpec(
+            directory / name,
+            expected_bytes,
+            expected_sha256,
+            f"CUDA {WINDOWS_CUDA_VERSION} dependency:{name}",
+        )
+        for name, (expected_bytes, expected_sha256) in (
+            WINDOWS_CUDA_DEPENDENCY_RECORDS.items()
+        )
+    )
+    if any(spec.path.parent != directory for spec in specs):
+        raise OSError("a CUDA dependency resolves outside the trusted CUDA bin directory")
+    return specs
+
+
+def preflight_windows_cuda_dependencies() -> WindowsCudaDependencyPreflight:
+    """Verify the pinned CUDA toolkit files without inheriting user state.
+
+    The returned immutable record is intentionally small enough for setup and
+    GUI readiness checks.  Execution paths call the same resolver and keep the
+    resulting files locked for the complete child-process lifetime.
+    """
+
+    if os.name != "nt":
+        raise OSError("Windows CUDA dependency preflight requires Windows")
+    directory = _windows_cuda_bin_directory()
+    specs = _cuda_execution_file_specs()
+    with _ExecutionFileGuard(specs):
+        pass
+    return WindowsCudaDependencyPreflight(
+        version=WINDOWS_CUDA_VERSION,
+        binary_directory=directory,
+        verified_dependency_count=len(specs),
+        dependency_names=tuple(spec.path.name for spec in specs),
+    )
+
+
 def _trusted_system_executable(name: str) -> Path | None:
     """Resolve a system utility without consulting inherited ``PATH``."""
 
@@ -253,22 +400,30 @@ def _trusted_system_executable(name: str) -> Path | None:
     return None
 
 
-def _minimal_subprocess_environment(*, executable_directory: Path | None = None) -> dict[str, str]:
+def _minimal_subprocess_environment(
+    *,
+    executable_directory: Path | None = None,
+    include_cuda: bool = False,
+) -> dict[str, str]:
     """Return a small environment without credentials, proxies, or user search paths."""
 
     if os.name == "nt":
         system_directory = _windows_system_directory()
         windows_directory = system_directory.parent
         path_entries = [str(system_directory), str(windows_directory)]
+        if include_cuda:
+            path_entries.insert(0, str(_windows_cuda_bin_directory()))
         if executable_directory is not None:
             path_entries.insert(0, str(executable_directory.resolve(strict=True)))
         return {
             "SystemRoot": str(windows_directory),
             "WINDIR": str(windows_directory),
             "SYSTEMDRIVE": windows_directory.drive,
+            "PROGRAMFILES": str(_windows_program_files_directory()),
             "COMSPEC": str(system_directory / "cmd.exe"),
             "PATHEXT": ".COM;.EXE;.BAT;.CMD",
             "PATH": os.pathsep.join(path_entries),
+            "NoDefaultCurrentDirectoryInExePath": "1",
         }
     path_entries = ["/usr/bin", "/bin"]
     if executable_directory is not None:
@@ -689,6 +844,7 @@ def _execution_file_specs(
             raise ValueError(f"runtime.{field} is not in the sealed runtime file set")
         if not entrypoint.is_absolute():
             raise ValueError(f"runtime.{field} did not resolve to an absolute path")
+    specs.extend(_cuda_execution_file_specs())
     return tuple(specs)
 
 
@@ -804,18 +960,23 @@ def _gpu_name() -> str | None:
     )
     if nvidia_smi is None:
         return None
-    completed = subprocess.run(
-        [str(nvidia_smi), "--query-gpu=name", "--format=csv,noheader"],
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        check=False,
-        env=_minimal_subprocess_environment(
-            executable_directory=nvidia_smi.parent
-        ),
-        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
-    )
+    try:
+        completed = subprocess.run(
+            [str(nvidia_smi), "--query-gpu=name", "--format=csv,noheader"],
+            capture_output=True,
+            cwd=str(nvidia_smi.parent),
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+            timeout=10,
+            env=_minimal_subprocess_environment(
+                executable_directory=nvidia_smi.parent
+            ),
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
     if completed.returncode or not completed.stdout.strip():
         return None
     return completed.stdout.strip().splitlines()[0].strip()
@@ -827,26 +988,38 @@ def _gpu_sample() -> tuple[int, int, int] | None:
     )
     if nvidia_smi is None:
         return None
-    completed = subprocess.run(
-        [
-            str(nvidia_smi),
-            "--query-gpu=memory.total,memory.used,utilization.gpu",
-            "--format=csv,noheader,nounits",
-        ],
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        check=False,
-        env=_minimal_subprocess_environment(
-            executable_directory=nvidia_smi.parent
-        ),
-        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
-    )
+    try:
+        completed = subprocess.run(
+            [
+                str(nvidia_smi),
+                "--query-gpu=memory.total,memory.used,utilization.gpu",
+                "--format=csv,noheader,nounits",
+            ],
+            capture_output=True,
+            cwd=str(nvidia_smi.parent),
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+            timeout=10,
+            env=_minimal_subprocess_environment(
+                executable_directory=nvidia_smi.parent
+            ),
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
     if completed.returncode or not completed.stdout.strip():
         return None
-    fields = [field.strip() for field in completed.stdout.strip().splitlines()[0].split(",")]
-    return int(fields[0]), int(fields[1]), int(fields[2])
+    fields = [
+        field.strip()
+        for field in completed.stdout.strip().splitlines()[0].split(",")
+    ]
+    try:
+        total, used, utilization = (int(field) for field in fields)
+    except (TypeError, ValueError):
+        return None
+    return total, used, utilization
 
 
 def _sample_until(stop: threading.Event, samples: list[dict[str, float | int]]) -> None:
@@ -1095,7 +1268,8 @@ def run_hybrid_prompt(
                 command,
                 cwd=str(runtime.parent),
                 env=_minimal_subprocess_environment(
-                    executable_directory=runtime.parent
+                    executable_directory=runtime.parent,
+                    include_cuda=True,
                 ),
                 capture_output=True,
                 text=True,
@@ -1214,7 +1388,10 @@ def _run_benchmark(
         ],
         capture_output=True,
         cwd=str(runtime.parent),
-        env=_minimal_subprocess_environment(executable_directory=runtime.parent),
+        env=_minimal_subprocess_environment(
+            executable_directory=runtime.parent,
+            include_cuda=True,
+        ),
         text=True,
         encoding="utf-8",
         errors="replace",

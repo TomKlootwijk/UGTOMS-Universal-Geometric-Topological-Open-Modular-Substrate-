@@ -12,6 +12,16 @@ import pytest
 from nhdf_edge import cli, server
 
 
+@pytest.fixture(autouse=True)
+def _isolate_tests_from_host_cuda(monkeypatch, tmp_path) -> None:
+    """Unit fixtures must not hash or require the host's 806 MiB CUDA set."""
+
+    cuda_bin = tmp_path / "host-cuda" / "bin"
+    cuda_bin.mkdir(parents=True)
+    monkeypatch.setattr(server.hybrid, "_windows_cuda_bin_directory", lambda: cuda_bin)
+    monkeypatch.setattr(server.hybrid, "_cuda_execution_file_specs", lambda: ())
+
+
 class _Process:
     def __init__(self) -> None:
         self.pid = 4242
@@ -84,6 +94,10 @@ def _patch_valid_artifact(monkeypatch, tmp_path, *, manifest=None):
         observed["popen"] = (command, kwargs)
         return process
 
+    def fake_environment(**kwargs):
+        observed["environment_request"] = kwargs
+        return {"PATH": "trusted-test-path"}
+
     class FakeGuard:
         def __init__(self, _specs) -> None:
             self.active = False
@@ -104,6 +118,9 @@ def _patch_valid_artifact(monkeypatch, tmp_path, *, manifest=None):
     monkeypatch.setattr(server.hybrid, "_ExecutionFileGuard", FakeGuard)
     monkeypatch.setattr(server.hybrid, "_execution_file_specs", lambda *_args, **_kwargs: ())
     monkeypatch.setattr(server.hybrid, "_preflight", fake_preflight)
+    monkeypatch.setattr(
+        server.hybrid, "_minimal_subprocess_environment", fake_environment
+    )
     monkeypatch.setattr(server.subprocess, "Popen", fake_popen)
     monkeypatch.setenv("HTTP_PROXY", "http://attacker.invalid")
     return root, value, process, observed
@@ -191,6 +208,10 @@ def test_start_verifies_once_then_launches_fixed_resident_profile(monkeypatch, t
     assert popen_kwargs["cwd"] == str((root / "runtime").resolve())
     assert "HTTP_PROXY" not in popen_kwargs["env"]
     assert "AWS_SECRET_ACCESS_KEY" not in popen_kwargs["env"]
+    assert observed["environment_request"] == {
+        "executable_directory": (root / "runtime").resolve(),
+        "include_cuda": True,
+    }
     assert runtime.preflight_result == {"gpu": "RTX", "free_mib": 11_000}
     assert process.terminated is False
     runtime.stop()
@@ -252,6 +273,30 @@ def test_externally_approved_start_uses_exact_snapshot_and_rehashes_before_popen
         )
 
 
+def test_external_approval_adds_pinned_cuda_dependencies_to_guard(
+    monkeypatch, tmp_path
+) -> None:
+    root = tmp_path / "artifact"
+    root.mkdir()
+    approval, _manifest = _approved_artifact(root)
+    dependency = tmp_path / "cuda" / "cudart64_12.dll"
+    dependency.parent.mkdir()
+    dependency.write_bytes(b"trusted-cuda")
+    cuda_spec = server.hybrid._LockedFileSpec(
+        dependency,
+        dependency.stat().st_size,
+        server.hybrid.sha256_file(dependency),
+        "CUDA dependency",
+    )
+    monkeypatch.setattr(
+        server.hybrid, "_cuda_execution_file_specs", lambda: (cuda_spec,)
+    )
+
+    specs = approval.execution_file_specs()
+
+    assert cuda_spec in specs
+
+
 @pytest.mark.skipif(os.name != "nt", reason="Win32 deny-write/delete lock semantics")
 def test_windows_execution_handles_block_mutation_during_popen(
     monkeypatch, tmp_path
@@ -262,21 +307,36 @@ def test_windows_execution_handles_block_mutation_during_popen(
     runtime_path = approval.server.path
     replacement = tmp_path / "replacement.exe"
     replacement.write_bytes(b"server")
+    cuda_dependency = tmp_path / "cuda" / "cudart64_12.dll"
+    cuda_dependency.parent.mkdir()
+    cuda_dependency.write_bytes(b"trusted-cuda")
+    cuda_spec = server.hybrid._LockedFileSpec(
+        cuda_dependency,
+        cuda_dependency.stat().st_size,
+        server.hybrid.sha256_file(cuda_dependency),
+        "CUDA dependency",
+    )
     process = _Process()
 
     monkeypatch.setattr(server.hybrid, "_preflight", lambda *_args, **_kwargs: {})
+    monkeypatch.setattr(
+        server.hybrid, "_cuda_execution_file_specs", lambda: (cuda_spec,)
+    )
 
     def fake_popen(_command, **_kwargs):
         with pytest.raises(OSError):
             runtime_path.write_bytes(b"tamper")
         with pytest.raises(OSError):
             os.replace(replacement, runtime_path)
+        with pytest.raises(OSError):
+            cuda_dependency.write_bytes(b"tamper")
         return process
 
     monkeypatch.setattr(server.subprocess, "Popen", fake_popen)
     runtime = server.HybridServer(root, artifact_approval=approval)
     runtime.start(wait_ready=False)
     runtime.stop()
+    cuda_dependency.write_bytes(b"released")
 
 
 def test_artifact_approval_rejects_any_out_of_root_execution_file(tmp_path) -> None:

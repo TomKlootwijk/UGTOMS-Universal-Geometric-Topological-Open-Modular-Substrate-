@@ -1,12 +1,23 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
 from nhdf_edge import hybrid
+
+
+@pytest.fixture(autouse=True)
+def _isolate_tests_from_host_cuda(monkeypatch, tmp_path) -> None:
+    """Unit fixtures must not hash or require the host's 806 MiB CUDA set."""
+
+    cuda_bin = tmp_path / "host-cuda" / "bin"
+    cuda_bin.mkdir(parents=True)
+    monkeypatch.setattr(hybrid, "_windows_cuda_bin_directory", lambda: cuda_bin)
+    monkeypatch.setattr(hybrid, "_cuda_execution_file_specs", lambda: ())
 
 
 def _artifact(tmp_path, **profile):
@@ -54,6 +65,65 @@ def test_hybrid_create_is_zero_copy_and_verifies(tmp_path) -> None:
     result = hybrid.verify_hybrid_artifact(root)
     assert result["ok"]
     assert not result["deployment_loadable"]
+
+
+def test_cuda_dependency_identity_records_are_exact_and_read_only() -> None:
+    assert hybrid.WINDOWS_CUDA_VERSION == "12.8"
+    assert dict(hybrid.WINDOWS_CUDA_DEPENDENCY_RECORDS) == {
+        "cudart64_12.dll": (
+            573_952,
+            "9d9b868955149875ac4ef43442aaaa8913d4a7b3e4d6dd60ee871626aa045768",
+        ),
+        "cublas64_12.dll": (
+            113_712_640,
+            "0a60a7ecbf906f7f3842826fecaf412f1587ff6269729339245a1ec224364161",
+        ),
+        "cublasLt64_12.dll": (
+            692_441_600,
+            "a21ddfc1c9cd090ab07d2c6aad235aa4f15fe60fe896d5db28adf7a279c09ef3",
+        ),
+    }
+    with pytest.raises(TypeError):
+        hybrid.WINDOWS_CUDA_DEPENDENCY_RECORDS["attacker.dll"] = (1, "0" * 64)  # type: ignore[index]
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows CUDA preflight")
+def test_public_cuda_preflight_verifies_exact_dependency_set(
+    tmp_path, monkeypatch
+) -> None:
+    cuda_bin = tmp_path / "CUDA" / "v12.8" / "bin"
+    cuda_bin.mkdir(parents=True)
+    dependency = cuda_bin / "cudart64_12.dll"
+    dependency.write_bytes(b"trusted-cuda")
+    spec = hybrid._LockedFileSpec(
+        dependency,
+        dependency.stat().st_size,
+        hybrid.sha256_file(dependency),
+        "test CUDA dependency",
+    )
+    monkeypatch.setattr(hybrid, "_windows_cuda_bin_directory", lambda: cuda_bin)
+    monkeypatch.setattr(hybrid, "_cuda_execution_file_specs", lambda: (spec,))
+
+    result = hybrid.preflight_windows_cuda_dependencies()
+
+    assert result == hybrid.WindowsCudaDependencyPreflight(
+        version="12.8",
+        binary_directory=cuda_bin,
+        verified_dependency_count=1,
+        dependency_names=("cudart64_12.dll",),
+    )
+    with pytest.raises(AttributeError):
+        result.version = "attacker"  # type: ignore[misc]
+
+    bad_spec = hybrid._LockedFileSpec(
+        dependency,
+        dependency.stat().st_size,
+        "0" * 64,
+        "tampered CUDA dependency",
+    )
+    monkeypatch.setattr(hybrid, "_cuda_execution_file_specs", lambda: (bad_spec,))
+    with pytest.raises(OSError, match="SHA-256 changed"):
+        hybrid.preflight_windows_cuda_dependencies()
 
 
 def test_hybrid_create_accepts_32k_q4_profile_and_rejects_invalid_values(
@@ -231,6 +301,10 @@ def test_hybrid_run_uses_fixed_profile(monkeypatch, tmp_path) -> None:
     )
     observed = {}
 
+    def fake_environment(**kwargs):
+        observed["environment_request"] = kwargs
+        return {"PATH": "trusted-test-path"}
+
     def fake_run(command, **kwargs):
         observed["command"] = command
         observed["kwargs"] = kwargs
@@ -250,6 +324,7 @@ def test_hybrid_run_uses_fixed_profile(monkeypatch, tmp_path) -> None:
             ),
         )
 
+    monkeypatch.setattr(hybrid, "_minimal_subprocess_environment", fake_environment)
     monkeypatch.setattr(hybrid.subprocess, "run", fake_run)
     result = hybrid.run_hybrid_prompt(
         root,
@@ -270,6 +345,10 @@ def test_hybrid_run_uses_fixed_profile(monkeypatch, tmp_path) -> None:
     assert command[command.index("-ctv") + 1] == "q8_0"
     assert "--temp" in command and command[command.index("--temp") + 1] == "0"
     assert observed["kwargs"]["cwd"] == str((tmp_path / "components").resolve())
+    assert observed["environment_request"] == {
+        "executable_directory": (tmp_path / "components").resolve(),
+        "include_cuda": True,
+    }
 
 
 def test_current_runtime_requests_trace_logs_only_for_monitored_evidence(
@@ -343,9 +422,29 @@ def test_llama_bench_uses_manifest_kv_cache_types(tmp_path, monkeypatch) -> None
     )
     manifest, manifest_sha256 = hybrid.load_hybrid_manifest_snapshot(root)
     observed = {}
+    dependency = tmp_path / "cuda" / "cudart64_12.dll"
+    dependency.parent.mkdir()
+    dependency.write_bytes(b"trusted-cuda")
+    cuda_spec = hybrid._LockedFileSpec(
+        dependency,
+        dependency.stat().st_size,
+        hybrid.sha256_file(dependency),
+        "CUDA dependency",
+    )
+    monkeypatch.setattr(
+        hybrid, "_cuda_execution_file_specs", lambda: (cuda_spec,)
+    )
+
+    def fake_environment(**kwargs):
+        observed["environment_request"] = kwargs
+        return {"PATH": "trusted-test-path"}
 
     def fake_run(command, **kwargs):
         observed["command"] = command
+        observed["kwargs"] = kwargs
+        if os.name == "nt":
+            with pytest.raises(OSError):
+                dependency.write_bytes(b"tamper")
         return SimpleNamespace(
             returncode=0,
             stdout=json.dumps(
@@ -369,6 +468,7 @@ def test_llama_bench_uses_manifest_kv_cache_types(tmp_path, monkeypatch) -> None
             stderr="",
         )
 
+    monkeypatch.setattr(hybrid, "_minimal_subprocess_environment", fake_environment)
     monkeypatch.setattr(hybrid.subprocess, "run", fake_run)
     specs = hybrid._execution_file_specs(
         root,
@@ -389,6 +489,12 @@ def test_llama_bench_uses_manifest_kv_cache_types(tmp_path, monkeypatch) -> None
     command = observed["command"]
     assert command[command.index("-ctk") + 1] == "q4_0"
     assert command[command.index("-ctv") + 1] == "q4_0"
+    assert observed["environment_request"] == {
+        "executable_directory": (tmp_path / "components").resolve(),
+        "include_cuda": True,
+    }
+    assert observed["kwargs"]["env"] == {"PATH": "trusted-test-path"}
+    dependency.write_bytes(b"released")
 
 
 def test_gate_evidence_names_manifest_selected_context_generically(
@@ -498,6 +604,7 @@ def test_gpu_queries_use_absolute_trusted_binary_and_minimal_environment(
 
     monkeypatch.setenv("HTTPS_PROXY", "http://attacker.invalid")
     monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "secret")
+    monkeypatch.setenv("PROGRAMFILES", str(tmp_path / "attacker-program-files"))
     monkeypatch.setattr(hybrid, "_trusted_system_executable", lambda _name: executable)
     monkeypatch.setattr(hybrid.subprocess, "run", fake_run)
 
@@ -505,8 +612,140 @@ def test_gpu_queries_use_absolute_trusted_binary_and_minimal_environment(
     command, kwargs = observed[0]
     assert Path(command[0]).is_absolute()
     assert command[0] == str(executable)
+    assert kwargs["cwd"] == str(executable.parent)
+    assert kwargs["timeout"] == 10
     assert "HTTPS_PROXY" not in kwargs["env"]
     assert "AWS_SECRET_ACCESS_KEY" not in kwargs["env"]
+    if os.name == "nt":
+        assert kwargs["env"]["PROGRAMFILES"] != str(
+            tmp_path / "attacker-program-files"
+        )
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows Known Folder API")
+def test_program_files_resolver_ignores_inherited_environment(
+    tmp_path, monkeypatch
+) -> None:
+    attacker = tmp_path / "attacker-program-files"
+    attacker.mkdir()
+    monkeypatch.setenv("PROGRAMFILES", str(attacker))
+
+    resolved = hybrid._windows_program_files_directory()
+
+    assert resolved != attacker.resolve()
+    assert resolved.is_dir()
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows environment contract")
+def test_windows_environment_uses_api_program_files_and_pinned_cuda_only(
+    tmp_path, monkeypatch
+) -> None:
+    windows = tmp_path / "Windows"
+    system = windows / "System32"
+    program_files = tmp_path / "Trusted Program Files"
+    cuda_bin = program_files / "NVIDIA" / "CUDA" / "v12.8" / "bin"
+    executable_directory = tmp_path / "runtime"
+    for directory in (system, program_files, cuda_bin, executable_directory):
+        directory.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setenv("PROGRAMFILES", str(tmp_path / "attacker-program-files"))
+    monkeypatch.setenv("PATH", str(tmp_path / "attacker-path"))
+    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "secret")
+    monkeypatch.setattr(hybrid, "_windows_system_directory", lambda: system)
+    monkeypatch.setattr(
+        hybrid, "_windows_program_files_directory", lambda: program_files
+    )
+    monkeypatch.setattr(hybrid, "_windows_cuda_bin_directory", lambda: cuda_bin)
+
+    environment = hybrid._minimal_subprocess_environment(
+        executable_directory=executable_directory,
+        include_cuda=True,
+    )
+
+    assert environment["PROGRAMFILES"] == str(program_files)
+    assert environment["PATH"].split(os.pathsep) == [
+        str(executable_directory.resolve()),
+        str(cuda_bin),
+        str(system),
+        str(windows),
+    ]
+    assert environment["NoDefaultCurrentDirectoryInExePath"] == "1"
+    assert "AWS_SECRET_ACCESS_KEY" not in environment
+    assert str(tmp_path / "attacker-path") not in environment["PATH"]
+
+
+def test_execution_file_set_includes_pinned_cuda_dependencies(
+    tmp_path, monkeypatch
+) -> None:
+    root, _ = _artifact(tmp_path)
+    manifest, manifest_sha256 = hybrid.load_hybrid_manifest_snapshot(root)
+    dependency = tmp_path / "cuda" / "cudart64_12.dll"
+    dependency.parent.mkdir()
+    dependency.write_bytes(b"trusted-cuda")
+    cuda_spec = hybrid._LockedFileSpec(
+        dependency,
+        dependency.stat().st_size,
+        hybrid.sha256_file(dependency),
+        "CUDA dependency",
+    )
+    monkeypatch.setattr(
+        hybrid, "_cuda_execution_file_specs", lambda: (cuda_spec,)
+    )
+
+    specs = hybrid._execution_file_specs(
+        root,
+        manifest,
+        manifest_sha256,
+        required_entrypoints=("entrypoint", "benchmark_entrypoint"),
+    )
+
+    assert cuda_spec in specs
+    with hybrid._ExecutionFileGuard(specs):
+        pass
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Win32 deny-write/delete lock semantics")
+def test_one_shot_execution_locks_cuda_dependencies_for_child_lifetime(
+    tmp_path, monkeypatch
+) -> None:
+    root, _ = _artifact(tmp_path)
+    dependency = tmp_path / "cuda" / "cudart64_12.dll"
+    dependency.parent.mkdir()
+    dependency.write_bytes(b"trusted-cuda")
+    cuda_spec = hybrid._LockedFileSpec(
+        dependency,
+        dependency.stat().st_size,
+        hybrid.sha256_file(dependency),
+        "CUDA dependency",
+    )
+    monkeypatch.setattr(
+        hybrid, "_cuda_execution_file_specs", lambda: (cuda_spec,)
+    )
+    monkeypatch.setattr(
+        hybrid, "_preflight", lambda *_args, **_kwargs: {"used_mib": 0}
+    )
+    monkeypatch.setattr(
+        hybrid,
+        "_minimal_subprocess_environment",
+        lambda **_kwargs: {"PATH": "trusted-test-path"},
+    )
+
+    def fake_run(_command, **_kwargs):
+        with pytest.raises(OSError):
+            dependency.write_bytes(b"tamper")
+        return SimpleNamespace(returncode=0, stdout="OK\n", stderr="")
+
+    monkeypatch.setattr(hybrid.subprocess, "run", fake_run)
+
+    result = hybrid.run_hybrid_prompt(
+        root,
+        prompt="test",
+        allow_unvalidated=True,
+        allow_self_sealed=True,
+        verify_payload_hash=False,
+    )
+
+    assert result["exit_code"] == 0
+    dependency.write_bytes(b"released")
 
 
 def test_gate_evidence_rewrites_absolute_host_paths(

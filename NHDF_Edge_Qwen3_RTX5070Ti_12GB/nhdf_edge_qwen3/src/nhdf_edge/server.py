@@ -173,6 +173,7 @@ class ArtifactApproval:
             hybrid._LockedFileSpec(item.path, item.bytes, item.sha256, "approved file")
             for item in (self.payload, *self.runtime_files)
         )
+        specs.extend(hybrid._cuda_execution_file_specs())
         return tuple(specs)
 
     def verify_files(self) -> None:
@@ -770,7 +771,8 @@ class HybridServer:
                     command,
                     cwd=str(server.parent),
                     env=hybrid._minimal_subprocess_environment(
-                        executable_directory=server.parent
+                        executable_directory=server.parent,
+                        include_cuda=True,
                     ),
                     stdin=subprocess.DEVNULL,
                     stdout=subprocess.DEVNULL,
