@@ -8,7 +8,15 @@ loopback endpoint.
 ## First run
 
 1. Double-click `START_LOCAL_CODER.cmd` at the repository root. The launcher resolves
-   its own directory and checks for Python 3.10 or newer with tkinter.
+   its own directory and invokes the exact System32 Windows PowerShell path. The
+   bootstrap does not search the caller's `PATH`: it checks PEP 514-registered Python
+   installs first, then fixed standard `py.exe` locations derived from Windows APIs.
+   It accepts only an executable below Windows, Program Files, or the current user's
+   Local AppData, outside the repository and without a reparse-point path. Every
+   inherited Python, Python-launcher, Conda, and virtual-environment selector is
+   removed, and both the tkinter probe and GUI run with `-I -E`. The installed
+   interpreter is not digest-pinned by this repository; it remains a bootstrap
+   dependency.
 2. Click **Install Client** if the Client card is not ready. The GUI runs
    `scripts/setup_local_coder.ps1`, which verifies and extracts the vendored OpenCode
    1.18.25 archive. It then rechecks the executable's exact size, SHA-256, and version.
@@ -34,8 +42,11 @@ shell requests that need approval are rejected by noninteractive OpenCode.
 
 **Work (scoped edits + tests)** is opt-in. The GUI shows a clear confirmation once per
 session. After confirmation, it internally passes `--auto` so ask-level edits and
-focused test commands can run. The pinned config continues to deny built-in network,
-external-directory, destructive Git, commit, push, and delegation operations.
+focused test commands can run. The digest-pinned config denies the built-in `webfetch`,
+`websearch`, `external_directory`, `task`, and `skill` tools. Its shell policy also
+denies a finite list of direct command patterns for Git commit/push and selected
+destructive Git/filesystem operations. Those are spelling-level patterns, not proof
+that every wrapper, alternate executable, or equivalent command is denied.
 
 That Work-mode boundary is not an operating-system sandbox. A general shell command
 can theoretically invoke Python, PowerShell, or another program to bypass tool-level
@@ -73,16 +84,26 @@ artifact identity and remains the sole owner of the model process.
 
 ## Diagnostics and recovery
 
-Use **Show diagnostics** to see raw JSON event records, client stderr, session binding,
-and actionable validation errors. Common recovery steps are:
+Use **Show diagnostics** to see parsed, sorted, and pretty-printed JSON event details
+(each rendered JSON value is truncated after 12,000 characters), client stderr,
+session binding, and actionable validation errors. Common recovery steps are:
 
 - **Client missing:** click Install Client. A public release must include the verified
-  `vendor/opencode/opencode-windows-x64-1.18.25.zip` archive.
+  `vendor/opencode/opencode-windows-x64-1.18.25.zip` archive. If it is absent, restore
+  it from the release; the GUI's scrubbed installer environment intentionally does not
+  discover an arbitrary npm from the user's `PATH`.
 - **Model missing or partial:** click Download Model; the `.download.part` file resumes.
+- **Model exists but fails size or SHA-256:** the GUI will not overwrite it. Stop the
+  model, manually quarantine or remove only the named invalid `.gguf`, then click
+  Download Model. Keep the control record and every other model-directory file intact.
 - **GPU blocked:** close other GPU programs until the card reports enough free VRAM.
 - **Runtime or Artifact blocked:** do not bypass the check. Restore the tracked release
   files from Git and refresh.
 - **Port or health failure:** stop any previous local-coder instance, then Start again.
+- **GUI was force-killed and VRAM stayed allocated:** in Task Manager's Details view,
+  end only the `llama-server.exe` whose command line points to this repository's pinned
+  `tools\llama.cpp-f8dbcd61\bin` runtime. Do not terminate an unrelated llama.cpp
+  instance. A normal GUI close already stops its owned server.
 - **Prompt failure:** inspect diagnostics, keep the model running, and send a narrower
   request. Use New Session if prior conversation context is no longer useful.
 

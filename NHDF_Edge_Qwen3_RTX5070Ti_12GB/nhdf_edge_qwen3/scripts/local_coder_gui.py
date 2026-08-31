@@ -315,6 +315,110 @@ def _require_safe_path(
     return lexical
 
 
+class _ArtifactDownloadLock:
+    """Serialize one artifact download across GUI processes.
+
+    Windows holds a no-sharing ``CreateFileW`` handle. POSIX uses a nonblocking
+    advisory lock and ``O_NOFOLLOW`` when available. The lock is cooperative on
+    POSIX; promotion still uses an atomic no-replace hard link and verifies the
+    installed bytes before returning.
+    """
+
+    def __init__(self, path: Path, *, trusted_root: Path) -> None:
+        self.path = path
+        self.trusted_root = trusted_root
+        self._windows_handle: int | None = None
+        self._posix_descriptor: int | None = None
+
+    def __enter__(self) -> "_ArtifactDownloadLock":
+        safe = _require_safe_path(
+            self.path,
+            trusted_root=self.trusted_root,
+            must_exist=False,
+        )
+        try:
+            if os.name == "nt":
+                self._windows_handle = self._open_windows(safe)
+            else:
+                import fcntl
+
+                flags = os.O_RDWR | os.O_CREAT | getattr(os, "O_CLOEXEC", 0)
+                flags |= getattr(os, "O_NOFOLLOW", 0)
+                descriptor = os.open(safe, flags, 0o600)
+                try:
+                    fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                except BaseException:
+                    os.close(descriptor)
+                    raise
+                self._posix_descriptor = descriptor
+            _require_safe_path(
+                safe,
+                trusted_root=self.trusted_root,
+                must_exist=True,
+                require_file=True,
+            )
+        except BaseException as exc:
+            self.close()
+            if isinstance(exc, GuiError):
+                raise
+            raise GuiError(
+                "Another model download is active, or its lock could not be acquired. "
+                "Wait for that download to finish and retry."
+            ) from exc
+        return self
+
+    @staticmethod
+    def _open_windows(path: Path) -> int:
+        import ctypes
+        from ctypes import wintypes
+
+        create_file = ctypes.WinDLL("kernel32", use_last_error=True).CreateFileW
+        create_file.argtypes = (
+            wintypes.LPCWSTR,
+            wintypes.DWORD,
+            wintypes.DWORD,
+            wintypes.LPVOID,
+            wintypes.DWORD,
+            wintypes.DWORD,
+            wintypes.HANDLE,
+        )
+        create_file.restype = wintypes.HANDLE
+        handle = create_file(
+            str(path),
+            0xC0000000,  # GENERIC_READ | GENERIC_WRITE
+            0,  # deliberately deny read/write/delete sharing
+            None,
+            4,  # OPEN_ALWAYS
+            0x00000080 | 0x00200000,  # NORMAL | OPEN_REPARSE_POINT
+            None,
+        )
+        invalid = ctypes.c_void_p(-1).value
+        if handle == invalid:
+            error = ctypes.get_last_error()
+            raise OSError(error, f"could not lock model download: {path}")
+        return int(handle)
+
+    def close(self) -> None:
+        if self._windows_handle is not None:
+            import ctypes
+            from ctypes import wintypes
+
+            close_handle = ctypes.WinDLL("kernel32", use_last_error=True).CloseHandle
+            close_handle.argtypes = (wintypes.HANDLE,)
+            close_handle.restype = wintypes.BOOL
+            close_handle(self._windows_handle)
+            self._windows_handle = None
+        if self._posix_descriptor is not None:
+            try:
+                os.close(self._posix_descriptor)
+            except OSError:
+                pass
+            self._posix_descriptor = None
+
+    def __exit__(self, _type: object, _value: object, _traceback: object) -> None:
+        self.close()
+
+
 def load_model_control(
     source_path: Path,
     *,
@@ -596,6 +700,116 @@ class ModelDownloader:
     ) -> Path:
         cancel_event = cancel_event or threading.Event()
         on_progress = on_progress or (lambda _progress: None)
+        if cancel_event.is_set():
+            raise DownloadCancelled("Model download was cancelled before it started.")
+        destination, _partial = self._validate_destination_layout()
+        lock_path = destination.with_name(destination.name + ".download.lock")
+        with _ArtifactDownloadLock(lock_path, trusted_root=self.trusted_root):
+            return self._download_locked(
+                cancel_event=cancel_event,
+                on_progress=on_progress,
+            )
+
+    def _promote_verified_partial(
+        self,
+        partial: Path,
+        *,
+        cancel_event: threading.Event,
+        on_progress: Callable[[DownloadProgress], None],
+        resumed: bool,
+    ) -> Path:
+        destination, expected_partial = self._validate_destination_layout()
+        if os.path.normcase(str(partial)) != os.path.normcase(str(expected_partial)):
+            raise GuiError("Internal partial-model path changed before promotion.")
+        partial = _require_safe_path(
+            partial,
+            trusted_root=self.trusted_root,
+            must_exist=True,
+            require_file=True,
+        )
+        source_identity = partial.stat()
+        if source_identity.st_size != self.control.expected_bytes:
+            raise GuiError("Verified partial model changed size before promotion.")
+        if cancel_event.is_set():
+            raise DownloadCancelled(
+                "Model download cancelled; verified partial bytes were kept."
+            )
+        self._validate_destination_layout()
+        try:
+            os.link(partial, destination, follow_symlinks=False)
+        except FileExistsError as exc:
+            raise GuiError(
+                "Model destination appeared during promotion; refusing overwrite."
+            ) from exc
+        except (NotImplementedError, OSError) as exc:
+            raise GuiError(
+                "Could not atomically install the verified model without overwriting an "
+                f"existing file: {exc}"
+            ) from exc
+
+        installed: Path | None = None
+        try:
+            installed = _require_safe_path(
+                destination,
+                trusted_root=self.trusted_root,
+                must_exist=True,
+                require_file=True,
+            )
+            if not os.path.samestat(source_identity, installed.stat()):
+                raise GuiError(
+                    "Installed model identity differs from the verified partial; refusing it."
+                )
+            self._verify_exact_file(
+                installed,
+                cancel_event=cancel_event,
+                on_progress=on_progress,
+                phase="verifying installed model",
+                resumed=resumed,
+            )
+            if cancel_event.is_set():
+                raise DownloadCancelled(
+                    "Model download cancelled; verified partial bytes were kept."
+                )
+            if not os.path.samestat(source_identity, partial.stat()):
+                raise GuiError(
+                    "Partial model identity changed during promotion; refusing cleanup."
+                )
+        except BaseException:
+            # The destination name was created by our no-replace link. Remove only that
+            # link when it still names the same source identity; otherwise leave the
+            # unexpected path untouched for explicit operator inspection.
+            try:
+                if installed is not None and os.path.samestat(
+                    source_identity, installed.stat()
+                ):
+                    installed.unlink()
+            except OSError:
+                pass
+            raise
+
+        try:
+            partial.unlink()
+        except OSError as exc:
+            raise GuiError(
+                "The model was verified and installed, but the resumable partial name "
+                f"could not be removed: {exc}"
+            ) from exc
+        on_progress(
+            DownloadProgress(
+                phase="installed",
+                completed_bytes=self.control.expected_bytes,
+                total_bytes=self.control.expected_bytes,
+                resumed=resumed,
+            )
+        )
+        return destination
+
+    def _download_locked(
+        self,
+        *,
+        cancel_event: threading.Event,
+        on_progress: Callable[[DownloadProgress], None],
+    ) -> Path:
         destination, partial = self._validate_destination_layout()
 
         if destination.exists() or destination.is_symlink():
@@ -643,13 +857,12 @@ class ModelDownloader:
                     raise DownloadCancelled(
                         "Model download cancelled; verified partial bytes were kept."
                     )
-                if destination.exists() or destination.is_symlink():
-                    raise GuiError(
-                        "Model destination appeared during verification; refusing overwrite."
-                    )
-                self._validate_destination_layout()
-                os.replace(partial, destination)
-                return destination
+                return self._promote_verified_partial(
+                    partial,
+                    cancel_event=cancel_event,
+                    on_progress=on_progress,
+                    resumed=True,
+                )
 
         if cancel_event.is_set():
             raise DownloadCancelled(
@@ -745,29 +958,12 @@ class ModelDownloader:
             raise DownloadCancelled(
                 "Model download cancelled; verified partial bytes were kept."
             )
-        self._validate_destination_layout()
-        if destination.exists() or destination.is_symlink():
-            raise GuiError(
-                "Model destination appeared during download; refusing overwrite."
-            )
-        os.replace(partial, destination)
-        installed = _require_safe_path(
-            destination,
-            trusted_root=self.trusted_root,
-            must_exist=True,
-            require_file=True,
+        return self._promote_verified_partial(
+            partial,
+            cancel_event=cancel_event,
+            on_progress=on_progress,
+            resumed=offset > 0,
         )
-        if installed.stat().st_size != self.control.expected_bytes:
-            raise GuiError("Atomically installed model changed size unexpectedly.")
-        on_progress(
-            DownloadProgress(
-                phase="installed",
-                completed_bytes=self.control.expected_bytes,
-                total_bytes=self.control.expected_bytes,
-                resumed=offset > 0,
-            )
-        )
-        return destination
 
 
 def _compact_json(value: object, *, limit: int = 12_000) -> str:
@@ -974,27 +1170,32 @@ class SubprocessClientExecutor:
         with self._lock:
             if self._process is not None and self._process.poll() is None:
                 raise GuiError("A local-coder prompt is already running.")
-        try:
-            process = subprocess.Popen(
-                list(command),
-                cwd=str(cwd),
-                env=dict(environment),
-                stdin=subprocess.DEVNULL,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                bufsize=1,
-                shell=False,
-                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
-            )
-        except OSError as exc:
-            raise GuiError(
-                f"Could not start the pinned OpenCode client: {exc}"
-            ) from exc
-        with self._lock:
+            if cancel_event.is_set():
+                raise PromptCancelled(
+                    "Prompt cancelled before the client process started."
+                )
+            try:
+                process = subprocess.Popen(
+                    list(command),
+                    cwd=str(cwd),
+                    env=dict(environment),
+                    stdin=subprocess.DEVNULL,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    bufsize=1,
+                    shell=False,
+                    creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                )
+            except OSError as exc:
+                raise GuiError(
+                    f"Could not start the pinned OpenCode client: {exc}"
+                ) from exc
             self._process = process
+        if cancel_event.is_set():
+            self.cancel()
 
         stderr_tail: list[str] = []
         reader_errors: list[BaseException] = []
@@ -1113,6 +1314,10 @@ class VerifiedSetupRunner:
         cancel_event: threading.Event,
         on_output: Callable[[str], None],
     ) -> Path:
+        if cancel_event.is_set():
+            raise OperationCancelled(
+                "Client installation was cancelled before it started."
+            )
         if os.name != "nt":
             raise GuiError("Install Client currently requires Windows PowerShell.")
         project_root = Path(self.launcher.PROJECT_ROOT)
@@ -1145,26 +1350,34 @@ class VerifiedSetupRunner:
             "-File",
             str(script),
         ]
-        try:
-            process = subprocess.Popen(
-                command,
-                cwd=str(project_root),
-                env=environment,
-                stdin=subprocess.DEVNULL,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                shell=False,
-                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
-            )
-        except OSError as exc:
-            raise GuiError(
-                f"Could not start the verified client installer: {exc}"
-            ) from exc
         with self._lock:
+            if self._process is not None and self._process.poll() is None:
+                raise GuiError("A verified client installation is already running.")
+            if cancel_event.is_set():
+                raise OperationCancelled(
+                    "Client installation was cancelled before it started."
+                )
+            try:
+                process = subprocess.Popen(
+                    command,
+                    cwd=str(project_root),
+                    env=environment,
+                    stdin=subprocess.DEVNULL,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    shell=False,
+                    creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                )
+            except OSError as exc:
+                raise GuiError(
+                    f"Could not start the verified client installer: {exc}"
+                ) from exc
             self._process = process
+        if cancel_event.is_set():
+            self.cancel()
         output_tail: list[str] = []
         try:
             if process.stdout is not None:
@@ -1178,7 +1391,7 @@ class VerifiedSetupRunner:
                         self.cancel()
             returncode = process.wait()
             if cancel_event.is_set():
-                raise GuiError(
+                raise OperationCancelled(
                     "Client installation was cancelled; run Install Client again."
                 )
             if returncode != 0:
@@ -1190,6 +1403,23 @@ class VerifiedSetupRunner:
                 )
             return self.launcher.validate_local_install(self.launcher.OPENCODE_EXE)
         finally:
+            if process.poll() is None:
+                SubprocessClientExecutor._terminate_process_tree(process)
+            try:
+                process.wait(timeout=5)
+            except (OSError, subprocess.TimeoutExpired):
+                try:
+                    process.kill()
+                    process.wait(timeout=5)
+                except (OSError, subprocess.TimeoutExpired):
+                    pass
+            if process.stdout is not None:
+                try:
+                    for _discarded in process.stdout:
+                        pass
+                except (OSError, ValueError):
+                    pass
+                process.stdout.close()
             with self._lock:
                 if self._process is process:
                     self._process = None
@@ -1423,6 +1653,18 @@ class LocalCoderController:
         return bool(context is not None and context.server.is_running)
 
     @property
+    def has_resident_context(self) -> bool:
+        """Whether Start has bound a server/repository context, even if it exited."""
+
+        with self._lock:
+            return self._context is not None
+
+    @property
+    def bound_target(self) -> Path | None:
+        with self._lock:
+            return self._context.target if self._context is not None else None
+
+    @property
     def session_id(self) -> str | None:
         with self._lock:
             return self._context.session_id if self._context is not None else None
@@ -1452,8 +1694,10 @@ class LocalCoderController:
         cancel_event: threading.Event,
         on_progress: Callable[[DownloadProgress], None],
     ) -> Path:
-        if self.is_running:
-            raise GuiError("Stop the resident model before changing its payload file.")
+        if self.has_resident_context:
+            raise GuiError(
+                "Stop the resident model context before changing its payload file."
+            )
         return self.downloader.download(
             cancel_event=cancel_event,
             on_progress=on_progress,
@@ -1472,7 +1716,10 @@ class LocalCoderController:
             if self._closing:
                 raise GuiError("The local coder is shutting down.")
             if self._context is not None:
-                raise GuiError("The resident model is already started.")
+                raise GuiError(
+                    "A resident model context already exists. Use Stop to release or reset "
+                    "it before starting again."
+                )
             if self._start_cancel is not None:
                 raise GuiError("A resident model start is already in progress.")
             self._start_cancel = cancel_event
@@ -1687,6 +1934,8 @@ class LocalCoderController:
             scoped_work_authorized = context.scoped_work_authorized
 
         try:
+            if cancel_event.is_set():
+                raise PromptCancelled("Prompt cancelled before validation started.")
             target, worktree_root = self.launcher.validate_git_target(context.target)
             if target != context.target or worktree_root != context.worktree_root:
                 raise GuiError("Selected Git target changed after the resident start.")
@@ -1696,6 +1945,10 @@ class LocalCoderController:
                 context.config,
                 context.environment,
             )
+            if cancel_event.is_set():
+                raise PromptCancelled(
+                    "Prompt cancelled before the client process started."
+                )
             run_args: list[str] = ["--format", "json"]
             if mode is InteractionMode.SCOPED_EDITS:
                 if not scoped_work_authorized:
@@ -1886,11 +2139,12 @@ class LocalCoderApp:
             side="left"
         )
         self.repo_var = tk.StringVar(value=str(PROJECT_ROOT))
-        repo_entry = ttk.Entry(repo_row, textvariable=self.repo_var)
-        repo_entry.pack(side="left", fill="x", expand=True, padx=(16, 8))
-        ttk.Button(repo_row, text="Browse…", command=self._choose_repo).pack(
-            side="left"
+        self.repo_entry = ttk.Entry(repo_row, textvariable=self.repo_var)
+        self.repo_entry.pack(side="left", fill="x", expand=True, padx=(16, 8))
+        self.repo_button = ttk.Button(
+            repo_row, text="Browse…", command=self._choose_repo
         )
+        self.repo_button.pack(side="left")
 
         cards = ttk.Frame(body, style="App.TFrame")
         cards.pack(fill="x", pady=(16, 14))
@@ -1951,12 +2205,13 @@ class LocalCoderApp:
             command=self.new_session,
         )
         self.new_session_button.pack(side="left", padx=(8, 0))
-        ttk.Button(
+        self.refresh_button = ttk.Button(
             action_row,
             text="Refresh",
             style="Action.TButton",
             command=self.refresh_readiness,
-        ).pack(side="right")
+        )
+        self.refresh_button.pack(side="right")
 
         self.progress = ttk.Progressbar(body, mode="determinate", maximum=100)
         self.progress.pack(fill="x")
@@ -2080,6 +2335,8 @@ class LocalCoderApp:
         self._update_controls()
 
     def _choose_repo(self) -> None:
+        if self.closing or self.controller.has_resident_context:
+            return
         selected = self.filedialog.askdirectory(
             title="Choose a Git repository",
             initialdir=self.repo_var.get() or str(PROJECT_ROOT),
@@ -2128,6 +2385,8 @@ class LocalCoderApp:
         *,
         success: Callable[[Any], None] | None = None,
     ) -> None:
+        if self.closing:
+            return
         if self.operation_thread is not None and self.operation_thread.is_alive():
             self.messagebox.showinfo(
                 "Local coder busy", "Finish or cancel the current operation first."
@@ -2197,13 +2456,19 @@ class LocalCoderApp:
                 cancel_event=cancel,
                 on_status=lambda message: self.events.put(("status", message)),
             ),
-            success=lambda url: self._append_transcript(
-                TranscriptEvent(
-                    kind="status",
-                    title="Resident model ready",
-                    text=f"Verified loopback endpoint: {url}/v1",
-                )
-            ),
+            success=self._resident_started,
+        )
+
+    def _resident_started(self, url: str) -> None:
+        target = self.controller.bound_target
+        if target is not None:
+            self.repo_var.set(str(target))
+        self._append_transcript(
+            TranscriptEvent(
+                kind="status",
+                title="Resident model ready",
+                text=f"Verified loopback endpoint: {url}/v1",
+            )
         )
 
     def stop_server(self) -> None:
@@ -2252,10 +2517,11 @@ class LocalCoderApp:
                 (
                     "Work mode passes OpenCode's internal --auto switch so ask-level file "
                     "edits and local test commands can run without an interactive terminal.\n\n"
-                    "The pinned config still denies destructive Git operations, pushes, "
-                    "network tools, external-directory tools, and delegation. This is not "
-                    "an operating-system sandbox; review the selected repository and request "
-                    "scope before continuing.\n\nAuthorize Work mode until New Session?"
+                    "The pinned config still denies its listed commit, push, reset --hard, "
+                    "clean, restore, built-in network, external-directory, and delegation "
+                    "operations. A general shell can bypass tool-level patterns, so this is "
+                    "not an operating-system sandbox. Review the selected repository and "
+                    "request scope before continuing.\n\nAuthorize Work mode until New Session?"
                 ),
                 icon="warning",
             )
@@ -2343,7 +2609,7 @@ class LocalCoderApp:
                     self._apply_readiness(payload)
                 elif kind == "success":
                     name, result, callback = payload
-                    if callback is not None:
+                    if callback is not None and not self.closing:
                         callback(result)
                     if not name.startswith("Verifying"):
                         self.status_var.set("Completed.")
@@ -2358,7 +2624,8 @@ class LocalCoderApp:
                     name, error = payload
                     self.status_var.set(f"{name} failed.")
                     self._append_diagnostic(f"{name}\n{error!r}\n")
-                    self.messagebox.showerror(name, str(error))
+                    if not self.closing:
+                        self.messagebox.showerror(name, str(error))
                 elif kind == "operation_done":
                     self.operation_cancel = None
                     self.progress.configure(value=0)
@@ -2371,17 +2638,48 @@ class LocalCoderApp:
     def _update_controls(self) -> None:
         busy = self.operation_thread is not None and self.operation_thread.is_alive()
         running = self.controller.is_running
+        has_context = self.controller.has_resident_context
         normal = "normal"
         disabled = "disabled"
-        self.install_button.configure(state=disabled if busy or running else normal)
-        self.download_button.configure(state=disabled if busy or running else normal)
-        self.start_button.configure(state=disabled if busy or running else normal)
-        self.stop_button.configure(state=normal if running and not busy else disabled)
+        if self.closing:
+            for control in (
+                self.repo_entry,
+                self.repo_button,
+                self.install_button,
+                self.download_button,
+                self.start_button,
+                self.stop_button,
+                self.new_session_button,
+                self.send_button,
+                self.cancel_button,
+                self.refresh_button,
+                self.mode_box,
+                self.diagnostics_button,
+            ):
+                control.configure(state=disabled)
+            self.prompt.configure(state=disabled)
+            return
+
+        repository_locked = busy or has_context
+        self.repo_entry.configure(state=disabled if repository_locked else normal)
+        self.repo_button.configure(state=disabled if repository_locked else normal)
+        self.install_button.configure(state=disabled if busy or has_context else normal)
+        self.download_button.configure(
+            state=disabled if busy or has_context else normal
+        )
+        self.start_button.configure(state=disabled if busy or has_context else normal)
+        self.stop_button.configure(
+            state=normal if has_context and not busy else disabled
+        )
         self.new_session_button.configure(
             state=normal if running and not busy else disabled
         )
         self.send_button.configure(state=normal if running and not busy else disabled)
         self.cancel_button.configure(state=normal if busy else disabled)
+        self.refresh_button.configure(state=disabled if busy else normal)
+        self.mode_box.configure(state="readonly")
+        self.prompt.configure(state=normal)
+        self.diagnostics_button.configure(state=normal)
 
     def _request_close(self) -> None:
         if self.closing:
@@ -2404,7 +2702,9 @@ class LocalCoderApp:
         thread.start()
 
         def wait_for_shutdown() -> None:
-            if thread.is_alive():
+            if thread.is_alive() or (
+                self.operation_thread is not None and self.operation_thread.is_alive()
+            ):
                 self.root.after(100, wait_for_shutdown)
             else:
                 self.root.destroy()

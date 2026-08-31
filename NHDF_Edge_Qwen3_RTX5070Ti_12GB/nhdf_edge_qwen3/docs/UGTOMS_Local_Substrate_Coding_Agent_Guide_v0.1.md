@@ -23,16 +23,31 @@ state, evidence chain, and fail-closed launch boundary. They do not claim to
 have invented IQ2_M or to have made dense weights disappear mathematically.
 
 The fresh 32K gate passed 4/4 functional prompts, offloaded 49/49 reported
-layers, allocated a 32,768-token q4 K/V cache, and peaked at 11,064 MiB on the
-12,227 MiB GPU. The measured margin was 1,163 MiB. A separate 64-token
-llama-bench run measured 885.013308 prompt tokens/s and 135.208586 generated
+layers, allocated a 32,768-token q4 K/V cache, and peaked at 11,068 MiB on the
+12,227 MiB GPU. The measured margin was 1,159 MiB. A separate 64-token
+llama-bench run measured 442.151809 prompt tokens/s and 132.502673 generated
 tokens/s. These are useful and responsive local rates, but they are not a broad
 coding-accuracy result and they are not filled-32K throughput.
 
-> Outcome classification: the full-model runtime, 32K allocation profile, and
-> one bounded general-purpose coding-agent workflow are validated on the named
-> machine. The coding result is a narrow acceptance gate, not broad parity with
-> a hosted frontier coding agent.
+**Outcome classification.** The full-model runtime, 32K allocation profile,
+and one bounded general-purpose coding-agent workflow are validated on the
+named machine. The coding result is a narrow acceptance gate, not broad parity
+with a hosted frontier coding agent.
+
+The substrate and agent outcomes must be read separately:
+
+| Evidence track | Current disposition |
+| --- | --- |
+| Direct deterministic substrate replay, without a model or agent | `PASSED` |
+| Bounded generic local coding-agent gate | `PASSED` |
+| Focused one-defect SCLP repair live gate | `PASSED`, fully disclosed repair |
+| Historical broad four-file substrate-authoring live gate | `FAILED` by timeout |
+| External-codec 32K model artifact | `VALIDATED` |
+| Legacy NHDF-native scalar codec | `QUALITY_FAILED` |
+
+This guide remains report version 0.1, but it documents the breaking v0.2
+substrate document schemas. Report version, semantic kernel/application
+version, and machine-readable schema discriminator are separate version axes.
 
 # Evidence classes used in this guide
 
@@ -61,6 +76,13 @@ substrate rather than the identity of the substrate as a whole.
 
 The authority strata are recorded in `substrate/kernel/contract.json` and
 summarized below.
+
+The semantic kernel identity remains `ugtoms-kernel-v0.1`. Its current schema
+is `ugtoms-kernel-contract-0.2`; the registry, profile, and application schemas
+are `ugtoms-profile-registry-0.2`, `ugtoms-profile-0.2`, and
+`ugtoms-application-manifest-0.2`. The reference evidence schema is
+`ugtoms-sclp-reference-evidence-0.2`. A v0.1 semantic ID or filename therefore
+does not denote the superseded 0.1 schema.
 
 | Stratum | Role | Repository record |
 | --- | --- | --- |
@@ -96,16 +118,20 @@ compact implementation is divided as follows.
   contamination policy.
 - `substrate/profiles/registry.json` selects profiles without allowing a later
   profile to replace the base silently.
-- `substrate/evidence/application_proofs.json` records bounded application
-  evidence without importing those payloads into the kernel.
+- `substrate/applications/ugtoms-sclp-reference-v0.1.json` binds the first-party
+  direct replay to exact kernel, profile, and evidence hashes. Its ten
+  selected-profile claim-coverage rows fail closed when coverage is missing,
+  unknown, duplicated, assigned to the wrong profile, false, or unresolved.
+- `substrate/evidence/application_proofs.json` separately records older bounded
+  application evidence without importing those payloads into the kernel.
 - `substrate/extensions/registry.json` starts generated extension proposals in
   `QUARANTINED` state and requires human review.
 - `src/nhdf_edge/substrate_contract.py` validates kernel/profile bindings,
   source records, application manifests, and extension proposals.
-- `src/nhdf_edge/substrate_graph.py` implements typed content-addressed
-  definitions, definition instances, explicit pipelines, deterministic hashes,
-  topological resolution, cycle rejection, and next-generation feedback
-  records.
+- `src/nhdf_edge/substrate_graph.py` implements Merkle-bound typed definitions,
+  definition-hash-bound instances, ordered step-hash-bound pipelines,
+  deterministic transitive hashes, topological resolution, cycle rejection,
+  and endpoint-hash/typed-port-bound next-generation feedback records.
 - `src/nhdf_edge/substrate_runtime.py` implements the small executable
   primitives: log-polar addressing, parity, topology, cone/circle/sphere
   fields, SCLP keys, guarded events, bounded routing, kinematics, replay, and
@@ -142,6 +168,15 @@ The profile keeps these claims separate:
 - 20/18/14/12-bit quantized state in separate contiguous and Morton 64-bit
   layouts.
 
+That list is the selectable profile's semantic envelope, not a statement that
+one application executed every mechanism. The direct reference replay executes
+the finite-cone SDF, one sphere SDF, an actual translational opposite-sign
+sweep bracket, spatial log-polar metric and kinematics, the one-bit jitter
+certificate, reflective Klein gluing, bounded BST-T/L-system-style routing,
+and both packed-key layouts. It explicitly bypasses paired-sphere support,
+circle/distributed-apex geometry, the source half-turn map, and radix-prefix
+refinement. A bypass is visible non-coverage, not inferred success.
+
 SCLP results still hand off to support, compatibility, guard, certification,
 transition, and lineage. Packed width is not by itself semantic compression;
 omitted state needs a reconstruction or error contract.
@@ -157,7 +192,7 @@ state or claim classes.
 | Golden ratio, phase | `phi_g`, `phase_phi` | Constant versus evolving angle |
 | Two log radii | `rho_jitter`, `rho_spatial` | Residual magnitude versus physical chart |
 | Two epsilons | `epsilon_jitter`, `epsilon_guard` | Jitter bound must remain below guard |
-| Four bit roles | payload, topology, jitter, branch | No shared hidden state |
+| Four bit roles | `payload_parity_bit`, `topology_parity_bit`, `jitter_control_bit`, `branch_control_bit` | No shared hidden state |
 | Two tree forms | comparison BST, radix trie | Ordering versus prefix refinement |
 | Two topology maps | half-turn, reflective Klein | Source twist versus quotient gluing |
 | Three cone claims | implicit, finite SDF, sweep | Relation, exact distance, certified bound |
@@ -179,10 +214,14 @@ separate.
 
 `src/nhdf_edge/substrate_graph.py` implements `DefinitionNode`,
 `DefinitionInstance`, `Pipeline`, `FeedbackEdge`, and `SubstrateGraph`.
-Definition content hashes cover typed domain, codomain, dependencies,
-evaluation phase, parameters, equation, units, bounds, failures, and
-provenance. Same-generation dependencies are topologically sorted; missing
-references, phase inversions, and cycles fail visibly.
+Definition content hashes cover typed domain, codomain, dependency content
+hashes, evaluation phase, parameters, equation, units, bounds, failures,
+ports, and provenance. Instances bind their referenced definition hash.
+Pipelines bind their ordered step hashes, generation, domain, codomain, and
+typed adjacency. Feedback binds source and target content hashes, named typed
+ports, and exact generation boundaries. Same-generation dependencies are
+topologically sorted; missing references, phase inversions, hash mismatches,
+port/type mismatches, generation violations, and cycles fail visibly.
 
 A feedback record is deliberately outside that same-generation DAG. It may
 connect an observable or residual at generation `n` only to an input at
@@ -207,7 +246,7 @@ The composed referential flow is:
 input/residual
   -> log-polar address and metric
   -> cell-local nondegenerate zero set
-  -> typed parity, jitter, and control predicates
+  -> payload_parity_bit, topology_parity_bit, jitter_control_bit, branch_control_bit
   -> bounded BST, L-system, or radix routing
   -> causal vector kinematics
   -> cone, sphere, SDF, sweep relation, and projection
@@ -243,10 +282,42 @@ OpenStreetMap, application games, Android code, wallets, and UI adapters remain
 outside the kernel. Learned components may rank or propose; they cannot become
 geometric, identity, or provenance authority without deterministic review.
 
-# Application evidence and the Grove correction
+# Direct and legacy application evidence
 
 These records demonstrate useful compact generation or packing. They do not
 define the kernel and their payloads are not loaded into the local model.
+
+## First-party deterministic substrate replay
+
+`examples/ugtoms_sclp_reference.py` composes the clean-room graph, runtime, and
+packing primitives directly. It is not a model-generated result. The current
+sealed records are:
+
+| Record | Bytes | SHA-256 |
+| --- | ---: | --- |
+| Kernel contract | 10,187 | `9b5fa7cff4483129e80e1c234055d57e0f79a574dcd2e131c418bbe0259448c3` |
+| Profile registry | 1,003 | `aa1d788808ebd624dcff435538cd4e63f13004bf84101956ffe4119f14b14152` |
+| Selected `nhdf-v0.1` profile | 3,429 | `f70ceec98d9029f057e7ac71187a18fe28e9108ee8e79b45130d0942a22a8625` |
+| Selected `sclp-foundational` profile | 5,258 | `4c21f81bf73c863065963b9296f053781079c19c6c2b22ac5783d7ea957e9d13` |
+| Registered, unselected `nhdf-v0.3-ccd` profile | 3,514 | `56c728d74cb03642b46ff3d3854d540590b01ddd903e747b23a2d2f2d8a36c62` |
+| Reference example | 31,380 | `9c9c2c09d5832984bbe6c4faaace9eb9fc139c6ff2c4649f718d4296b61e7120` |
+| Application manifest | 13,111 | `42451914715eb1f8be85481457068f310db644c034ae1fceeadf479d8314065c` |
+| Deterministic replay evidence | 10,154 | `1d0dc094d9649b667739fc2a202316097ae980baf5585cba22b8e33675282a42` |
+
+Two executions produced byte-for-byte identical output equal to the committed
+evidence. The application validator reports one evidence record, 12 mappings
+across all nine kernel mapping categories, and exact coverage of ten
+requirements: four declared by NHDF v0.1 and six by SCLP. The graph contains
+ten Merkle-bound definitions. Its feedback edge is typed, binds both endpoint
+hashes and named ports, and crosses exactly from generation zero to one.
+`may_propose_extensions` and `may_promote_extensions` are false.
+
+The actual 32-iteration cone sweep retains an opposite-sign interval
+`[0.702539065154, 0.702539065387]`; it makes no earliest-impact claim. The
+replay also records both packed-key round trips, a safe one-bit jitter interval,
+bounded routing and resource traces, atomic lineage, and an exact stable
+render-only display prefix. Its explicit bypasses and non-claims are part of
+the evidence, not omissions to be silently promoted.
 
 ## KC3D Grove scene: explicit packing
 
@@ -341,10 +412,12 @@ not imply useful language-model output.
 
 # Fresh 32K measurements
 
-The live artifact's fresh gate evidence is
-`packs/qwen3-30b-a3b-iq2m-32k-q4kv/evidence/functional_gate.json`; an exact
-small-file repository snapshot is retained at
-`metrics/local/ugtoms_local_agent_32k/functional_gate.json`.
+The tracked public snapshot of the fresh gate is
+`metrics/local/ugtoms_local_agent_32k/functional_gate.json`; the corresponding
+artifact record is
+`packs/qwen3-30b-a3b-iq2m-32k-q4kv/evidence/functional_gate.json`.
+The snapshot is 32,876 bytes with SHA-256
+`d56140c0a4bc97fb9fab5d3930222a494e681744570363d0f810a8e872aa01c1`.
 It combines a four-prompt functional suite, a separate allocated-32K exact
 response, complete layer-offload checks, resource monitoring, and 64-token
 prompt/decode microbenchmarks.
@@ -355,10 +428,14 @@ prompt/decode microbenchmarks.
 | Reported layer offload | 49/49 |
 | Allocated context | 32,768 tokens |
 | 32K K/V cache | 864.00 MiB q4_0 |
-| Peak device memory | 11,064 MiB |
-| Device headroom | 1,163 MiB |
-| 64-token prompt rate | 885.013308 tok/s |
-| 64-token decode rate | 135.208586 tok/s |
+| Peak device memory | 11,068 MiB |
+| Device headroom | 1,159 MiB |
+| 64-token prompt rate | 442.151809 tok/s |
+| 64-token decode rate | 132.502673 tok/s |
+
+The three prompt samples were `299.733`, `445.363`, and `581.359` tok/s,
+standard deviation `140.840844`. The three decode samples were `106.623`,
+`147.103`, and `143.782` tok/s, standard deviation `22.473620`.
 
 The four functional outputs included exact `OK`, exact `323`, a coherent
 integrity-versus-quality explanation, and a correct small Python function. The
@@ -380,10 +457,10 @@ context, output quality, and repeatability gates.
 
 ## Short-context microbenchmark
 
-At 135.208586 decode tokens/s, raw decode takes about 7.396 ms per token. In
-idealized arithmetic, 100 generated tokens take about 0.740 seconds and 300
-take about 2.219 seconds. At 885.013308 prompt tokens/s, the 64-token benchmark
-prompt takes about 0.072 seconds to process.
+At 132.502673 decode tokens/s, raw decode takes about 7.547 ms per token. In
+idealized arithmetic, 100 generated tokens take about 0.755 seconds and 300
+take about 2.264 seconds. At 442.151809 prompt tokens/s, the 64-token benchmark
+prompt takes about 0.145 seconds to process.
 
 For ordinary local coding chat, that short-context decode rate is comfortably
 interactive. Actual response time also includes model startup, request
@@ -409,7 +486,7 @@ must attend over more retained context and interact with a larger K/V working
 set.
 
 The 25.189 tok/s result is still usable for reading and editing assistance, but
-it is visibly slower than the short-context 135.208586 tok/s result. This prior
+it is visibly slower than the short-context 132.502673 tok/s result. This prior
 measurement must remain separate from the sealed fresh gate: it does not prove
 filled-32K quality, does not validate 48K, and should be promoted only when its
 raw evidence is registered alongside the artifact.
@@ -422,6 +499,9 @@ for inference.
 
 | Component | Role |
 | --- | --- |
+| `START_LOCAL_CODER.cmd` | Double-click trusted-Python desktop entry point |
+| `scripts/start_local_coder_gui.ps1` | Scrubbed Windows interpreter discovery and launch |
+| `scripts/local_coder_gui.py` | Readiness, download, resident-server, session, and prompt UI |
 | `scripts/setup_local_coder.ps1` | Installs pinned OpenCode 1.18.25 locally |
 | `scripts/start_local_coder.ps1` | PowerShell setup-and-launch wrapper |
 | `scripts/local_coder.py` | Validates target, config, contract, artifact, and runtime |
@@ -432,21 +512,23 @@ for inference.
 `scripts/local_coder.py` requires a Git working tree, verifies the pinned
 configuration and installed substrate contract, validates the exact 32K/q4
 artifact profile, starts the owned server, and stops it when the client exits.
-The isolated configuration disables cloud providers, web access, plugins, MCP,
-skills, subagents, sharing, automatic updates, commits, pushes, and destructive
-shell commands. Reads and searches are allowed; edits and ordinary shell
-commands require approval.
+The isolated configuration disables cloud providers, plugins, MCP, external
+skills, sharing, and automatic updates. Review mode leaves ordinary edits and
+shell commands at OpenCode's approval boundary. Named web, external-path,
+destructive, commit, and push spellings are denied by the application policy.
 
-This safety boundary is useful for a personal offline fallback, but it also
-means the local agent is deliberately less autonomous than a cloud coding
-agent with network, delegation, or repository-publishing authority.
+Those controls are useful scope reduction, not complete command mediation or
+an OS sandbox. Work mode adds OpenCode `--auto`, so an operation that falls
+through the finite deny rules can be approved automatically. Use Work only on
+a committed or otherwise recoverable Git worktree, inspect the diff, and do
+not treat it as equivalent to a hardened VM or container.
 
-## Measured bounded coding-agent acceptance
+## Measured bounded generic coding-agent acceptance
 
 The final recorded gate is committed as
 `metrics/local/ugtoms_local_agent_32k/coding_agent_gate.json` (original run
-directory `run-20260831T172748.453659Z`) with SHA-256
-`a110060c30816c9d8e92d9ddc0eb0ade6c07be871371dd49942cb8de47262348`.
+directory `run-20260831T210715.054259Z`), 10,074 bytes, with SHA-256
+`253fe50d62fe70ea6ca82b6a481639197e0a98988e2a8b530339ebbf518c7e6b`.
 It reported the served allocation from `meta.n_ctx` as exactly 32,768 tokens;
 the model's larger training-context metadata was deliberately not accepted as
 served capacity.
@@ -456,7 +538,7 @@ served capacity.
 | Native typed tool-call probe | passed |
 | Exact synthetic retrieval prompt | 21,997 tokens |
 | Retrieved needle | exact match |
-| Disposable repair wall time | 36.524758 s |
+| Disposable repair wall time | 30.299467 s |
 | Recorded Edit calls | exactly 1 |
 | Recorded Bash calls | exactly 1 |
 | Independent fixture tests | 4/4 passed |
@@ -465,29 +547,94 @@ served capacity.
 
 The model inspected the local fixture, diagnosed a touching-interval condition,
 changed `<` to `<=`, ran exactly `python -m pytest -q`, and stopped after the
-passing result. One earlier run was correctly rejected because the audit and
-the configured `todowrite` permission disagreed; the audit was repaired and
-that failed evidence was retained. Another run completed the code repair but
-was correctly rejected for repeated failed tool calls. The final passing run
-followed the stricter one-Edit/one-Bash contract. This observed variability is
-why the claim remains bounded.
+passing result. The revised gate permits at most one identical pre-edit pytest
+and one post-edit pytest because that is a normal coding workflow; every Bash
+call must still be the exact offline command and only one Edit is allowed. A
+preceding fresh run made the correct repair and passed 4/4, but was rejected by
+the old one-Bash cardinality rule after performing both checks. It was not
+relabelled as a pass. This observed planning variability is why the capability
+claim remains bounded.
+
+# Substrate-aware live-agent status
+
+The generic pass above must not be relabelled as substrate awareness, and the
+direct deterministic replay must not be relabelled as an agent result.
+
+The focused live gate asked the local agent to make one minimal repair to a
+declared SCLP feedback defect and then satisfy deterministic replay and
+Git-scope checks. Its 10,268-byte evidence file is
+`metrics/local/ugtoms_local_agent_32k/substrate_focused_repair/evidence.json`,
+SHA-256
+`3a0669b40de948330a451670dd61a7baf2e03771f2d8bb128354b1da830ba4b3`.
+It records `status: PASSED` and `all_gates_passed: true`.
+
+| Focused repair check | Measured result |
+| --- | ---: |
+| Agent wall time | 34.241295 s |
+| Recorded tool mutations/commands | Exactly one `edit`, exactly one `bash` |
+| Independent fixture tests | 3/3 passed |
+| Deterministic replay | Two byte-identical independent runs |
+| Changed path | Only `src/sclp_repair.py` |
+| Git HEAD | Unchanged |
+
+The fixture and prompt fully disclosed the defect, same-generation feedback
+`n` to `n`, and the exact required correction, bounded feedback `n` to `n+1`.
+The result proves instruction-following and tool compliance for that one
+specified repair. It does not prove independent diagnosis, broad substrate
+understanding, general coding competence, compression, or preventive
+sandboxing.
+
+The earlier broad four-file SCLP authoring attempt is already a measured
+negative result, not pending. On 31 August 2026 it passed server, configuration,
+32K context, and native-tool-call prechecks; verified the expected 4/4 failing
+unimplemented clean-room baseline; then timed out after 1,200 seconds while
+producing repeated oversized malformed Edit calls. Its normalized evidence
+file is 2,750 bytes, SHA-256
+`c0bab4824086ea9497dae5d82d519994cffced593d44b183d4fe392e797a69e8`,
+and records `status: FAILED` and `all_gates_passed: false` at
+`metrics/local/ugtoms_local_agent_32k/substrate_full_authoring_failure/evidence.json`.
+
+This failure does not negate the direct replay or generic-agent passes. It only
+refuses the broader autonomous-authoring claim that the timed-out run was meant
+to test.
 
 # Setup and daily use
 
 ## Prerequisites
 
-- Windows with the tested NVIDIA GPU driver and CUDA 12 runtime DLLs available
-  on `PATH`;
+- Windows with a compatible NVIDIA driver;
+- the exact pinned CUDA 12.8 runtime DLLs in the validated Program Files CUDA
+  location, with the recorded hashes;
 - Microsoft Visual C++ 2015-2022 x64 Redistributable;
-- Python 3 and Node.js/npm;
-- the verified IQ2_M model file at the workspace-relative location recorded by
-  the artifact manifest;
+- a trusted registered Python 3.10 or newer with tkinter;
 - enough free GPU memory to satisfy the artifact preflight.
 
 The large model file is intentionally not committed to the free Git repository.
-The small manifest and evidence refer to it in place.
+The GUI can download it from the pinned immutable source revision. The verified
+OpenCode archive is committed, so the normal release flow does not require
+Node.js, npm, an API key, or a hosted inference account.
 
-## One-time repository and client setup
+## End-to-end desktop use
+
+1. Double-click `START_LOCAL_CODER.cmd` in the repository root.
+2. If needed, select **Install Client**. The GUI expands the committed,
+   hash-pinned OpenCode 1.18.25 archive into `.local-coder`.
+3. If needed, select **Download Model**. The transfer can resume; final
+   promotion occurs only after the exact size and SHA-256 match.
+4. Select the Git repository you want the agent to inspect or edit.
+5. Select **Start Resident Model** once. The 32K model remains resident across
+   prompts.
+6. Use Review mode by default. Select Work only after reading and accepting
+   its per-session warning. **New Session** clears conversation state without
+   unloading the model; **Stop** releases it.
+
+The five cards expose Client, Model, Runtime + CUDA, GPU, and Artifact state.
+All five were probed READY on the target machine. Diagnostics are compacted
+and may be truncated for display; they are not a byte-for-byte raw log. Full
+GUI operation and corrupt-model recovery are documented in
+`docs/LOCAL_CODER_GUI.md`.
+
+## Command-line setup
 
 From the repository root:
 
@@ -497,9 +644,9 @@ powershell -ExecutionPolicy Bypass -File .\scripts\setup_local_coder.ps1
 nhdf-edge verify .\packs\qwen3-30b-a3b-iq2m-32k-q4kv
 ```
 
-The OpenCode install step may use npm network access once. Model inference
-after installation is local and does not consume an API budget. Hardware,
-electricity, and initial download/storage costs still exist.
+The setup script prefers the committed verified client archive. Model
+inference after installation is local and does not consume an API budget.
+Hardware, electricity, and initial download/storage costs still exist.
 
 ## First trusted interactive launch
 
@@ -512,9 +659,9 @@ python .\scripts\local_coder.py "C:\path\to\your\git-worktree"
 
 ## Routine launch
 
-After a trusted full verification, `--quick` skips rehashing the 9.87 GB
-payload while retaining the smaller manifest, runtime, configuration, contract,
-and status checks:
+`--quick` is a compatibility spelling for existing scripts. It does not skip
+or reduce verification; the same strict 9.87 GB SHA-256 remains mandatory
+after the payload is locked against concurrent replacement:
 
 ```powershell
 python .\scripts\local_coder.py --quick "C:\path\to\your\git-worktree"
@@ -540,9 +687,10 @@ python .\scripts\local_coder.py `
   --run "Inspect the repository, explain the failing test, and do not edit yet."
 ```
 
-The launcher asks for approval before edits and ordinary shell commands. It
-does not grant commit, push, destructive command, network, external-directory,
-or subagent authority.
+The normal launcher asks for approval before edits and ordinary shell commands.
+Its finite policy denies named classes of network, external-directory,
+destructive, commit, push, and delegation operations. This narrows scope but
+does not prove that every equivalent spelling is prevented.
 
 # Validation rubric
 
@@ -553,15 +701,30 @@ python -m pytest `
   tests\test_substrate_contract.py `
   tests\test_substrate_graph.py `
   tests\test_substrate_runtime.py `
+  tests\test_substrate_packing.py `
+  tests\test_substrate_reference_application.py `
   tests\test_substrate_pdf.py `
   -q
+
+nhdf-edge substrate-verify --repository .
+
+nhdf-edge substrate-validate-app `
+  .\substrate\applications\ugtoms-sclp-reference-v0.1.json `
+  --repository .
+
+python .\examples\ugtoms_sclp_reference.py --output .\reference-first.json
+python .\examples\ugtoms_sclp_reference.py --output .\reference-second.json
 ```
 
-These tests check typed contracts, profile selection, content hashes,
+These tests check typed contracts, exact selected-profile evidence coverage,
+Merkle and transitive content hashes, typed ports and generation boundaries,
 topological ordering, cycle rejection, next-generation feedback, symbol
-separation, geometry/kinematics reference behavior, deterministic PDF output,
-pypdf text validation, and Poppler page rendering. Passing them establishes
-the implemented invariants, not broad scientific or application validity.
+separation, geometry/kinematics behavior, compact packing, byte-identical
+reference replay, deterministic PDF output, pypdf text validation, and Poppler
+page rendering. The application validator must report 12 mappings and ten
+covered profile requirements. Passing these checks establishes implemented
+invariants and one direct replay, not a live-agent result or broad scientific
+or application validity.
 
 ## Runtime acceptance
 
@@ -574,8 +737,8 @@ the implemented invariants, not broad scientific or application validity.
 | Resource safety | At least 512 MiB reserve | Peak exceeds declared limit |
 | Throughput | At least 80 decode tok/s in fresh gate | Mean below threshold |
 
-The current recorded result passes this runtime rubric with 1,163 MiB headroom
-and 135.208586 decode tokens/s.
+The current recorded result passes this runtime rubric with 1,159 MiB headroom
+and 132.502673 decode tokens/s.
 
 ## Coding-agent acceptance
 
@@ -632,17 +795,26 @@ it does not establish repository-scale coding accuracy.
   short-context speed. It must not be called dense-30B throughput.
 - q4 K/V cache quality has not been broadly compared with q8 K/V or BF16 on a
   long-context benchmark.
-- Other desktop GPU users can consume the 1,163 MiB margin. The launcher must
+- Other desktop GPU users can consume the 1,159 MiB margin. The launcher must
   continue to fail closed when the free-memory contract is not met.
 - Sustained thermals, battery behavior, power limits, and many-hour stability
   are not established.
 - The zero-copy artifact is workspace-relative and not self-contained. Moving
   the model or repository can invalidate its path/provenance contract.
-- The local agent intentionally lacks web, cloud accounts, MCP, plugins,
-  subagents, external-directory access, commits, and pushes. Some normal coding
-  workflows therefore require manual coordination.
+- The default configuration omits cloud accounts, MCP, plugins, and subagents;
+  its finite policy denies named web, external-directory, commit, and push
+  patterns. Work mode is not a complete command sandbox, so safe use still
+  requires a recoverable worktree and diff review.
 - Application proofs such as Grove and KSGP demonstrate bounded packing or
   reconstruction. They do not prove arbitrary semantic compression.
+- The direct substrate replay is deterministic code-level evidence, not a live
+  language-model or coding-agent measurement. Its paired-sphere, circle/apex,
+  half-turn, and radix mechanisms are explicit bypasses.
+- The focused one-defect live repair passed, but the fixture and prompt fully
+  disclosed the answer. It proves compliant execution, not independent
+  diagnosis or broad substrate understanding.
+- The retained broad substrate-authoring live attempt failed after its
+  1,200-second timeout. It must not be presented as a pending or passing gate.
 - A generated report or PDF is evidence packaging, not validation.
 
 # Future hypotheses and next measurements
@@ -653,14 +825,17 @@ These items are proposals, not current capabilities.
    32K, with retrieval, code understanding, decode speed, and failure cases.
 2. Revisit 48K only if repeated resource measurements preserve the reserve and
    filled-context output remains useful.
-3. Expand the local coding gate across larger repositories, multiple languages,
-   multi-file edits, and adversarial tests while retaining an explicit manual
-   authority boundary.
-4. Continue native substrate-codec research only behind numeric distortion and
+3. Design a separately bounded substrate-diagnosis gate that does not disclose
+   the exact repair in advance. Retain both the focused compliance pass and the
+   broad timeout rather than overwriting either result.
+4. Expand the generic local coding gate across larger repositories, multiple
+   languages, multi-file edits, and adversarial tests while retaining an
+   explicit manual authority boundary.
+5. Continue native substrate-codec research only behind numeric distortion and
    full-model output gates; do not promote a codec merely because it fits.
-5. Develop the quarantined spatial evidence profile as definition, relation,
+6. Develop the quarantined spatial evidence profile as definition, relation,
    event, lineage, and spatial-index graphs with stable identity and replay.
-6. Test whether substrate-addressed sparse state improves retrieval or tool
+7. Test whether substrate-addressed sparse state improves retrieval or tool
    selection. Learned ranking may propose; deterministic geometry and
    provenance must remain authoritative.
 
@@ -677,6 +852,10 @@ These items are proposals, not current capabilities.
 | Referential graph | `src/nhdf_edge/substrate_graph.py` |
 | Runtime primitives | `src/nhdf_edge/substrate_runtime.py` |
 | Compact packing | `src/nhdf_edge/substrate_packing.py` |
+| Direct reference example | `examples/ugtoms_sclp_reference.py` |
+| Direct reference manifest and evidence | `substrate/applications/ugtoms-sclp-reference-v0.1.json`, `substrate/applications/evidence/ugtoms-sclp-reference-v0.1.json` |
+| Focused repair gate and passing evidence | `scripts/benchmark_substrate_repair.py`, `metrics/local/ugtoms_local_agent_32k/substrate_focused_repair` |
+| Historical broad-authoring failure | `metrics/local/ugtoms_local_agent_32k/substrate_full_authoring_failure` |
 | PDF pipeline | `src/nhdf_edge/substrate_pdf.py`, `scripts/render_substrate_pdf.py` |
 | 32K artifact | `packs/qwen3-30b-a3b-iq2m-32k-q4kv` |
 | Local launcher | `scripts/local_coder.py`, `scripts/start_local_coder.ps1` |
@@ -693,9 +872,12 @@ profile fits with measured headroom and short-context decode is fast enough for
 comfortable local interaction. A prior long-context run remained usable at a
 slower 25.189 tok/s.
 
-The substrate contribution is the explicit deterministic contract around
-state, operators, profiles, provenance, evidence, bounded execution, and
-next-generation closure. The tensor compression success currently comes from
-the external IQ2_M codec. The spatial graph, an NHDF-native codec, filled-32K
-quality, stable 48K operation, and broad general-purpose coding equivalence all
-remain future work until separately measured.
+The substrate contribution is a deterministic contract for state, operators,
+profiles, provenance, evidence, bounded execution, and next-generation closure.
+Its first-party replay is byte-identical with 12 mappings across nine categories
+and all ten selected NHDF v0.1 plus SCLP requirements covered; that is substrate
+execution, not model compression. The disclosed focused repair proves compliant
+execution, not independent diagnosis. IQ2_M supplies today's tensor compression.
+The spatial graph, an NHDF-native codec, filled-32K quality, stable 48K, and broad
+coding equivalence remain future work; broad substrate authoring remains a
+recorded failure.

@@ -1,0 +1,266 @@
+{
+  "agent_gate": {
+    "command_arguments": [
+      "--pure",
+      "run",
+      "--auto",
+      "--model",
+      "local-runtime/local-qwen3-30b-a3b",
+      "--agent",
+      "local-coder",
+      "--format",
+      "json"
+    ],
+    "elapsed_seconds": 34.241295499989064,
+    "isolated_environment": {
+      "canonical_digest_pinned_contract_installed": true,
+      "canonical_pinned_config_validated": true,
+      "credential_like_environment_inherited": false,
+      "parent_environment_reduced_to_operational_allowlist": true,
+      "plugins_mcp_skills_project_config_autoupdate_share_telemetry_disabled": true
+    },
+    "json_event_count": 34,
+    "opencode_sha256_rechecked_after_run": true,
+    "opencode_version": "1.18.25",
+    "passed": true,
+    "prompt_sha256": "5f55c81a04d3418d2327ec9a50a999f45909b38455b37c96ecdbbc07bd590490",
+    "tool_audit": {
+      "audit_timing": "POST_RUN_RETROSPECTIVE",
+      "exact_bash_calls": 1,
+      "exact_edit_calls": 1,
+      "passed": true,
+      "preventive_sandbox": false,
+      "pytest_was_final_recorded_tool": true,
+      "recorded_bash_command_was_exact": true,
+      "recorded_legacy_or_archive_access": false,
+      "recorded_network_package_git_commands": false,
+      "recorded_paths_and_patterns_within_fixture": true,
+      "required_categories": {
+        "bash": true,
+        "edit": true,
+        "read": true,
+        "search": true
+      },
+      "required_read_paths": [
+        "README.md",
+        "src/sclp_repair.py",
+        "substrate/kernel/contract.json",
+        "substrate/profiles/registry.json",
+        "substrate/profiles/sclp-foundational.json",
+        "tests/test_sclp_repair.py"
+      ],
+      "scope_note": "Recorded tool arguments are audited after execution; this is evidence, not a preventive process, filesystem, or network sandbox.",
+      "tool_event_count": 17,
+      "tool_names_in_order": [
+        "glob",
+        "glob",
+        "glob",
+        "glob",
+        "glob",
+        "glob",
+        "read",
+        "read",
+        "read",
+        "read",
+        "read",
+        "read",
+        "todowrite",
+        "grep",
+        "grep",
+        "edit",
+        "bash"
+      ]
+    }
+  },
+  "all_gates_passed": true,
+  "config_gate": {
+    "mcp_disabled": true,
+    "model": "local-runtime/local-qwen3-30b-a3b",
+    "only_canonical_placeholder_resolved": true,
+    "passed": true,
+    "plugins_disabled": true,
+    "provider": "local-runtime",
+    "resolved_provider_endpoint": "http://127.0.0.1:18080/v1",
+    "source_base_url_placeholder": "{env:UGTOMS_LOCAL_CODER_BASE_URL}/v1"
+  },
+  "finished_at_utc": "2026-08-31T21:08:45.608020Z",
+  "fixture": {
+    "baseline_failure_was_exact_declared_defect": true,
+    "baseline_pytest_returncode": 1,
+    "contract_profile_binding": {
+      "automatic_promotion": false,
+      "kernel_id": "ugtoms-kernel-v0.1",
+      "kernel_sha256": "9b5fa7cff4483129e80e1c234055d57e0f79a574dcd2e131c418bbe0259448c3",
+      "profile_id": "sclp-foundational",
+      "profile_sha256": "4c21f81bf73c863065963b9296f053781079c19c6c2b22ac5783d7ea957e9d13"
+    },
+    "copied_sources": [
+      {
+        "bytes": 52211,
+        "destination": "src/nhdf_edge/substrate_graph.py",
+        "sha256": "e966840cfd9d6dda9ec97b1746521a82b24b9a7927f2471c32fd4270d53affb7",
+        "source": "NHDF_Edge_Qwen3_RTX5070Ti_12GB/nhdf_edge_qwen3/src/nhdf_edge/substrate_graph.py"
+      },
+      {
+        "bytes": 44429,
+        "destination": "src/nhdf_edge/substrate_runtime.py",
+        "sha256": "c7c3334f6c68569bb580960e2488ed7fb474731ae02a73cffa30402af9dd14ea",
+        "source": "NHDF_Edge_Qwen3_RTX5070Ti_12GB/nhdf_edge_qwen3/src/nhdf_edge/substrate_runtime.py"
+      },
+      {
+        "bytes": 10187,
+        "destination": "substrate/kernel/contract.json",
+        "sha256": "9b5fa7cff4483129e80e1c234055d57e0f79a574dcd2e131c418bbe0259448c3",
+        "source": "NHDF_Edge_Qwen3_RTX5070Ti_12GB/nhdf_edge_qwen3/substrate/kernel/contract.json"
+      },
+      {
+        "bytes": 1003,
+        "destination": "substrate/profiles/registry.json",
+        "sha256": "aa1d788808ebd624dcff435538cd4e63f13004bf84101956ffe4119f14b14152",
+        "source": "NHDF_Edge_Qwen3_RTX5070Ti_12GB/nhdf_edge_qwen3/substrate/profiles/registry.json"
+      },
+      {
+        "bytes": 5258,
+        "destination": "substrate/profiles/sclp-foundational.json",
+        "sha256": "4c21f81bf73c863065963b9296f053781079c19c6c2b22ac5783d7ea957e9d13",
+        "source": "NHDF_Edge_Qwen3_RTX5070Ti_12GB/nhdf_edge_qwen3/substrate/profiles/sclp-foundational.json"
+      }
+    ],
+    "defect": {
+      "broken": "n -> n",
+      "defect_count": 1,
+      "kind": "same_generation_feedback",
+      "required": "n -> n + 1"
+    },
+    "final_pytest": {
+      "passed": true,
+      "passed_tests": 3,
+      "result": "3/3",
+      "returncode": 0,
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout_sha256": "5b581b8146eb94de21ac38ae754c4decbb7c1318ce5c8295dbbc36c62bd0ed63",
+      "total_tests": 3
+    },
+    "git_gate": {
+      "changed_paths": [
+        "src/sclp_repair.py"
+      ],
+      "exact_head_unchanged": true,
+      "exact_one_line_semantic_repair": true,
+      "exactly_one_allowed_source_changed": true,
+      "final_head": "2eb1ff96953477260896ff33b0d403adb7ca671f",
+      "immutable_file_hashes_unchanged": true,
+      "initial_head": "2eb1ff96953477260896ff33b0d403adb7ca671f",
+      "passed": true,
+      "staged_changes": false,
+      "untracked_or_ignored_extra_files": false
+    },
+    "immutable_sha256_before": {
+      ".gitignore": "599e8d09a18b6bac6f70ed12bf96f67e49c4d992ee2601bc173d92fbcb64b11d",
+      "README.md": "19eaaf8ac7ea6f0b900c35329152583adf60f02e4695ba48387bce583cac880c",
+      "pytest.ini": "528e4b9ecd6fb41efe907001b4384778fef4130cdd114e341323515754b7f2ea",
+      "src/nhdf_edge/__init__.py": "6a46d592290c7d37f5f80e3b94bdc413d9331c8dd1761b0c01fb2370796adfa6",
+      "src/nhdf_edge/substrate_graph.py": "e966840cfd9d6dda9ec97b1746521a82b24b9a7927f2471c32fd4270d53affb7",
+      "src/nhdf_edge/substrate_runtime.py": "c7c3334f6c68569bb580960e2488ed7fb474731ae02a73cffa30402af9dd14ea",
+      "substrate/kernel/contract.json": "9b5fa7cff4483129e80e1c234055d57e0f79a574dcd2e131c418bbe0259448c3",
+      "substrate/profiles/registry.json": "aa1d788808ebd624dcff435538cd4e63f13004bf84101956ffe4119f14b14152",
+      "substrate/profiles/sclp-foundational.json": "4c21f81bf73c863065963b9296f053781079c19c6c2b22ac5783d7ea957e9d13",
+      "tests/test_sclp_repair.py": "ea8684339db08337a738c7a061ee485637556177156a5d524a92b25bca97da65"
+    },
+    "initial_head": "2eb1ff96953477260896ff33b0d403adb7ca671f",
+    "legacy_or_archive_material_loaded": false,
+    "replay_gate": {
+      "byte_deterministic_twice": true,
+      "definition_count": 2,
+      "exact_key_widths": {
+        "phi": 12,
+        "rho": 20,
+        "theta": 18,
+        "time": 14
+      },
+      "explicit_next_generation_feedback": true,
+      "generations": 4,
+      "graph_content_hash": "sha256:25fb9d1ff5072a8b1710c0434e5c422e808389f5e238aac632fdd683a8e1355a",
+      "independent_runs": 2,
+      "passed": true,
+      "replay_sha256": "a4a04925e3970aed530492fdb75eb4ef7321801a48adc335b70485261746adf5"
+    },
+    "source_sha256_before": "8ffd05c604dbd9e911cab11eb6683199126e3002092b6a304b13ac4f4c47cd76",
+    "tracked_files": [
+      ".gitignore",
+      "README.md",
+      "pytest.ini",
+      "src/nhdf_edge/__init__.py",
+      "src/nhdf_edge/substrate_graph.py",
+      "src/nhdf_edge/substrate_runtime.py",
+      "src/sclp_repair.py",
+      "substrate/kernel/contract.json",
+      "substrate/profiles/registry.json",
+      "substrate/profiles/sclp-foundational.json",
+      "tests/test_sclp_repair.py"
+    ]
+  },
+  "format": "ugtoms-substrate-repair-gate-0.1",
+  "inputs": {
+    "config_path": "<PROJECT_ROOT>/configs/opencode_nhdf_local.json",
+    "config_sha256": "66a6e5adcc98fc80921bc4e0386f341c80a4f824597e26309b8499344f440ab1",
+    "expected_opencode_sha256": "ef06e41a35795066e95acde276a42fbbf85d7a683c2787f6a19ed20bcde9b6ff",
+    "model": "local-runtime/local-qwen3-30b-a3b",
+    "opencode_executable": "<PROJECT_ROOT>/.local-coder/node_modules/opencode-ai/bin/opencode.exe",
+    "opencode_executable_sha256": "ef06e41a35795066e95acde276a42fbbf85d7a683c2787f6a19ed20bcde9b6ff",
+    "output_directory": "<PROJECT_ROOT>/metrics/local/substrate_coding_agent_32k/run-20260831T210805.060334Z",
+    "server_url": "http://127.0.0.1:18080"
+  },
+  "model_gate": {
+    "alias": "local-qwen3-30b-a3b",
+    "context_field": "meta.n_ctx",
+    "minimum_context_tokens": 32768,
+    "passed": true,
+    "reported_context_tokens": 32768,
+    "request": {
+      "elapsed_seconds": 0.01697149997926317,
+      "request_bytes": 0,
+      "response_bytes": 638,
+      "status": 200
+    }
+  },
+  "native_tool_call_gate": {
+    "arguments": {
+      "label": "gate-ready",
+      "nonce": 20260831
+    },
+    "arguments_were_json_string": true,
+    "finish_reason": "tool_calls",
+    "function": "record_local_probe",
+    "passed": true,
+    "request": {
+      "elapsed_seconds": 0.5557367999863345,
+      "request_bytes": 768,
+      "response_bytes": 808,
+      "status": 200
+    }
+  },
+  "scope": {
+    "answer_fully_disclosed": true,
+    "classification": "focused_substrate_semantic_repair_acceptance_gate",
+    "does_not_prove": [
+      "independent diagnosis or broad substrate understanding",
+      "broad substrate authoring or broad coding competence",
+      "NHDF, model, tensor, or semantic compression",
+      "general intelligence, production safety, or universal substrate correctness",
+      "preventive process, filesystem, or network sandboxing"
+    ],
+    "independent_diagnosis_demonstrated": false,
+    "legacy_or_archive_material_loaded": false,
+    "post_run_audits_are_retrospective": true,
+    "preventive_sandbox": false,
+    "proves": [
+      "one local agent repaired the one declared n-to-n feedback defect",
+      "the repaired program built a content-addressed graph with explicit n-to-n+1 feedback",
+      "the repaired deterministic SCLP replay passed twice",
+      "only one declared source file changed and exact Git HEAD stayed unchanged"
+    ]
+  },
+  "started_at_utc": "2026-08-31T21:08:05.061530Z",
+  "status": "PASSED"
+}

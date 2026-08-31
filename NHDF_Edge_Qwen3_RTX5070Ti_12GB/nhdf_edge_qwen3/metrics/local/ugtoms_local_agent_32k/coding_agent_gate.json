@@ -7,23 +7,23 @@
     "passed": true,
     "plugins_disabled": true,
     "provider": "local-runtime",
-    "resolved_provider_endpoint": "http://127.0.0.1:18084/v1",
+    "resolved_provider_endpoint": "http://127.0.0.1:18080/v1",
     "source_base_url_placeholder": "{env:UGTOMS_LOCAL_CODER_BASE_URL}/v1"
   },
-  "finished_at_utc": "2026-08-31T17:28:42.125678Z",
+  "finished_at_utc": "2026-08-31T21:07:52.051898Z",
   "format": "ugtoms-local-coder-agent-gate-0.2",
   "inputs": {
-    "config_path": "C:\\UGTOMS(Universal Geometric Topological Open Modular Substrate)\\NHDF_Edge_Qwen3_RTX5070Ti_12GB\\nhdf_edge_qwen3\\configs\\opencode_nhdf_local.json",
+    "config_path": "<PROJECT_ROOT>/configs/opencode_nhdf_local.json",
     "config_sha256": "66a6e5adcc98fc80921bc4e0386f341c80a4f824597e26309b8499344f440ab1",
-    "opencode_executable": "C:\\UGTOMS(Universal Geometric Topological Open Modular Substrate)\\NHDF_Edge_Qwen3_RTX5070Ti_12GB\\nhdf_edge_qwen3\\.local-coder\\node_modules\\opencode-ai\\bin\\opencode.exe",
+    "opencode_executable": "<PROJECT_ROOT>/.local-coder/node_modules/opencode-ai/bin/opencode.exe",
     "opencode_executable_sha256": "ef06e41a35795066e95acde276a42fbbf85d7a683c2787f6a19ed20bcde9b6ff",
-    "output_directory": "C:\\UGTOMS(Universal Geometric Topological Open Modular Substrate)\\NHDF_Edge_Qwen3_RTX5070Ti_12GB\\nhdf_edge_qwen3\\metrics\\local\\coding_agent_32k\\run-20260831T172748.453659Z",
-    "server_url": "http://127.0.0.1:18084"
+    "output_directory": "<PROJECT_ROOT>/metrics/local/coding_agent_32k/run-20260831T210715.054259Z",
+    "server_url": "http://127.0.0.1:18080"
   },
   "long_context_gate": {
     "api_usage_prompt_tokens": 21997,
     "apply_template": {
-      "elapsed_seconds": 0.020091800019145012,
+      "elapsed_seconds": 0.04376169998431578,
       "request_bytes": 80155,
       "response_bytes": 80179,
       "status": 200
@@ -85,9 +85,9 @@
     "formatted_prompt_characters": 79359,
     "formatted_prompt_sha256": "03a915bbd0904875d60c92e02466928ee4602631416e0ec906947772953013f6",
     "inference_request": {
-      "elapsed_seconds": 10.503647200006526,
+      "elapsed_seconds": 1.122364499984542,
       "request_bytes": 80248,
-      "response_bytes": 669,
+      "response_bytes": 660,
       "status": 200
     },
     "message_characters": 79279,
@@ -98,12 +98,11 @@
     "passed": true,
     "record_count": 798,
     "response_content": "UGTOMS_LOCAL_GATE_KEY_7F3A91C2D8B4",
-    "response_id": "chatcmpl-Epm1EVCI6xJgljxYT4IIidMMePuv3WfE",
     "response_model": "local-qwen3-30b-a3b",
     "synthetic_context_sha256": "93a0644889e54f8bbd958d346752694bc7ab6e332a8ca561819a81f555d37f87",
     "target_tokens": 22000,
     "tokenize": {
-      "elapsed_seconds": 0.04001789999892935,
+      "elapsed_seconds": 0.05028389999642968,
       "request_bytes": 80241,
       "response_bytes": 90589,
       "status": 200
@@ -121,7 +120,7 @@
           "aliases": [
             "local-qwen3-30b-a3b"
           ],
-          "created": 1788197268,
+          "created": 1788210435,
           "id": "local-qwen3-30b-a3b",
           "meta": {
             "ftype": "IQ2_M - 2.7 bpw",
@@ -170,7 +169,7 @@
     },
     "reported_context_tokens": 32768,
     "request": {
-      "elapsed_seconds": 0.027047500014305115,
+      "elapsed_seconds": 0.023232000006828457,
       "request_bytes": 0,
       "response_bytes": 638,
       "status": 200
@@ -186,18 +185,17 @@
     "function": "record_local_probe",
     "passed": true,
     "request": {
-      "elapsed_seconds": 1.091372599999886,
+      "elapsed_seconds": 0.5792191000073217,
       "request_bytes": 768,
-      "response_bytes": 823,
+      "response_bytes": 810,
       "status": 200
     },
-    "response_id": "chatcmpl-BSO7WIGUh9AxGv751j0PssxVno5oSBxE",
     "response_model": "local-qwen3-30b-a3b",
     "usage": {
       "completion_tokens": 35,
       "prompt_tokens": 212,
       "prompt_tokens_details": {
-        "cached_tokens": 0
+        "cached_tokens": 211
       },
       "total_tokens": 247
     }
@@ -214,23 +212,26 @@
       "--format",
       "json"
     ],
-    "elapsed_seconds": 36.52475820001564,
+    "elapsed_seconds": 30.299466700002085,
     "fixture": {
       "baseline_pytest": {
         "passed": false,
         "returncode": 1,
         "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-        "stdout_sha256": "0e0a1e213c87d45abb043b687962ab6efbd1f472e832aac640612460cc95ee7c"
+        "stdout_sha256": "57af2dbf7aa3f4c17830d0dd45e0381504b3f84e9d4f5bfe32259f136359eca1"
       },
       "expected_source": "src/intervals.py",
       "expected_source_sha256_after": "00b2350bbd5265a015727ede196cc83c04d7fc8d8af313d70deae925e4385a6b",
       "expected_source_sha256_before": "8f4f698e7ae95f3c70a49d1ac413544de128513b1beb3568070f47908a0dacdf",
-      "final_head": "c53cf99dc32ac4807b7240fb20d9da1d3dfd4114",
+      "final_head": "a4472a54d1ad043e5eee8cd3595964cfe473a9da",
       "final_pytest": {
         "passed": true,
+        "passed_tests": 4,
+        "result": "4/4",
         "returncode": 0,
         "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-        "stdout_sha256": "c1a72c33e1f82f8c00cb85606b89b2e52ce9d6ef6159d8c7a4febd251bc6db68"
+        "stdout_sha256": "c1a72c33e1f82f8c00cb85606b89b2e52ce9d6ef6159d8c7a4febd251bc6db68",
+        "total_tests": 4
       },
       "git_status": [
         {
@@ -239,7 +240,7 @@
         }
       ],
       "head_unchanged": true,
-      "initial_head": "c53cf99dc32ac4807b7240fb20d9da1d3dfd4114",
+      "initial_head": "a4472a54d1ad043e5eee8cd3595964cfe473a9da",
       "only_expected_source_changed": true,
       "tests_sha256_before": "e0374215740ed1c798d9d55535c2cfcf68b61f198c676c451804ffb2d4114c75",
       "tracked_files": [
@@ -262,13 +263,13 @@
       "xdg_data": true,
       "xdg_state": true
     },
-    "json_event_count": 28,
+    "json_event_count": 29,
     "passed": true,
     "preventive_sandbox": false,
-    "prompt_sha256": "230e31f277cfa269bd74c7d72e0861f6ae83b62a56a40da9db896ad82f926d33",
+    "prompt_sha256": "47ad64647990fc3d70456d6781929b4d862bd5e1d789097f1cf303e641c0be4b",
     "returncode": 0,
     "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    "stdout_sha256": "af46343e027d026687b229e3e4717d6ec525321932beeb5fc35bb3471506c8af",
+    "stdout_sha256": "6191f715bea5e7c969dc0ee89e5bfdfbfba5235ea035ebb8c9a75e9f587eee4b",
     "tool_gate": {
       "allowed_tool_names": [
         "bash",
@@ -279,8 +280,9 @@
         "todowrite"
       ],
       "audit_timing": "POST_RUN_RETROSPECTIVE",
-      "exact_bash_calls": 1,
+      "bounded_bash_calls": 1,
       "exact_edit_calls": 1,
+      "maximum_bash_calls": 2,
       "passed": true,
       "preventive_sandbox": false,
       "recorded_bash_command_was_exact": true,
@@ -292,13 +294,19 @@
         "search": true
       },
       "scope_note": "This result audits recorded tool events after execution; it is evidence, not a preventive process, filesystem, or network sandbox.",
-      "tool_event_count": 10,
+      "tool_event_count": 16,
       "tool_names_in_order": [
-        "glob",
-        "glob",
-        "glob",
-        "todowrite",
         "read",
+        "glob",
+        "glob",
+        "read",
+        "read",
+        "todowrite",
+        "grep",
+        "grep",
+        "grep",
+        "grep",
+        "todowrite",
         "read",
         "read",
         "todowrite",
@@ -326,6 +334,6 @@
       "one disposable Python repository repair with required local tools"
     ]
   },
-  "started_at_utc": "2026-08-31T17:27:48.455398Z",
+  "started_at_utc": "2026-08-31T21:07:15.055774Z",
   "status": "PASSED"
 }

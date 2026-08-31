@@ -13,6 +13,7 @@ benchmarks/local/
 *.bin
 tmp/
 tools/
+output/pdf/*-pages/
 metrics/local/*.ncu-rep
 metrics/local/coding_benchmark/
 metrics/local/coding_agent_32k/

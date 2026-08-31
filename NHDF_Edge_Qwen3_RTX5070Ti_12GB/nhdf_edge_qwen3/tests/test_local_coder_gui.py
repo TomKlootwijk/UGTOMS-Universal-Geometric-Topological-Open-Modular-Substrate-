@@ -284,6 +284,67 @@ def test_downloader_rejects_symlink_partial(gui, tmp_path: Path) -> None:
     assert outside.read_bytes() == b"do not touch"
 
 
+def test_downloader_serializes_competing_artifact_downloads(
+    gui, tmp_path: Path
+) -> None:
+    payload = b"serialized-model"
+    control = _load_control(gui, tmp_path, payload)
+    lock_path = control.destination.with_name(
+        control.destination.name + ".download.lock"
+    )
+
+    with gui._ArtifactDownloadLock(lock_path, trusted_root=tmp_path):
+        with pytest.raises(gui.GuiError, match="Another model download is active"):
+            with gui._ArtifactDownloadLock(lock_path, trusted_root=tmp_path):
+                pass
+
+
+def test_downloader_atomic_no_replace_preserves_competing_destination(
+    gui, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    payload = b"verified-model"
+    control = _load_control(gui, tmp_path, payload)
+    actual_link = gui.os.link
+
+    def competing_link(source, destination, **kwargs):
+        Path(destination).write_bytes(b"peer-owned")
+        return actual_link(source, destination, **kwargs)
+
+    monkeypatch.setattr(gui.os, "link", competing_link)
+    with pytest.raises(gui.GuiError, match="refusing overwrite"):
+        gui.ModelDownloader(
+            control,
+            trusted_root=tmp_path,
+            opener=_FakeOpener(_FakeResponse(payload, status=200)),
+        ).download()
+
+    partial = control.destination.with_name(control.destination.name + ".download.part")
+    assert control.destination.read_bytes() == b"peer-owned"
+    assert partial.read_bytes() == payload
+
+
+def test_downloader_revalidates_full_installed_hash_after_link(
+    gui, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    payload = b"verified-model"
+    control = _load_control(gui, tmp_path, payload)
+    actual_link = gui.os.link
+
+    def mutate_then_link(source, destination, **kwargs):
+        Path(source).write_bytes(b"tampered-model")
+        return actual_link(source, destination, **kwargs)
+
+    monkeypatch.setattr(gui.os, "link", mutate_then_link)
+    with pytest.raises(gui.GuiError, match="SHA-256 mismatch"):
+        gui.ModelDownloader(
+            control,
+            trusted_root=tmp_path,
+            opener=_FakeOpener(_FakeResponse(payload, status=200)),
+        ).download()
+
+    assert not control.destination.exists()
+
+
 def test_parser_renders_text_tools_and_session_ids(gui) -> None:
     parser = gui.OpenCodeEventParser()
     text_event = parser.parse_line(
@@ -468,14 +529,154 @@ def test_setup_cancel_terminates_owned_process_tree(
     assert process.waited is True
 
 
-def test_root_entrypoint_resolves_self_and_prefers_python_before_py() -> None:
+def test_setup_pre_spawn_cancel_never_launches_process(
+    gui, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cancel = threading.Event()
+    cancel.set()
+    monkeypatch.setattr(
+        gui.subprocess,
+        "Popen",
+        lambda *_args, **_kwargs: pytest.fail("cancelled setup must not spawn"),
+    )
+    runner = gui.VerifiedSetupRunner.__new__(gui.VerifiedSetupRunner)
+
+    with pytest.raises(gui.OperationCancelled, match="before it started"):
+        runner.run(cancel_event=cancel, on_output=lambda _line: None)
+
+
+def test_setup_callback_failure_terminates_and_drains_owned_process(
+    gui, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    class Pipe:
+        def __init__(self) -> None:
+            self.closed = False
+
+        def __iter__(self):
+            return iter(["installer output\n"])
+
+        def close(self) -> None:
+            self.closed = True
+
+    class Process:
+        def __init__(self) -> None:
+            self.stdout = Pipe()
+            self.returncode = None
+
+        def poll(self):
+            return self.returncode
+
+        def wait(self, timeout=None):
+            del timeout
+            return self.returncode
+
+        def kill(self):
+            self.returncode = -9
+
+    process = Process()
+    powershell = tmp_path / "powershell.exe"
+    powershell.write_bytes(b"stub")
+    launcher = SimpleNamespace(
+        PROJECT_ROOT=PROJECT_ROOT,
+        LOCAL_STATE_ROOT=tmp_path,
+        OPENCODE_EXE=tmp_path / "opencode.exe",
+        hybrid=SimpleNamespace(
+            _minimal_subprocess_environment=lambda **_kwargs: {},
+        ),
+        _ensure_safe_project_directory=lambda path: path.mkdir(
+            parents=True, exist_ok=True
+        ),
+        validate_local_install=lambda path: path,
+    )
+    runner = gui.VerifiedSetupRunner(launcher)
+    monkeypatch.setattr(gui.os, "name", "nt")
+    monkeypatch.setattr(gui, "resolve_windows_powershell", lambda _launcher: powershell)
+    monkeypatch.setattr(gui.subprocess, "Popen", lambda *_args, **_kwargs: process)
+    terminated = []
+
+    def terminate(owned) -> None:
+        terminated.append(owned)
+        owned.returncode = -1
+
+    monkeypatch.setattr(
+        gui.SubprocessClientExecutor,
+        "_terminate_process_tree",
+        staticmethod(terminate),
+    )
+
+    with pytest.raises(RuntimeError, match="callback failed"):
+        runner.run(
+            cancel_event=threading.Event(),
+            on_output=lambda _line: (_ for _ in ()).throw(
+                RuntimeError("callback failed")
+            ),
+        )
+
+    assert terminated == [process]
+    assert process.stdout.closed is True
+
+
+def test_root_entrypoint_uses_registered_isolated_python_without_path_lookup() -> None:
     launcher = (PROJECT_ROOT / "START_LOCAL_CODER.cmd").read_text(encoding="utf-8")
+    bootstrap = (PROJECT_ROOT / "scripts" / "start_local_coder_gui.ps1").read_text(
+        encoding="utf-8"
+    )
 
     assert 'set "APP_ROOT=%~dp0"' in launcher
-    assert 'set "GUI_SCRIPT=%APP_ROOT%scripts\\local_coder_gui.py"' in launcher
-    assert launcher.index('where.exe" python.exe') < launcher.index('where.exe" py.exe')
-    assert 'start "" /B /D "%APP_ROOT%"' in launcher
-    assert "Python 3 with tkinter" in launcher
+    assert "%SystemRoot%\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" in launcher
+    assert '-ProjectRoot "%APP_ROOT%"' in launcher
+    assert "Get-RegisteredPythonCandidates" in bootstrap
+    assert "[Microsoft.Win32.RegistryHive]::LocalMachine" in bootstrap
+    assert "[Microsoft.Win32.RegistryHive]::CurrentUser" in bootstrap
+    assert bootstrap.index("@(Get-RegisteredPythonCandidates") < bootstrap.index(
+        "@(Get-FixedPythonLauncherCandidates"
+    )
+    assert 'Prefix = @("-3")' in bootstrap
+    assert '"-I",\n        "-E",\n        "-c"' in bootstrap
+    assert '@("-I", "-E",' in bootstrap
+    assert "sys.flags.isolated" in bootstrap
+    assert "sys.flags.ignore_environment" in bootstrap
+    assert "-WindowStyle Hidden" in bootstrap
+    assert "Refusing a Python interpreter from inside the repository" in bootstrap
+    assert "Interpreter is outside the approved Windows installation roots" in bootstrap
+    assert "path traverses a symlink, junction, or reparse point" in bootstrap
+    assert "Python 3.10 or newer with tkinter" in bootstrap
+    assert "Get-Command" not in bootstrap
+    assert "where.exe" not in launcher
+
+
+def test_gui_bootstrap_scrubs_every_python_environment_variable() -> None:
+    bootstrap = (PROJECT_ROOT / "scripts" / "start_local_coder_gui.ps1").read_text(
+        encoding="utf-8"
+    )
+
+    assert "GetEnvironmentVariables" in bootstrap
+    assert '$UpperName.StartsWith("PYTHON")' in bootstrap
+    assert '$UpperName.StartsWith("PY_")' in bootstrap
+    assert '$UpperName.StartsWith("PYLAUNCHER")' in bootstrap
+    assert '$UpperName.StartsWith("CONDA_")' in bootstrap
+    assert '$UpperName -eq "VIRTUAL_ENV"' in bootstrap
+    assert "Microsoft.PowerShell.Management\\Remove-Item" in bootstrap
+    assert "[System.EnvironmentVariableTarget]::Process" in bootstrap
+    assert "Clear-PythonBootstrapEnvironment" in bootstrap
+    assert "name.upper().startswith(blocked)" in bootstrap
+    assert "$env:PATH" not in bootstrap
+    assert "$env:PYTHON" not in bootstrap
+
+
+def test_gui_release_documentation_states_recovery_and_work_boundaries() -> None:
+    documentation = (PROJECT_ROOT / "docs" / "LOCAL_CODER_GUI.md").read_text(
+        encoding="utf-8"
+    )
+
+    assert "not digest-pinned" in documentation
+    assert "not an operating-system sandbox" in documentation
+    assert "spelling-level patterns" in documentation
+    assert "12,000 characters" in documentation
+    assert "raw JSON event records" not in documentation
+    assert (
+        "manually quarantine or remove only the named invalid `.gguf`" in documentation
+    )
 
 
 class _FakeLauncher:
@@ -646,6 +847,57 @@ def test_controller_keeps_server_resident_and_binds_owned_session(
     assert server.stopped is True
 
 
+def test_controller_cancel_during_validation_never_launches_client(
+    gui, tmp_path: Path
+) -> None:
+    server = _FakeServer()
+    executor = _FakeExecutor()
+    controller, launcher = _controller(gui, tmp_path, server, executor)
+    controller.start(tmp_path)
+    cancel = threading.Event()
+    validate = launcher.validate_git_target
+
+    def cancel_during_validation(target: Path):
+        result = validate(target)
+        cancel.set()
+        return result
+
+    launcher.validate_git_target = cancel_during_validation
+    with pytest.raises(gui.PromptCancelled, match="before the client process"):
+        controller.send_prompt(
+            "inspect it",
+            mode=gui.InteractionMode.READ_ONLY,
+            cancel_event=cancel,
+        )
+
+    assert executor.commands == []
+
+
+def test_dead_resident_context_requires_stop_then_can_restart(
+    gui, tmp_path: Path
+) -> None:
+    server = _FakeServer()
+    controller, _launcher = _controller(gui, tmp_path, server)
+    controller.start(tmp_path)
+    server.is_running = False
+
+    assert controller.is_running is False
+    assert controller.has_resident_context is True
+    assert controller.bound_target == tmp_path.resolve()
+    with pytest.raises(gui.GuiError, match="Use Stop"):
+        controller.start(tmp_path)
+    with pytest.raises(gui.GuiError, match="Stop the resident model context"):
+        controller.download_model(
+            cancel_event=threading.Event(),
+            on_progress=lambda _progress: None,
+        )
+
+    controller.stop()
+    assert controller.has_resident_context is False
+    controller.start(tmp_path)
+    assert controller.is_running is True
+
+
 def test_shutdown_waits_for_inflight_start_and_cannot_orphan_server(
     gui, tmp_path: Path
 ) -> None:
@@ -753,6 +1005,148 @@ def test_executor_callback_failure_terminates_owned_process_and_drains_pipes(
     assert terminated == [process]
     assert process.stdout.closed is True
     assert process.stderr.closed is True
+
+
+def test_executor_pre_spawn_and_post_spawn_cancellation_are_not_lost(
+    gui, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    executor = gui.SubprocessClientExecutor()
+    before = threading.Event()
+    before.set()
+    monkeypatch.setattr(
+        gui.subprocess,
+        "Popen",
+        lambda *_args, **_kwargs: pytest.fail("pre-cancelled prompt must not spawn"),
+    )
+    with pytest.raises(gui.PromptCancelled, match="before the client process"):
+        executor.run(
+            ["opencode.exe"],
+            cwd=PROJECT_ROOT,
+            environment={},
+            cancel_event=before,
+            on_event=lambda _event: None,
+        )
+
+    class Pipe:
+        def __init__(self) -> None:
+            self.closed = False
+
+        def __iter__(self):
+            return iter(())
+
+        def close(self) -> None:
+            self.closed = True
+
+    class Process:
+        def __init__(self) -> None:
+            self.stdout = Pipe()
+            self.stderr = Pipe()
+            self.returncode = None
+
+        def poll(self):
+            return self.returncode
+
+        def wait(self, timeout=None):
+            del timeout
+            return self.returncode
+
+        def kill(self):
+            self.returncode = -9
+
+    process = Process()
+    after = threading.Event()
+
+    def popen_then_cancel(*_args, **_kwargs):
+        after.set()
+        return process
+
+    monkeypatch.setattr(gui.subprocess, "Popen", popen_then_cancel)
+    terminated = []
+
+    def terminate(owned) -> None:
+        terminated.append(owned)
+        owned.returncode = -1
+
+    monkeypatch.setattr(
+        gui.SubprocessClientExecutor,
+        "_terminate_process_tree",
+        staticmethod(terminate),
+    )
+    with pytest.raises(gui.PromptCancelled, match="resident model is still running"):
+        executor.run(
+            ["opencode.exe"],
+            cwd=PROJECT_ROOT,
+            environment={},
+            cancel_event=after,
+            on_event=lambda _event: None,
+        )
+
+    assert terminated == [process]
+    assert process.stdout.closed is True
+    assert process.stderr.closed is True
+
+
+def test_app_controls_bind_repository_and_close_gate_without_tk(
+    gui, tmp_path: Path
+) -> None:
+    class Widget:
+        def __init__(self) -> None:
+            self.state = None
+
+        def configure(self, **kwargs) -> None:
+            self.state = kwargs.get("state", self.state)
+
+    class Variable:
+        def __init__(self) -> None:
+            self.value = None
+
+        def set(self, value) -> None:
+            self.value = value
+
+    app = gui.LocalCoderApp.__new__(gui.LocalCoderApp)
+    app.closing = False
+    app.operation_thread = None
+    app.controller = SimpleNamespace(
+        is_running=False,
+        has_resident_context=True,
+        bound_target=tmp_path.resolve(),
+    )
+    names = (
+        "repo_entry",
+        "repo_button",
+        "install_button",
+        "download_button",
+        "start_button",
+        "stop_button",
+        "new_session_button",
+        "send_button",
+        "cancel_button",
+        "refresh_button",
+        "mode_box",
+        "diagnostics_button",
+        "prompt",
+    )
+    for name in names:
+        setattr(app, name, Widget())
+    app.repo_var = Variable()
+    transcript = []
+    app._append_transcript = transcript.append
+
+    app._update_controls()
+    assert app.repo_entry.state == "disabled"
+    assert app.repo_button.state == "disabled"
+    assert app.start_button.state == "disabled"
+    assert app.stop_button.state == "normal"
+    app._resident_started("http://127.0.0.1:18080")
+    assert app.repo_var.value == str(tmp_path.resolve())
+    assert transcript[0].title == "Resident model ready"
+
+    app.closing = True
+    app._update_controls()
+    assert all(getattr(app, name).state == "disabled" for name in names)
+    called = []
+    app._run_operation("must not start", lambda _cancel: called.append(True))
+    assert called == []
 
 
 def test_windows_cancellation_uses_absolute_taskkill_tree_switches(

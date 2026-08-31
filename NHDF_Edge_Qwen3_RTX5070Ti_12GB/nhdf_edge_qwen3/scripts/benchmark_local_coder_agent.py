@@ -16,6 +16,7 @@ Only the Python standard library is used by the harness itself.  The disposable
 fixture deliberately invokes pytest because that is part of the agent workflow
 being tested.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -50,7 +51,9 @@ def _load_launcher_contract() -> Any:
         return existing
     spec = importlib.util.spec_from_file_location(module_name, LOCAL_CODER_SCRIPT)
     if spec is None or spec.loader is None:
-        raise RuntimeError(f"could not load canonical launcher from {LOCAL_CODER_SCRIPT}")
+        raise RuntimeError(
+            f"could not load canonical launcher from {LOCAL_CODER_SCRIPT}"
+        )
     module = importlib.util.module_from_spec(spec)
     sys.modules[module_name] = module
     spec.loader.exec_module(module)
@@ -70,9 +73,7 @@ LONG_CONTEXT_TOLERANCE_TOKENS = 500
 LONG_CONTEXT_NEEDLE = "UGTOMS_LOCAL_GATE_KEY_7F3A91C2D8B4"
 EXPECTED_SOURCE = "src/intervals.py"
 EXPECTED_FINAL_PYTEST_TESTS = 4
-ALLOWED_TOOL_NAMES = frozenset(
-    {"read", "grep", "glob", "edit", "bash", "todowrite"}
-)
+ALLOWED_TOOL_NAMES = frozenset({"read", "grep", "glob", "edit", "bash", "todowrite"})
 READ_TOOLS = frozenset({"read"})
 SEARCH_TOOLS = frozenset({"grep", "glob"})
 EDIT_TOOLS = frozenset({"edit"})
@@ -161,7 +162,9 @@ def _public_failure_message(
         if candidate.is_absolute():
             replacements.append((str(candidate.resolve()), public))
     result = message
-    for private, public in sorted(replacements, key=lambda item: len(item[0]), reverse=True):
+    for private, public in sorted(
+        replacements, key=lambda item: len(item[0]), reverse=True
+    ):
         result = result.replace(private, public)
         result = result.replace(private.replace("\\", "/"), public)
     return result
@@ -285,10 +288,15 @@ def _validate_models_payload(
             break
     if selected is None:
         ids = [item.get("id") for item in data if isinstance(item, Mapping)]
-        raise GateError(f"/v1/models does not report required alias {alias!r}; ids={ids!r}")
+        raise GateError(
+            f"/v1/models does not report required alias {alias!r}; ids={ids!r}"
+        )
 
     candidates: list[tuple[str, int]] = []
-    for container_name, container in (("model", selected), ("meta", selected.get("meta"))):
+    for container_name, container in (
+        ("model", selected),
+        ("meta", selected.get("meta")),
+    ):
         if not isinstance(container, Mapping):
             continue
         for key in (
@@ -391,7 +399,10 @@ def _evaluate_tool_probe(payload: Mapping[str, Any]) -> dict[str, Any]:
         raise GateError("tool probe did not return exactly one native tool_call")
     call = calls[0]
     function = call.get("function") if isinstance(call, Mapping) else None
-    if not isinstance(function, Mapping) or function.get("name") != "record_local_probe":
+    if (
+        not isinstance(function, Mapping)
+        or function.get("name") != "record_local_probe"
+    ):
         raise GateError("tool probe called the wrong function")
     arguments_raw = function.get("arguments")
     if not isinstance(arguments_raw, str):
@@ -402,7 +413,9 @@ def _evaluate_tool_probe(payload: Mapping[str, Any]) -> dict[str, Any]:
         raise GateError("native tool arguments are not valid JSON") from exc
     expected = {"nonce": 20260831, "label": "gate-ready"}
     if arguments != expected:
-        raise GateError(f"native tool arguments differ: expected {expected!r}, got {arguments!r}")
+        raise GateError(
+            f"native tool arguments differ: expected {expected!r}, got {arguments!r}"
+        )
     finish_reason = choice.get("finish_reason")
     if finish_reason not in {"tool_calls", "stop"}:
         raise GateError(f"unexpected tool-probe finish_reason: {finish_reason!r}")
@@ -419,7 +432,9 @@ _WORDS_A = ("amber", "cobalt", "juniper", "marble", "silver", "topaz", "violet")
 _WORDS_B = ("bridge", "circuit", "harbor", "ledger", "orbit", "signal", "vector")
 
 
-def _long_context_messages(record_count: int) -> tuple[list[dict[str, str]], dict[str, Any]]:
+def _long_context_messages(
+    record_count: int,
+) -> tuple[list[dict[str, str]], dict[str, Any]]:
     """Build deterministic synthetic context with one needle near the middle."""
 
     if record_count < 1:
@@ -506,7 +521,9 @@ def _select_near_target(
             high = middle - 1
         else:
             break
-    best_records, best_tokens = min(samples.items(), key=lambda item: abs(item[1] - target))
+    best_records, best_tokens = min(
+        samples.items(), key=lambda item: abs(item[1] - target)
+    )
     if abs(best_tokens - target) > tolerance:
         raise GateError(
             f"closest deterministic prompt has {best_tokens} tokens; "
@@ -548,7 +565,9 @@ def _formatted_prompt_measurement(
         timeout=timeout,
     )
     tokens = tokenized.get("tokens")
-    if not isinstance(tokens, list) or not all(isinstance(token, int) for token in tokens):
+    if not isinstance(tokens, list) or not all(
+        isinstance(token, int) for token in tokens
+    ):
         raise GateError("/tokenize did not return a token-id array")
     return len(tokens), {
         "formatted_prompt_characters": len(prompt),
@@ -584,11 +603,15 @@ def _evaluate_long_context_response(
         "completion_tokens": usage.get("completion_tokens"),
         "response_content": content,
         "needle_present": True,
-        "finish_reason": choice.get("finish_reason") if isinstance(choice, Mapping) else None,
+        "finish_reason": choice.get("finish_reason")
+        if isinstance(choice, Mapping)
+        else None,
     }
 
 
-def _walk_config_values(value: Any, path: tuple[str, ...] = ()) -> Iterable[tuple[tuple[str, ...], Any]]:
+def _walk_config_values(
+    value: Any, path: tuple[str, ...] = ()
+) -> Iterable[tuple[tuple[str, ...], Any]]:
     if isinstance(value, Mapping):
         for key, child in value.items():
             child_path = path + (str(key),)
@@ -599,7 +622,9 @@ def _walk_config_values(value: Any, path: tuple[str, ...] = ()) -> Iterable[tupl
             yield from _walk_config_values(child, path + (str(index),))
 
 
-def _validate_opencode_config(config: Mapping[str, Any], server_url: str) -> dict[str, Any]:
+def _validate_opencode_config(
+    config: Mapping[str, Any], server_url: str
+) -> dict[str, Any]:
     """Validate the canonical source config and its single allowed substitution."""
 
     normalized_server = _normalize_server_url(server_url)
@@ -610,7 +635,9 @@ def _validate_opencode_config(config: Mapping[str, Any], server_url: str) -> dic
             source_config=True,
         )
     except _LAUNCHER.LocalCoderError as exc:
-        raise GateError(f"OpenCode config violates the canonical launcher contract: {exc}") from exc
+        raise GateError(
+            f"OpenCode config violates the canonical launcher contract: {exc}"
+        ) from exc
 
     endpoint_values: list[tuple[tuple[str, ...], str]] = []
     for path, value in _walk_config_values(config):
@@ -637,7 +664,9 @@ def _validate_opencode_config(config: Mapping[str, Any], server_url: str) -> dic
             expected_base_url=resolved_endpoint,
             source_config=False,
         )
-    except _LAUNCHER.LocalCoderError as exc:  # pragma: no cover - source validation should dominate
+    except (
+        _LAUNCHER.LocalCoderError
+    ) as exc:  # pragma: no cover - source validation should dominate
         raise GateError(f"resolved OpenCode config is unsafe: {exc}") from exc
     return {
         "passed": True,
@@ -659,8 +688,15 @@ def _load_pinned_config(path: str | Path) -> tuple[Path, bytes, dict[str, Any]]:
         resolved = Path(validated.path)
         raw = bytes(validated.raw)
         value = json.loads(raw.decode("utf-8"))
-    except (_LAUNCHER.LocalCoderError, OSError, UnicodeError, json.JSONDecodeError) as exc:
-        raise GateError(f"benchmark requires the pinned launcher config: {exc}") from exc
+    except (
+        _LAUNCHER.LocalCoderError,
+        OSError,
+        UnicodeError,
+        json.JSONDecodeError,
+    ) as exc:
+        raise GateError(
+            f"benchmark requires the pinned launcher config: {exc}"
+        ) from exc
     if not isinstance(value, dict):  # pragma: no cover - launcher already checks this
         raise GateError("pinned launcher config must contain an object")
     return resolved, raw, value
@@ -678,7 +714,7 @@ def _fixture_files() -> dict[str, str]:
         "src/__init__.py": "",
         "src/intervals.py": (
             "def coalesce_periods(periods):\n"
-            "    \"\"\"Merge overlapping or touching periods without mutating input.\"\"\"\n"
+            '    """Merge overlapping or touching periods without mutating input."""\n'
             "    ordered = sorted((list(period) for period in periods), key=lambda item: item[0])\n"
             "    if not ordered:\n"
             "        return []\n"
@@ -728,7 +764,9 @@ def _run_process(
             check=False,
         )
     except subprocess.TimeoutExpired as exc:
-        raise GateError(f"command timed out after {timeout:.1f}s: {command[0]}") from exc
+        raise GateError(
+            f"command timed out after {timeout:.1f}s: {command[0]}"
+        ) from exc
     except OSError as exc:
         raise GateError(f"could not execute {command[0]!r}: {exc}") from exc
 
@@ -752,7 +790,15 @@ def _create_fixture(root: Path) -> dict[str, Any]:
     _run_git(root, ["add", "--", *sorted(files)])
     _run_git(
         root,
-        ["-c", f"core.hooksPath={os.devnull}", "commit", "--quiet", "--no-gpg-sign", "-m", "fixture baseline"],
+        [
+            "-c",
+            f"core.hooksPath={os.devnull}",
+            "commit",
+            "--quiet",
+            "--no-gpg-sign",
+            "-m",
+            "fixture baseline",
+        ],
     )
     head = _run_git(root, ["rev-parse", "HEAD"]).decode("ascii").strip()
     return {
@@ -798,11 +844,15 @@ def _tool_events(events: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
         name = source.get("tool") or source.get("name")
         state = source.get("state")
         state_map = state if isinstance(state, Mapping) else {}
-        arguments = state_map.get("input", source.get("input", source.get("arguments", {})))
+        arguments = state_map.get(
+            "input", source.get("input", source.get("arguments", {}))
+        )
         tools.append(
             {
                 "name": str(name).strip().lower() if name is not None else "",
-                "status": str(state_map.get("status", source.get("status", "unknown"))).lower(),
+                "status": str(
+                    state_map.get("status", source.get("status", "unknown"))
+                ).lower(),
                 "input": arguments if isinstance(arguments, Mapping) else {},
             }
         )
@@ -859,7 +909,9 @@ def _validate_tool_path(
     if not _is_relative_to(resolved, fixture_resolved):
         raise GateError(f"{label} escaped the disposable fixture: {value!r}")
     if exact_path is not None and resolved != exact_path.resolve():
-        raise GateError(f"{label} targeted a file other than {EXPECTED_SOURCE}: {value!r}")
+        raise GateError(
+            f"{label} targeted a file other than {EXPECTED_SOURCE}: {value!r}"
+        )
     return resolved
 
 
@@ -875,7 +927,9 @@ def _validate_glob_pattern(value: object, *, label: str) -> str:
         or re.match(r"^[A-Za-z][A-Za-z0-9+.-]*://", normalized)
         or ".." in normalized.split("/")
     ):
-        raise GateError(f"{label} can only match paths inside the disposable fixture: {value!r}")
+        raise GateError(
+            f"{label} can only match paths inside the disposable fixture: {value!r}"
+        )
     return value
 
 
@@ -938,13 +992,14 @@ def _validate_pytest_command(command: str) -> None:
 
     if command != "python -m pytest -q":
         raise GateError(
-            "Bash command must be exactly 'python -m pytest -q'; "
-            f"recorded {command!r}"
+            f"Bash command must be exactly 'python -m pytest -q'; recorded {command!r}"
         )
 
 
 def _evaluate_tool_events(
-    events: Sequence[Mapping[str, Any]], fixture: Path, expected_source: str = EXPECTED_SOURCE
+    events: Sequence[Mapping[str, Any]],
+    fixture: Path,
+    expected_source: str = EXPECTED_SOURCE,
 ) -> dict[str, Any]:
     fixture_resolved = fixture.resolve()
     expected_resolved = (fixture / expected_source).resolve()
@@ -956,10 +1011,16 @@ def _evaluate_tool_events(
     names = [tool["name"] for tool in tools]
     unknown = sorted(set(names) - ALLOWED_TOOL_NAMES)
     if unknown:
-        raise GateError(f"OpenCode used disallowed/destructive/external tools: {unknown!r}")
-    failed = [tool["name"] for tool in tools if tool["status"] not in {"completed", "success"}]
+        raise GateError(
+            f"OpenCode used disallowed/destructive/external tools: {unknown!r}"
+        )
+    failed = [
+        tool["name"] for tool in tools if tool["status"] not in {"completed", "success"}
+    ]
     if failed:
-        raise GateError(f"OpenCode emitted failed or incomplete tool events: {failed!r}")
+        raise GateError(
+            f"OpenCode emitted failed or incomplete tool events: {failed!r}"
+        )
     requirements = {
         "read": any(name in READ_TOOLS for name in names),
         "search": any(name in SEARCH_TOOLS for name in names),
@@ -968,12 +1029,14 @@ def _evaluate_tool_events(
     }
     missing = [name for name, present in requirements.items() if not present]
     if missing:
-        raise GateError(f"OpenCode did not exercise required tool categories: {missing!r}")
+        raise GateError(
+            f"OpenCode did not exercise required tool categories: {missing!r}"
+        )
     edit_count = sum(name in EDIT_TOOLS for name in names)
     bash_count = sum(name in BASH_TOOLS for name in names)
-    if edit_count != 1 or bash_count != 1:
+    if edit_count != 1 or not 1 <= bash_count <= 2:
         raise GateError(
-            "OpenCode must use exactly one Edit and one Bash call; "
+            "OpenCode must use exactly one Edit and one or two bounded Bash calls; "
             f"recorded edit={edit_count}, bash={bash_count}"
         )
 
@@ -996,7 +1059,8 @@ def _evaluate_tool_events(
         "tool_names_in_order": names,
         "required_categories": requirements,
         "exact_edit_calls": edit_count,
-        "exact_bash_calls": bash_count,
+        "bounded_bash_calls": bash_count,
+        "maximum_bash_calls": 2,
         "allowed_tool_names": sorted(ALLOWED_TOOL_NAMES),
         "recorded_bash_command_was_exact": True,
         "recorded_tool_paths_and_patterns_within_fixture": True,
@@ -1026,7 +1090,9 @@ def _parse_porcelain_z(raw: bytes) -> list[dict[str, str]]:
         if "R" in status or "C" in status:
             if index >= len(records) or not records[index]:
                 raise GateError("truncated rename/copy record in git status")
-            entry["source_path"] = records[index].decode("utf-8", errors="surrogateescape")
+            entry["source_path"] = records[index].decode(
+                "utf-8", errors="surrogateescape"
+            )
             index += 1
         entries.append(entry)
     return entries
@@ -1049,7 +1115,9 @@ def _install_isolated_contract(config_home: Path) -> Path:
     destination.parent.mkdir(parents=True, exist_ok=True)
     destination.write_bytes(data)
     if _sha256_file(destination) != _LAUNCHER.EXPECTED_CONTRACT_SHA256:
-        raise GateError("isolated substrate contract failed its post-write digest check")
+        raise GateError(
+            "isolated substrate contract failed its post-write digest check"
+        )
     return destination
 
 
@@ -1120,9 +1188,7 @@ def _agent_environment(
             "XDG_DATA_HOME": str(data_home),
             "XDG_STATE_HOME": str(state_home),
             "OPENCODE_CONFIG": str(copied_config),
-            "OPENCODE_CONFIG_CONTENT": json.dumps(
-                inline_config, separators=(",", ":")
-            ),
+            "OPENCODE_CONFIG_CONTENT": json.dumps(inline_config, separators=(",", ":")),
             "OPENCODE_CONFIG_DIR": str(config_directory),
             "OPENCODE_DISABLE_CLAUDE_CODE": "1",
             "OPENCODE_DISABLE_DEFAULT_PLUGINS": "1",
@@ -1163,8 +1229,9 @@ def _agent_prompt() -> str:
         "Work only inside the current repository. First use Read to inspect README.md, "
         "the implementation, and tests. Use Grep or Glob for repository search. Diagnose "
         "the failing behavior, then use Edit exactly once to change only src/intervals.py. "
-        "If the intended replacement is already present, do not call Edit again. Finally "
-        "use Bash exactly once to run `python -m pytest -q`; when it passes, stop tool use "
+        "If the intended replacement is already present, do not call Edit again. You may "
+        "use Bash once before the edit to confirm the failure. After the edit, use Bash to "
+        "run `python -m pytest -q`; when it passes, stop tool use "
         "immediately and give the final response. Do not "
         "change tests or configuration; do not create files; do not stage or commit; do "
         "not use network, web, package installation, task delegation, or any tool other "
@@ -1177,7 +1244,10 @@ def _write_sha256sums(run_dir: Path) -> None:
     files = sorted(
         path for path in run_dir.rglob("*") if path.is_file() and path != checksum_path
     )
-    lines = [f"{_sha256_file(path)}  {path.relative_to(run_dir).as_posix()}" for path in files]
+    lines = [
+        f"{_sha256_file(path)}  {path.relative_to(run_dir).as_posix()}"
+        for path in files
+    ]
     _write_text(checksum_path, "\n".join(lines) + ("\n" if lines else ""))
 
 
@@ -1314,7 +1384,9 @@ def _run_gate(args: argparse.Namespace) -> tuple[int, Path]:
         )
         evidence["long_context_gate"] = long_gate
 
-        with tempfile.TemporaryDirectory(prefix="ugtoms-local-agent-gate-") as temporary:
+        with tempfile.TemporaryDirectory(
+            prefix="ugtoms-local-agent-gate-"
+        ) as temporary:
             temporary_root = Path(temporary)
             fixture = temporary_root / "fixture"
             fixture.mkdir()
@@ -1324,10 +1396,16 @@ def _run_gate(args: argparse.Namespace) -> tuple[int, Path]:
                 cwd=fixture,
                 timeout=args.pytest_timeout_seconds,
             )
-            (run_dir / "fixture.baseline-pytest.stdout.txt").write_bytes(baseline.stdout)
-            (run_dir / "fixture.baseline-pytest.stderr.txt").write_bytes(baseline.stderr)
+            (run_dir / "fixture.baseline-pytest.stdout.txt").write_bytes(
+                baseline.stdout
+            )
+            (run_dir / "fixture.baseline-pytest.stderr.txt").write_bytes(
+                baseline.stderr
+            )
             if baseline.returncode == 0:
-                raise GateError("disposable fixture unexpectedly passed before agent repair")
+                raise GateError(
+                    "disposable fixture unexpectedly passed before agent repair"
+                )
             fixture_evidence["baseline_pytest"] = {
                 "returncode": baseline.returncode,
                 "passed": False,
@@ -1400,14 +1478,18 @@ def _run_gate(args: argparse.Namespace) -> tuple[int, Path]:
             (run_dir / "fixture.final-pytest.stdout.txt").write_bytes(final.stdout)
             (run_dir / "fixture.final-pytest.stderr.txt").write_bytes(final.stderr)
             if final.returncode != 0:
-                raise GateError("independent final pytest did not pass after agent repair")
+                raise GateError(
+                    "independent final pytest did not pass after agent repair"
+                )
             final_passed_tests = _verified_pytest_pass_count(
                 final.stdout,
                 final.stderr,
                 expected=EXPECTED_FINAL_PYTEST_TESTS,
             )
 
-            final_head = _run_git(fixture, ["rev-parse", "HEAD"]).decode("ascii").strip()
+            final_head = (
+                _run_git(fixture, ["rev-parse", "HEAD"]).decode("ascii").strip()
+            )
             head_unchanged = final_head == fixture_evidence["initial_head"]
             if not head_unchanged:
                 raise GateError("agent changed Git HEAD or created a commit")
@@ -1420,13 +1502,20 @@ def _run_gate(args: argparse.Namespace) -> tuple[int, Path]:
                     f"agent changed files outside the expected source: {changed_paths!r}"
                 )
             if status[0]["status"] == "??":
-                raise GateError("expected source became untracked instead of being edited")
+                raise GateError(
+                    "expected source became untracked instead of being edited"
+                )
             source_after = _sha256_file(fixture / EXPECTED_SOURCE)
             if source_after == fixture_evidence["expected_source_sha256_before"]:
                 raise GateError("expected source file was not materially changed")
-            if _sha256_file(fixture / "tests/test_intervals.py") != fixture_evidence["tests_sha256_before"]:
+            if (
+                _sha256_file(fixture / "tests/test_intervals.py")
+                != fixture_evidence["tests_sha256_before"]
+            ):
                 raise GateError("fixture tests changed despite the source-only rule")
-            diff = _run_git(fixture, ["diff", "--binary", "HEAD", "--", EXPECTED_SOURCE])
+            diff = _run_git(
+                fixture, ["diff", "--binary", "HEAD", "--", EXPECTED_SOURCE]
+            )
             (run_dir / "fixture.source-change.patch").write_bytes(diff)
             if not diff:
                 raise GateError("Git recorded no source diff after agent repair")

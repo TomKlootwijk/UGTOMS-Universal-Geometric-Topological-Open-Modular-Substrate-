@@ -1,0 +1,281 @@
+{
+  "document": {
+    "metadata": {
+      "abstract": "A practical and evidence-bounded guide to the UGTOMS/NHDF substrate, its clean-room implementation, and a complete Qwen3-30B-A3B local coding runtime on an RTX 5070 Ti Laptop GPU.",
+      "author": "Tom Klootwijk project",
+      "status": "versioned-report-source",
+      "subtitle": "Source-grounded architecture, measured 32K laptop deployment, and bounded local use"
+    },
+    "title": "UGTOMS Local Substrate Coding Agent Guide",
+    "version": "0.1"
+  },
+  "output": {
+    "bytes": 94891,
+    "name": "UGTOMS_Local_Substrate_Coding_Agent_Guide_v0.1.pdf",
+    "pages": 18,
+    "sha256": "6918f648de6d4d781086c0fa5a5f3cd1a8449bda7f3cd6b6fc5bdf162028fa7a"
+  },
+  "renderer": {
+    "dependencies": {
+      "poppler": {
+        "bytes": 50176,
+        "name": "pdftoppm.exe",
+        "sha256": "742cbbd9a00931ad16c6618410bc40471375d639a45c61c1d86f3dcfc54b6388",
+        "version": "pdftoppm version 26.05.0"
+      },
+      "pypdf": {
+        "module_file": "__init__.py",
+        "module_sha256": "612ff566b4378c13c7b1180cb2da89ac0b6cde5500a63fe530e30ae6a88b1b9c",
+        "version": "6.9.2"
+      },
+      "python": {
+        "byteorder": "little",
+        "executable_name": "python.exe",
+        "executable_sha256": "ec0ea8d6907787b76dcf8524aaa93e52e167ceee62fa8778e182ea637a3dbc1d",
+        "implementation": "CPython",
+        "version": "3.13.11"
+      },
+      "reportlab": {
+        "module_file": "__init__.py",
+        "module_sha256": "c0cb6f2b2bb5cff4d911f67fecb0d2bee232b5924028c2dbf22b770dbada36c0",
+        "version": "5.0.0"
+      },
+      "zlib": {
+        "version": "1.2.13"
+      }
+    },
+    "determinism": {
+      "cross_environment_guarantee": false,
+      "scope": "identical source bytes, render options, renderer source, dependency versions and hashes, platform, and font hashes"
+    },
+    "fingerprint_sha256": "228da499540789196f3a25a230f125e13fa69592b00fd9aa9ce8814886aa6b2b",
+    "fonts": [
+      {
+        "bytes": 65932,
+        "file": "Vera.ttf",
+        "postscript_name": "NHDFSans",
+        "role": "normal",
+        "sha256": "c4c45690b345435b2cba52ecabe275f05e49b389b39fe68ad03afbb551288d3d"
+      },
+      {
+        "bytes": 58716,
+        "file": "VeraBd.ttf",
+        "postscript_name": "NHDFSans-Bold",
+        "role": "bold",
+        "sha256": "cc037385e4d55bfde89b13e03091ee93bf40c0c52ddd391ff031ab276f13b8e9"
+      },
+      {
+        "bytes": 63684,
+        "file": "VeraIt.ttf",
+        "postscript_name": "NHDFSans-Italic",
+        "role": "italic",
+        "sha256": "2adc684d518f45232c4ad1f56522f5a82a6904c31940373e1b7030beee20fb3a"
+      },
+      {
+        "bytes": 63208,
+        "file": "VeraBI.ttf",
+        "postscript_name": "NHDFSans-BoldItalic",
+        "role": "bold_italic",
+        "sha256": "fca0d4eeac1ced7e75e1b2274c869a351d2d83b5ed1f61d249e7bcc477c33ebe"
+      }
+    ],
+    "id": "nhdf-edge-substrate-pdf-1",
+    "platform": {
+      "machine": "AMD64",
+      "system": "Windows"
+    },
+    "renderer_source": {
+      "name": "substrate_pdf.py",
+      "sha256": "00df44e0909373094a4d5cb6379007d07c67dd778a82cda1d827c6579064511d"
+    }
+  },
+  "schema": "nhdf.substrate-pdf-build.v2",
+  "source": {
+    "bytes": 43111,
+    "format": "markdown",
+    "name": "UGTOMS_Local_Substrate_Coding_Agent_Guide_v0.1.md",
+    "sha256": "b98438b44ac45d2650fb805df1bf45ca8aba139fbce1ea4a7e5a2ecb15969ffe"
+  },
+  "validation": {
+    "body_heading_inventory": [
+      "Executive result",
+      "Evidence classes used in this guide",
+      "Substrate identity and provenance",
+      "Source facts: authority is stratified",
+      "Clean-room implementation boundary",
+      "The SCLP 3.6.2 corrective profile",
+      "Symbol firewall",
+      "Referential closure without an unrestricted fixed point",
+      "Source fact",
+      "Clean-room implementation",
+      "Spatial work remains a future boundary",
+      "Source-grounded retained principles",
+      "Future hypothesis",
+      "Direct and legacy application evidence",
+      "First-party deterministic substrate replay",
+      "KC3D Grove scene: explicit packing",
+      "Separate Grove Ring recipe: generated display population",
+      "Clean-room local packing reproduction",
+      "KSGP/SGP4 reconstruction proof",
+      "Local model and external-codec boundary",
+      "Source and implementation facts",
+      "Honest native-codec status",
+      "Fresh 32K measurements",
+      "What the token rates mean in practice",
+      "Short-context microbenchmark",
+      "Separate prior filled-context measurement",
+      "Local coding-agent components",
+      "Measured bounded generic coding-agent acceptance",
+      "Substrate-aware live-agent status",
+      "Setup and daily use",
+      "Prerequisites",
+      "End-to-end desktop use",
+      "Command-line setup",
+      "First trusted interactive launch",
+      "Routine launch",
+      "One noninteractive request",
+      "Validation rubric",
+      "Substrate implementation checks",
+      "Runtime acceptance",
+      "Coding-agent acceptance",
+      "Honest remaining limits",
+      "Future hypotheses and next measurements",
+      "Repository evidence map",
+      "Final scope statement"
+    ],
+    "body_sentinels": [
+      "The complete Qwen/Qwen3-30B-A3B-Instruct-2507 model is locally executable on"
+    ],
+    "expected_text": [
+      "UGTOMS Local Substrate Coding Agent Guide",
+      "0.1",
+      "Executive result",
+      "Evidence classes used in this guide",
+      "Substrate identity and provenance",
+      "Source facts: authority is stratified",
+      "Clean-room implementation boundary",
+      "The SCLP 3.6.2 corrective profile",
+      "Symbol firewall",
+      "Referential closure without an unrestricted fixed point",
+      "Source fact",
+      "Clean-room implementation",
+      "Spatial work remains a future boundary",
+      "Source-grounded retained principles",
+      "Future hypothesis",
+      "Direct and legacy application evidence",
+      "First-party deterministic substrate replay",
+      "KC3D Grove scene: explicit packing",
+      "Separate Grove Ring recipe: generated display population",
+      "Clean-room local packing reproduction",
+      "KSGP/SGP4 reconstruction proof",
+      "Local model and external-codec boundary",
+      "Source and implementation facts",
+      "Honest native-codec status",
+      "Fresh 32K measurements",
+      "What the token rates mean in practice",
+      "Short-context microbenchmark",
+      "Separate prior filled-context measurement",
+      "Local coding-agent components",
+      "Measured bounded generic coding-agent acceptance",
+      "Substrate-aware live-agent status",
+      "Setup and daily use",
+      "Prerequisites",
+      "End-to-end desktop use",
+      "Command-line setup",
+      "First trusted interactive launch",
+      "Routine launch",
+      "One noninteractive request",
+      "Validation rubric",
+      "Substrate implementation checks",
+      "Runtime acceptance",
+      "Coding-agent acceptance",
+      "Honest remaining limits",
+      "Future hypotheses and next measurements",
+      "Repository evidence map",
+      "Final scope statement",
+      "The complete Qwen/Qwen3-30B-A3B-Instruct-2507 model is locally executable on"
+    ],
+    "extracted_text_sha256": "a3a42def73b19b10e3379b9bd41e9b289e0ee990c551d197a9d836a4ab0ddf7e",
+    "method": "pypdf-text-extraction",
+    "passed": true
+  },
+  "visual_qa": {
+    "dpi": 150,
+    "pages": [
+      {
+        "name": "UGTOMS_Local_Substrate_Coding_Agent_Guide_v0.1-page-001.png",
+        "sha256": "6550e6873eb92359f28ae6b8071ac557341747a911889fba5ee0c7fe7b0f8a9b"
+      },
+      {
+        "name": "UGTOMS_Local_Substrate_Coding_Agent_Guide_v0.1-page-002.png",
+        "sha256": "37e0a26d06cc27b73d2552295ca8e3c4302d1b13412c396a7880ead6d95552a1"
+      },
+      {
+        "name": "UGTOMS_Local_Substrate_Coding_Agent_Guide_v0.1-page-003.png",
+        "sha256": "80e97c19d0e58f6a61f2a97aa32576c553d9056b3188795edbdc0127636ca491"
+      },
+      {
+        "name": "UGTOMS_Local_Substrate_Coding_Agent_Guide_v0.1-page-004.png",
+        "sha256": "ed671e8b295ca40afa02870b28f18a00f19e788f6bd1596c8edbd4c3a9e2b9e3"
+      },
+      {
+        "name": "UGTOMS_Local_Substrate_Coding_Agent_Guide_v0.1-page-005.png",
+        "sha256": "cb55acd05bc58cd27cf802f2f04caa6856c0bef71ed23159f4ed55aeab677664"
+      },
+      {
+        "name": "UGTOMS_Local_Substrate_Coding_Agent_Guide_v0.1-page-006.png",
+        "sha256": "abfbd5bea92a072f6613da77604a2a25649fe5dff5f6ca49d785666badaeb8a1"
+      },
+      {
+        "name": "UGTOMS_Local_Substrate_Coding_Agent_Guide_v0.1-page-007.png",
+        "sha256": "e2dfa3b20e25ca43e70ae5e1e1fd9df8b9e07dabd763a6e40d46441b43e28268"
+      },
+      {
+        "name": "UGTOMS_Local_Substrate_Coding_Agent_Guide_v0.1-page-008.png",
+        "sha256": "477feb438b4224a64f8d6190524f67d9e911a61755838011d38dca38e3baf3e5"
+      },
+      {
+        "name": "UGTOMS_Local_Substrate_Coding_Agent_Guide_v0.1-page-009.png",
+        "sha256": "842771e754992d145dcaa3899071015443d83fa0a3b289c02d86d0c0c00f23e9"
+      },
+      {
+        "name": "UGTOMS_Local_Substrate_Coding_Agent_Guide_v0.1-page-010.png",
+        "sha256": "85b6c51c7c5812559c76d25e3131843036a986e6005bbaaaec7d63320c663e70"
+      },
+      {
+        "name": "UGTOMS_Local_Substrate_Coding_Agent_Guide_v0.1-page-011.png",
+        "sha256": "0535c15a50063460cf4154995ef27c5d510b91399f6f1c81a8f9f151c730e451"
+      },
+      {
+        "name": "UGTOMS_Local_Substrate_Coding_Agent_Guide_v0.1-page-012.png",
+        "sha256": "eb330fa0c16224a4f0b3c24075507d66bdc568a7d10ac60448f0baaa812e7f90"
+      },
+      {
+        "name": "UGTOMS_Local_Substrate_Coding_Agent_Guide_v0.1-page-013.png",
+        "sha256": "bf5ff4e85ab390a549cf220c8244f5614238b63fbb39906d66c87a2dd805a588"
+      },
+      {
+        "name": "UGTOMS_Local_Substrate_Coding_Agent_Guide_v0.1-page-014.png",
+        "sha256": "d8a24f68ec297dc7df8cd9f707001b35f734da08b097737209b4d2071ce996d8"
+      },
+      {
+        "name": "UGTOMS_Local_Substrate_Coding_Agent_Guide_v0.1-page-015.png",
+        "sha256": "f8540fd3823ac862e0356c16df6947a66a2d95986e13f9b7db109dc62c9e01b1"
+      },
+      {
+        "name": "UGTOMS_Local_Substrate_Coding_Agent_Guide_v0.1-page-016.png",
+        "sha256": "ba621df18967a95c2ae3c505265d44accfeae90d5cb2896a759e1ef4a4b01cd6"
+      },
+      {
+        "name": "UGTOMS_Local_Substrate_Coding_Agent_Guide_v0.1-page-017.png",
+        "sha256": "e882331ccd0b022a39084909fd2b8a658e7be1cbe3f58bc0072159893b12399e"
+      },
+      {
+        "name": "UGTOMS_Local_Substrate_Coding_Agent_Guide_v0.1-page-018.png",
+        "sha256": "484beebe84c028a1c6221ce67815fe27b44187f780a16878685513dc3cb22073"
+      }
+    ],
+    "renderer": "pdftoppm",
+    "renderer_fingerprint_sha256": "228da499540789196f3a25a230f125e13fa69592b00fd9aa9ce8814886aa6b2b"
+  }
+}
