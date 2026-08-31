@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+*.so
+*.egg-info/
+build/
+dist/
+.venv/
+models/
+packs/
+benchmarks/local/
+*.pt
+*.bin

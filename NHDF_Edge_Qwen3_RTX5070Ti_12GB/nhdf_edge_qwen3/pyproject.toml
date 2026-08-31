@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nhdf-edge"
+version = "0.1.0"
+description = "Semantics-first NHDF weight packing and edge runtime for Qwen3-MoE"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "Apache-2.0"}
+authors = [
+  {name = "Tom Klootwijk"},
+]
+dependencies = [
+  "torch>=2.5",
+  "safetensors>=0.4",
+  "PyYAML>=6",
+  "huggingface_hub>=0.28",
+]
+
+[project.optional-dependencies]
+runtime = [
+  "transformers>=4.57",
+  "accelerate>=1.0",
+]
+dev = [
+  "pytest>=8",
+  "matplotlib>=3.8",
+]
+
+[project.scripts]
+nhdf-edge = "nhdf_edge.cli:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"

@@ -1,0 +1,6 @@
+NHDF Edge reference implementation
+Copyright 2026 Tom Klootwijk
+
+This package contains an independent research implementation derived from the
+NHDF Formal Specification. It does not include Qwen model weights. Qwen model
+files remain subject to their upstream Apache-2.0 license and model card.

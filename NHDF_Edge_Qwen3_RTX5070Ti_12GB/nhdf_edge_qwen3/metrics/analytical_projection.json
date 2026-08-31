@@ -1,0 +1,75 @@
+{
+  "status": "analytical-not-measured",
+  "config": {
+    "model": {
+      "repo_id": "Qwen/Qwen3-30B-A3B-Instruct-2507",
+      "revision": "main",
+      "total_parameters": 30532110336,
+      "expert_parameters": 28991029248,
+      "attention_parameters": 905969664,
+      "embedding_parameters": 311164928,
+      "lm_head_parameters": 311164928,
+      "router_parameters": 12582912,
+      "norm_parameters": 198656,
+      "active_experts": 8,
+      "total_experts": 128,
+      "layers": 48,
+      "hidden_size": 2048,
+      "kv_heads": 4,
+      "head_dim": 128,
+      "source_size_gb": 61.1,
+      "official_int4_size_gb": 16.9
+    },
+    "target": {
+      "vram_gb_decimal": 12.0,
+      "default_context_tokens": 8192,
+      "kv_bits": 8,
+      "workspace_gb": 0.75,
+      "runtime_reserve_gb": 0.9,
+      "memory_bandwidth_gbps": 672.0,
+      "cuda_cores": 5888,
+      "ai_tops": 992,
+      "tgp_min_w": 60,
+      "tgp_max_w": 115
+    },
+    "packing": {
+      "group_size": 256,
+      "expert_bits": 2,
+      "expert_residual_fraction": 0.15,
+      "sensitive_bits": 4,
+      "phase_gain": 0.25,
+      "gamma": 1.0,
+      "iterations": 3,
+      "raw_router_and_norms": true
+    }
+  },
+  "estimate": {
+    "expert_effective_bpp": 2.32078125,
+    "sensitive_effective_bpp": 4.14890625,
+    "packed_weight_gb": 9.22838920192,
+    "packed_weight_gib": 8.594607191085816,
+    "compression_vs_bf16": 6.620873769312625,
+    "compression_vs_official_int4": 1.8313055106609386,
+    "kv_cache_gb": 0.402653184,
+    "projected_total_vram_gb": 11.281042385920001,
+    "projected_total_vram_gib": 10.506289439201357,
+    "nominal_headroom_gb": 0.7189576140799989,
+    "active_weight_bytes_per_token_gb": 1.1824246528,
+    "peak_bandwidth_roofline_tps": 568.3237391986826,
+    "decode_tps_by_efficiency": {
+      "2%": 11.366474783973652,
+      "3%": 17.049712175960476,
+      "5%": 28.41618695993413,
+      "7%": 39.78266174390778,
+      "10%": 56.83237391986826
+    },
+    "fits_nominal_12gb": true
+  },
+  "assumptions": [
+    "all packed weights resident in VRAM",
+    "batch-one autoregressive decode",
+    "int8 KV cache",
+    "published peak memory bandwidth is a roofline only",
+    "workspace and runtime/display reserves are fixed planning allowances"
+  ]
+}

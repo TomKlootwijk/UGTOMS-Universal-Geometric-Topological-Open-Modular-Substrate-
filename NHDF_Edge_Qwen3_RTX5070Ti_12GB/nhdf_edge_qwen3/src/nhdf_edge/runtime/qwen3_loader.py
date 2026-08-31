@@ -1,0 +1,202 @@
+"""Experimental full-model integration for Qwen3-MoE.
+
+This loader constructs the Hugging Face model on the meta device, replaces
+matrix-bearing modules with NHDF packed modules, installs raw router/norm
+parameters, and checks that no meta parameters remain.  It requires the optional
+CUDA extension for practical execution.  The implementation is intentionally
+kept separate from the pack format so Transformers version drift can be adapted
+without changing serialized weights.
+"""
+from __future__ import annotations
+
+from collections import defaultdict
+from pathlib import Path
+from typing import Any
+
+import torch
+from torch import nn
+
+from ..format import PackReader
+from .cuda_backend import available as cuda_backend_available
+from .modules import NHDFPackedEmbedding, NHDFPackedLinear, NHDFQwen3Experts
+
+
+def _optional_imports() -> tuple[Any, Any, Any, Any]:
+    try:
+        from accelerate import init_empty_weights
+        from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
+    except ImportError as exc:
+        raise RuntimeError(
+            "Full-model loading requires `pip install -e '.[runtime]'` "
+            "(Transformers and Accelerate)."
+        ) from exc
+    return init_empty_weights, AutoConfig, AutoModelForCausalLM, AutoTokenizer
+
+
+def _get_child(obj: Any, part: str) -> Any:
+    if part.isdigit():
+        return obj[int(part)]
+    return getattr(obj, part)
+
+
+def _get_path(root: Any, path: str) -> Any:
+    current = root
+    if not path:
+        return current
+    for part in path.split("."):
+        current = _get_child(current, part)
+    return current
+
+
+def _set_path(root: Any, path: str, value: Any) -> None:
+    parts = path.split(".")
+    parent = _get_path(root, ".".join(parts[:-1]))
+    leaf = parts[-1]
+    if leaf.isdigit():
+        parent[int(leaf)] = value
+    else:
+        setattr(parent, leaf, value)
+
+
+def _raw_parameter(reader: PackReader, name: str, device: torch.device, dtype: torch.dtype) -> nn.Parameter:
+    packed = reader.load(name, device="cpu")
+    if packed.policy.mode != "raw":
+        raise ValueError(f"expected raw tensor for {name}")
+    tensor = packed.raw
+    if tensor.is_floating_point():
+        tensor = tensor.to(dtype=dtype)
+    return nn.Parameter(tensor.to(device=device), requires_grad=False)
+
+
+def _load_packed(reader: PackReader, name: str, device: torch.device):
+    return reader.load(name, device=device)
+
+
+def load_tokenizer(pack_dir: str | Path):
+    """Load the tokenizer copied into ``hf_metadata`` during conversion."""
+
+    _, _, _, AutoTokenizer = _optional_imports()
+    metadata = Path(pack_dir) / "hf_metadata"
+    return AutoTokenizer.from_pretrained(metadata, local_files_only=True)
+
+
+def load_qwen3_moe(
+    pack_dir: str | Path,
+    *,
+    device: str | torch.device = "cuda",
+    dtype: torch.dtype = torch.float16,
+    verify_crc: bool = True,
+    require_cuda_extension: bool = True,
+):
+    """Build a Qwen3-MoE causal LM directly from an NHDF pack.
+
+    Parameters
+    ----------
+    pack_dir:
+        Converted pack containing ``manifest.json`` and ``hf_metadata``.
+    device:
+        Runtime device.  The edge profile is designed for one CUDA GPU.
+    dtype:
+        Activation/raw-parameter dtype.  The reference CUDA kernel supports
+        float16 and float32 inputs; float16 is the intended profile.
+    verify_crc:
+        Verify every per-tensor file as it is loaded.
+    require_cuda_extension:
+        Refuse a full-model load when the fused extension is absent.  Set to
+        ``False`` only for structural debugging; the fallback is too slow for
+        generation at this scale.
+    """
+
+    init_empty_weights, AutoConfig, AutoModelForCausalLM, _ = _optional_imports()
+    target = torch.device(device)
+    if target.type == "cuda" and not torch.cuda.is_available():
+        raise RuntimeError("CUDA device requested but torch.cuda.is_available() is false")
+    if require_cuda_extension and not cuda_backend_available():
+        raise RuntimeError(
+            "The full 30B edge runtime requires the fused nhdf_edge_cuda extension. "
+            "Build it before loading the model."
+        )
+
+    root = Path(pack_dir)
+    metadata = root / "hf_metadata"
+    reader = PackReader(root, verify_crc=verify_crc)
+    config = AutoConfig.from_pretrained(metadata, local_files_only=True)
+
+    with init_empty_weights(include_buffers=True):
+        model = AutoModelForCausalLM.from_config(config, torch_dtype=dtype)
+
+    names = set(reader.names())
+    expert_groups: dict[str, dict[str, str]] = defaultdict(dict)
+    for name in names:
+        if name.endswith(".mlp.experts.gate_up_proj") or name.endswith(".mlp.experts.gate_up_proj.weight"):
+            prefix = name.rsplit(".gate_up_proj", 1)[0]
+            expert_groups[prefix]["gate_up"] = name
+        elif name.endswith(".mlp.experts.down_proj") or name.endswith(".mlp.experts.down_proj.weight"):
+            prefix = name.rsplit(".down_proj", 1)[0]
+            expert_groups[prefix]["down"] = name
+
+    consumed: set[str] = set()
+    for expert_path, pair in sorted(expert_groups.items()):
+        if set(pair) != {"gate_up", "down"}:
+            raise ValueError(f"incomplete expert pair for {expert_path}: {pair}")
+        original = _get_path(model, expert_path)
+        gate_up = _load_packed(reader, pair["gate_up"], target)
+        down = _load_packed(reader, pair["down"], target)
+        replacement = NHDFQwen3Experts(
+            gate_up,
+            down,
+            num_experts=int(config.num_experts),
+            hidden_dim=int(config.hidden_size),
+            intermediate_dim=int(config.moe_intermediate_size),
+            activation=original.act_fn,
+        )
+        _set_path(model, expert_path, replacement)
+        consumed.update(pair.values())
+
+    # Replace ordinary matrix modules before assigning one-dimensional raw
+    # parameters, because the latter belong to the replacement model tree.
+    for name in sorted(names - consumed):
+        entry = reader.entry(name)
+        mode = entry["metadata"]["policy"]["mode"]
+        if mode == "raw" or not name.endswith(".weight"):
+            continue
+        module_path = name[: -len(".weight")]
+        original = _get_path(model, module_path)
+        packed = _load_packed(reader, name, target)
+        if isinstance(original, nn.Embedding):
+            replacement = NHDFPackedEmbedding(packed, padding_idx=original.padding_idx)
+        elif isinstance(original, nn.Linear):
+            bias = None
+            if original.bias is not None and not original.bias.is_meta:
+                bias = original.bias
+            replacement = NHDFPackedLinear(packed, bias=bias)
+        else:
+            raise TypeError(f"cannot replace {module_path}: expected Linear/Embedding, got {type(original)!r}")
+        _set_path(model, module_path, replacement)
+        consumed.add(name)
+
+    # Install raw state words: routers, RMSNorm scales and any future small
+    # tensors.  A raw matrix is also assignable, but the default profile does
+    # not use one outside the router.
+    for name in sorted(names - consumed):
+        entry = reader.entry(name)
+        mode = entry["metadata"]["policy"]["mode"]
+        if mode != "raw":
+            raise ValueError(f"unhandled quantized tensor: {name}")
+        parameter = _raw_parameter(reader, name, target, dtype)
+        _set_path(model, name, parameter)
+        consumed.add(name)
+
+    missing = names - consumed
+    if missing:
+        raise RuntimeError(f"pack entries were not consumed: {sorted(missing)[:20]}")
+
+    meta = [name for name, parameter in model.named_parameters() if parameter.is_meta]
+    if meta:
+        raise RuntimeError(
+            "model still contains meta parameters after NHDF replacement: " + ", ".join(meta[:20])
+        )
+
+    model.eval()
+    model.config.use_cache = True
+    return model

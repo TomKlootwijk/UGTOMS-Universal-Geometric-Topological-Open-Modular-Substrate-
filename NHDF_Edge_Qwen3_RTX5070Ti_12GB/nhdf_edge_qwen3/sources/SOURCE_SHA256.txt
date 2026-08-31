@@ -1,0 +1,8 @@
+# Original prompt-chain source; reviewed but not redistributed in this ZIP:
+ede0fd37504b07fae208d1d7c32ff281b4bdc85661d2ae0b5adb5a9cf9833368  1bit-parity-bit-lower-case-phi-jitter-log-encoded-polar-LUT-analytic-sweeping-cone-T-a-side-view-of-the-pyramid-a-circle-a-sphere-the-apex-binary-.pdf
+
+# Original formal specification supplied by the user:
+801576c482b514e02f57942cf0643f2abeee4505f56bf860f4e0084af6e90975  NHDF_Formal_Specification_Tom_Klootwijk(1).pdf
+
+# Included normalized copy:
+801576c482b514e02f57942cf0643f2abeee4505f56bf860f4e0084af6e90975  sources/NHDF_Formal_Specification_v0.1.pdf

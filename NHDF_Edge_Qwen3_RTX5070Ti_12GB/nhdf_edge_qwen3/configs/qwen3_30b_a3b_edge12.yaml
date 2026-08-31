@@ -1,0 +1,40 @@
+model:
+  repo_id: Qwen/Qwen3-30B-A3B-Instruct-2507
+  revision: main
+  total_parameters: 30532110336
+  expert_parameters: 28991029248
+  attention_parameters: 905969664
+  embedding_parameters: 311164928
+  lm_head_parameters: 311164928
+  router_parameters: 12582912
+  norm_parameters: 198656
+  active_experts: 8
+  total_experts: 128
+  layers: 48
+  hidden_size: 2048
+  kv_heads: 4
+  head_dim: 128
+  source_size_gb: 61.1
+  official_int4_size_gb: 16.9
+
+target:
+  vram_gb_decimal: 12.0
+  default_context_tokens: 8192
+  kv_bits: 8
+  workspace_gb: 0.75
+  runtime_reserve_gb: 0.90
+  memory_bandwidth_gbps: 672.0
+  cuda_cores: 5888
+  ai_tops: 992
+  tgp_min_w: 60
+  tgp_max_w: 115
+
+packing:
+  group_size: 256
+  expert_bits: 2
+  expert_residual_fraction: 0.15
+  sensitive_bits: 4
+  phase_gain: 0.25
+  gamma: 1.0
+  iterations: 3
+  raw_router_and_norms: true
