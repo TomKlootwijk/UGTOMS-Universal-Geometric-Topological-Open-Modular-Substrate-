@@ -1,0 +1,10 @@
+{
+  "repo_id": "Qwen/Qwen3-30B-A3B-Instruct-2507",
+  "resolved_revision": "0d7cf23991f47feeb3a57ecb4c9cee8ea4a17bfe",
+  "shards": 16,
+  "source_checkpoint_tensors": 18867,
+  "index_tensor_data_bytes": 61064245248,
+  "actual_safetensors_file_bytes": 61066575656,
+  "missing_shards": [],
+  "status": "downloaded-and-pinned"
+}

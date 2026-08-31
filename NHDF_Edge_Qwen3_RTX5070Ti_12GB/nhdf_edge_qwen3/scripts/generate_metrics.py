@@ -69,7 +69,7 @@ def main() -> None:
                 "assumptions": [
                     "all packed weights resident in VRAM",
                     "batch-one autoregressive decode",
-                    "int8 KV cache",
+                    "HQQ int8 KV cache including scale/zero metadata and FP16 residual window",
                     "published peak memory bandwidth is a roofline only",
                     "workspace and runtime/display reserves are fixed planning allowances",
                 ],
@@ -98,7 +98,7 @@ def main() -> None:
             base_bits=2,
             group_size=256,
             residual_fraction=fraction,
-            phase_gain=0.25,
+            phase_gain=0.0,
             iterations=3,
         )
         packed = quantize_tensor(weight, policy, name=f"synthetic.f{fraction:.2f}")
@@ -171,7 +171,7 @@ def main() -> None:
     # 2. VRAM budget.
     components = [
         ("Packed weights", projection.packed_weight_gb),
-        ("8K int8 KV cache", projection.kv_cache_gb),
+        ("8K HQQ int8 KV cache", projection.kv_cache_gb),
         ("Workspace", cfg.target.workspace_gb),
         ("Runtime/display reserve", cfg.target.runtime_reserve_gb),
     ]
@@ -236,7 +236,7 @@ def main() -> None:
     ax.axhline(12.0, linestyle="--", label="12 GB nominal ceiling")
     ax.set_xlabel("Context length (K tokens)")
     ax.set_ylabel("Modeled total VRAM (GB)")
-    ax.set_title("Context-length pressure with an int8 KV cache")
+    ax.set_title("Context-length pressure with an HQQ int8 KV cache")
     ax.grid(alpha=0.25)
     ax.legend()
     fig.tight_layout()

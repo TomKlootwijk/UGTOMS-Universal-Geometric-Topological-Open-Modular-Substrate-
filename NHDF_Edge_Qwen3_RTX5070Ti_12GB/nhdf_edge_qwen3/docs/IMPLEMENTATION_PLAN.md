@@ -1,92 +1,138 @@
 # Implementation plan and engineering gates
 
-## Gate 0 - semantic baseline (included)
+This plan follows the v0.3 Edge-AI evidence contract. Version 0.3 is not a
+weight codec, so CCD operators are not substituted for tensor operations.
 
-- Deterministic 2-bit/4-bit bit packing.
-- Per-group local zero-set mean projection.
-- Log-polar residual address and second-phase-difference branch score.
-- Bounded one-bit residual branch allocation.
-- One-bit payload parity plus shard CRC32.
-- Selected-row reconstruction for embeddings and experts.
-- Qwen3 expert adapter with the upstream forward contract.
-- Analytical memory/traffic model and deterministic smoke metrics.
+## Gate 0 - source interpretation (complete)
 
-Exit evidence: `pytest -q` passes, `nhdf-edge smoke` is deterministic, and
-`nhdf-edge verify` rejects an intentionally corrupted tensor file.
+- Pin v0.3 and its SHA-256.
+- Separate applicable Edge-AI requirements from CCD-only operators.
+- Treat scale-aware calibration, bounded resources, typed status, monotone
+  refinement and equal-budget ablation as the applicable contract.
+- Remove static phase scoring from the default profile.
 
-## Gate 1 - target CUDA equivalence (included scaffold; target execution needed)
+Exit evidence: `sources/README.md`, `sources/SOURCE_SHA256.txt` and the v0.3
+source PDF.
 
-1. Build `nhdf_edge_cuda` with the laptop's installed driver, toolkit and
-   CUDA-enabled PyTorch.
-2. Run `scripts/benchmark_kernel.py` for 2-bit/4-bit, residual fractions 0 and
-   0.15, dimensions that are and are not multiples of 256, and row-offset expert
-   slices.
-3. Require bounded error against the dequantized FP16 reference and no illegal
-   memory accesses under Compute Sanitizer.
-4. Profile memory transactions, occupancy, register pressure and branch
-   divergence with Nsight Compute.
+## Gate 1 - legacy baseline disposition (complete, rejected)
 
-Exit evidence: CPU/CUDA equivalence vectors and a saved kernel benchmark JSON.
+- Preserve the 9.152 GB custom scalar pack as a reproducible baseline.
+- Verify all 531 CRC/parity records and CUDA decode equivalence.
+- Record full-model generation and real-expert error.
+- Mark the manifest `QUALITY_FAILED`; refuse normal runtime loading.
 
-## Gate 2 - complete checkpoint conversion
+Exit evidence: `metrics/local/default_pack_quality_gate.json` and
+`VALIDATION_STATUS.md`.
 
-1. Pull the source checkpoint and preserve its upstream license/model card.
-2. Run a partial pack (`--max-tensors`) and inspect tensor policies.
-3. Convert the complete checkpoint with at least 70 GB free source space plus
-   10 GB destination space.
-4. Verify every CRC and parity word.
-5. Record actual serialized bytes and compare them with the 9.23 GB projection.
+## Gate 2 - comparable-budget feasibility control (complete, passed)
 
-Exit evidence: complete manifest, no missing tensors, actual pack size and a
-policy audit.
+- Pin an independently quantized exact-model artifact below 10 GB.
+- Verify exact file length and SHA-256.
+- Build a pinned CUDA runtime for SM120.
+- Require CPU/CUDA routed-MoE operation equivalence.
+- Run deterministic exact, arithmetic, explanation and code prompts using the
+  current non-thinking chat template.
+- Allocate the target 8K q8 K/V context and sample total device memory.
 
-## Gate 3 - full-model correctness
+Exit evidence:
 
-- Load through the meta-device replacement loader.
-- Confirm no meta parameter remains.
-- Compare layer outputs and logits for short prompts against a dequantized
-  reference or an independently quantized baseline.
-- Test expert route indices and weights, tied/untied embedding behavior, KV
-  cache updates, chat template and generation stopping.
+- `metrics/local/gguf_backend_ops.json`: 8,132/8,132 pass;
+- `metrics/local/gguf_iq2m_functional_gate.json`: 4/4 prompt pass;
+- `metrics/local/gguf_iq2m_8k_residency_gate.json`: exact response and 10,487
+  MiB peak total device usage;
+- `metrics/local/gguf_iq2m_llama_bench.json`: repeated backend throughput.
 
-Exit evidence: fixed prompt/logit vectors and deterministic greedy outputs.
+This gate proves model/hardware/budget feasibility. It does not validate a
+custom UGTOMS/NHDF codec.
 
-## Gate 4 - quality and NHDF ablations
+## NHDF hybrid integration track
 
-Compare at equal memory or node/residual budget:
+### Hybrid Gate H1 - fail-closed external-codec integration (complete, passed)
 
-- plain 2-bit groupwise;
-- NHDF 2-bit plus residual branch;
-- 3-bit or 4-bit baseline;
-- official GPTQ-Int4;
-- log-polar versus linear error ranking;
-- local B0 mean projection versus ordinary zero point;
-- phase-curvature term on/off;
-- parity event on/off;
-- residual fraction sweep.
+- Reference the exact 9,870,270,464-byte GGUF/IQ2_M payload without copying or
+  relabelling its tensor encoding.
+- Attribute the mixed-bit weight codec to ggml/Bartowski; NHDF makes no claim
+  of authorship over IQ2_M.
+- Use NHDF v0.3 for SHA-256-sealed local provenance, typed capabilities and status,
+  bounded context/VRAM policy, sealed validation evidence and fail-closed
+  execution.
+- Seal the payload, llama.cpp b6014 runtime, execution profile and evidence by
+  path, byte count and SHA-256.
+- Require the functional prompt suite, complete GPU offload, allocated-context
+  residency and minimum generation throughput before promotion.
 
-Report perplexity, task accuracy and routing changes. A component is not
-justified if a simpler equal-budget ablation matches it.
+Measured result: 4/4 functional prompts passed, 49/49 layers offloaded, and an
+allocated 8K q8 K/V profile peaked at 10,487 MiB of 12,227 MiB, leaving 1,740
+MiB measured headroom. The repeated 64-token benchmark measured 458.525658
+prompt tokens/s and 102.367894 generation tokens/s. The artifact is
+`VALIDATED` under this bounded functional/resource certificate and normal
+execution is fail-closed on manifest, payload, runtime or evidence mismatch.
 
-## Gate 5 - laptop performance and power
+Exit evidence:
+`packs/qwen3-30b-a3b-nhdf-v03-iq2m/evidence/functional_gate.json`.
 
-Measure cold load, time-to-first-token, prefill tok/s, steady-state decode tok/s,
-peak allocated/reserved VRAM, effective bandwidth, GPU power, clock, temperature
-and throttling at multiple laptop power profiles. Repeat with the internal
-display and external display configurations because display reservation affects
-free VRAM.
+The 8K result allocates 8K cache capacity while executing a short prompt; it is
+not a filled-context quality measurement. Broad task accuracy, perplexity and
+long-context retrieval quality remain unmeasured. This gate validates an NHDF
+substrate integration around an external codec, not an NHDF-native weight
+codec.
 
-Exit evidence: raw telemetry plus medians and percentile ranges, not a single
-best run.
+## NHDF-native codec research track
 
-## Gate 6 - prefill optimization
+## Gate 3 - bounded replacement-codec experiment (complete, rejected)
 
-The supplied GEMV addresses decode. Implement and compare:
+- Capture exact layer-0 attention/router activations from disjoint prompt sets.
+- Quantize one expert at a time with activation/Hessian-aware GPTQ.
+- Account for physical packed bytes including scale/zero metadata.
+- Compare against equal-storage optimized RTN.
+- Sample experts 0 and 17 with sufficient real router hits in both splits.
 
-1. packed GEMM with fused decode;
-2. layer-local dequantization into a bounded workspace followed by cuBLAS;
-3. token-chunked prefill;
-4. optional expert-token compaction into grouped GEMM.
+Current result: absolute error thresholds pass for experts 0 and 17, but the
+relative improvements over equal-storage RTN are only 2.91% and 3.91%, versus
+the required 20% for each expert. Disposition: reject the current configuration
+and refine it within this bounded gate.
 
-Keep the 0.75 GB workspace bound and reject any hidden allocation that invalidates
-the 12 GB profile.
+## Gate 4 - router-weighted layer output (complete, rejected)
+
+- Quantized all 117 experts selected by the real layer-0 top-8 routes under a
+  fixed physical byte allocation.
+- Compared the complete router-weighted MoE output on 656 disjoint holdout
+  tokens while retaining the BF16 router, so route identities and weights were
+  exact by construction.
+- Compared routed-calibrated 3-bit GPTQ with a simpler equal-storage optimized
+  RTN allocation; sparsely observed experts used an equal-storage RTN fallback
+  without holdout leakage.
+
+Current result: the candidate achieved routed-output NRMSE `0.155101` versus
+`0.150849` for equal-storage RTN, making it 2.819% worse. Its absolute layer
+quality gate passed, but its comparative-advantage gate failed. This is not
+numerical collapse; it is evidence that this native candidate does not justify
+itself against the simpler codec. Disposition: reject this configuration and
+keep the native full-pack gate blocked.
+
+Exit evidence: `metrics/local/gemq_router_weighted_layer0_gate.json`.
+
+## Gate 5 - streaming full custom pack (blocked by Gates 3-4)
+
+- Stream source shards; never materialize the 61 GB teacher.
+- Use 8-bit embedding/output, at least 4-bit attention/router-sensitive paths,
+  and calibrated mixed low-bit routed experts.
+- Journal every tensor and keep the initial status `UNCALIBRATED`.
+- Stop on disk, RAM, VRAM or projected-size budget failure.
+
+## Gate 6 - full-model quality and promotion (blocked by Gate 5)
+
+- Run teacher-forced logit KL/top-k agreement where BF16 comparison resources
+  permit.
+- Run the deterministic functional suite and a declared sampled task suite.
+- Measure 8K residency, cold load, prompt/decode speed and stability.
+- Compare against the same IQ2_M control at equal context/settings.
+- Set `VALIDATED`, `QUALITY_FAILED` or `RESOURCE_FAILED` with a saved evidence
+  object. Integrity checks alone cannot choose the status.
+
+## Gate 7 - native-codec optimization (only after native validation)
+
+Optimize packed prefill, sustained thermals and power only after functional
+quality passes. The passed hybrid integration does not unlock optimization or
+promotion of the rejected native codec. Speeding up an invalid model is not
+progress toward deployment.

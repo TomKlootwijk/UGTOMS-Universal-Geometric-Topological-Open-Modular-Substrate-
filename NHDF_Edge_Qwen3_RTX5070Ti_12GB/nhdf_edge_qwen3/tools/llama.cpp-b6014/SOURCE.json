@@ -1,0 +1,33 @@
+{
+  "project": "ggml-org/llama.cpp",
+  "tag": "b6014",
+  "source_url": "https://codeload.github.com/ggml-org/llama.cpp/zip/refs/tags/b6014",
+  "archive": "tmp/downloads/llama.cpp-b6014-source.zip",
+  "archive_bytes": 25847154,
+  "archive_sha256": "936b96528b12d06928e9c2e8f929dfae4eb25923faa46f49de23f811fa35f92a",
+  "build": {
+    "generator": "Ninja",
+    "cuda_toolkit": "12.8.61",
+    "cuda_architecture": "120",
+    "compiler": "MSVC 19.44.35221.0",
+    "reported_version": "6014 (b6014)"
+  },
+  "binaries": {
+    "bin/llama-cli.exe": {
+      "bytes": 1228800,
+      "sha256": "ceef9666f97d8fc260557217560fd1c3e62ffdcdc2b7acb457b8c8d21f1508ac"
+    },
+    "bin/llama-bench.exe": {
+      "bytes": 219648,
+      "sha256": "49a935fd8f150810b28507638c7731c4f872346f5b2ecbacc1d2dfc4362edebc"
+    },
+    "bin/test-backend-ops.exe": {
+      "bytes": 430592,
+      "sha256": "2bf8f93cb56794afe3994ec43eea1ad88917c8c9b1bcb25a4788bd6a6d8a6f47"
+    },
+    "bin/ggml-cuda.dll": {
+      "bytes": 35027456,
+      "sha256": "5c69804a4ab1ee606e4ab903a5148b38753f9e03eec52125539ef0384268f82f"
+    }
+  }
+}

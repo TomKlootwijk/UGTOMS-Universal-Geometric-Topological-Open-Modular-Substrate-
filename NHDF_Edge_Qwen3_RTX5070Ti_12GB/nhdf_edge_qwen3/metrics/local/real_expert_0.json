@@ -1,0 +1,121 @@
+{
+  "source_revision": "0d7cf23991f47feeb3a57ecb4c9cee8ea4a17bfe",
+  "layer": 0,
+  "expert": 0,
+  "tokens": 32,
+  "seed": 2026,
+  "shape": {
+    "hidden": 2048,
+    "intermediate": 768
+  },
+  "gate_up_weight": {
+    "rmse": 0.006503451149910688,
+    "reference_rms": 0.02232273668050766,
+    "normalized_rmse": 0.2913375496864319,
+    "max_abs": 0.12745285034179688,
+    "cosine_similarity": 0.9567530751228333
+  },
+  "down_weight": {
+    "rmse": 0.007413849234580994,
+    "reference_rms": 0.02418040670454502,
+    "normalized_rmse": 0.30660563707351685,
+    "max_abs": 0.2265777587890625,
+    "cosine_similarity": 0.9518619775772095
+  },
+  "gate_up_projection": {
+    "rmse": 0.29242581129074097,
+    "reference_rms": 1.0056201219558716,
+    "normalized_rmse": 0.2907915413379669,
+    "max_abs": 1.3930704593658447,
+    "cosine_similarity": 0.9569475054740906
+  },
+  "activated_hidden": {
+    "rmse": 0.2526543140411377,
+    "reference_rms": 0.6239468455314636,
+    "normalized_rmse": 0.4049292206764221,
+    "max_abs": 3.0711638927459717,
+    "cosine_similarity": 0.9162667989730835
+  },
+  "expert_output": {
+    "rmse": 0.21004661917686462,
+    "reference_rms": 0.43643707036972046,
+    "normalized_rmse": 0.48127585649490356,
+    "max_abs": 1.3385272026062012,
+    "cosine_similarity": 0.8804738521575928
+  },
+  "isolated_single_expert_ablations": {
+    "plain_2bit": {
+      "gate_up_weight": {
+        "rmse": 0.007741856388747692,
+        "reference_rms": 0.02232273668050766,
+        "normalized_rmse": 0.3468148410320282,
+        "max_abs": 0.13919830322265625,
+        "cosine_similarity": 0.9379070401191711
+      },
+      "down_weight": {
+        "rmse": 0.00831428449600935,
+        "reference_rms": 0.02418040670454502,
+        "normalized_rmse": 0.34384387731552124,
+        "max_abs": 0.245086669921875,
+        "cosine_similarity": 0.9389781951904297
+      },
+      "expert_output": {
+        "rmse": 0.2416420429944992,
+        "reference_rms": 0.43643707036972046,
+        "normalized_rmse": 0.5536698698997498,
+        "max_abs": 1.3515825271606445,
+        "cosine_similarity": 0.834022045135498
+      },
+      "packed_payload_bytes": 1255680
+    },
+    "nhdf_2bit_residual_0_15": {
+      "gate_up_weight": {
+        "rmse": 0.007245731074362993,
+        "reference_rms": 0.02232273668050766,
+        "normalized_rmse": 0.32458972930908203,
+        "max_abs": 0.12745285034179688,
+        "cosine_similarity": 0.9458630681037903
+      },
+      "down_weight": {
+        "rmse": 0.007853533141314983,
+        "reference_rms": 0.02418040670454502,
+        "normalized_rmse": 0.3247891366481781,
+        "max_abs": 0.2265777587890625,
+        "cosine_similarity": 0.9457639455795288
+      },
+      "expert_output": {
+        "rmse": 0.22777636349201202,
+        "reference_rms": 0.43643707036972046,
+        "normalized_rmse": 0.5218997001647949,
+        "max_abs": 1.3955752849578857,
+        "cosine_similarity": 0.85550856590271
+      },
+      "packed_payload_bytes": 1357063
+    },
+    "plain_4bit": {
+      "gate_up_weight": {
+        "rmse": 0.002595304511487484,
+        "reference_rms": 0.02232273668050766,
+        "normalized_rmse": 0.11626283079385757,
+        "max_abs": 0.10426139831542969,
+        "cosine_similarity": 0.993222713470459
+      },
+      "down_weight": {
+        "rmse": 0.002753554843366146,
+        "reference_rms": 0.02418040670454502,
+        "normalized_rmse": 0.11387545615434647,
+        "max_abs": 0.15535736083984375,
+        "cosine_similarity": 0.993456244468689
+      },
+      "expert_output": {
+        "rmse": 0.08217194676399231,
+        "reference_rms": 0.43643707036972046,
+        "normalized_rmse": 0.18827903270721436,
+        "max_abs": 0.744702935218811,
+        "cosine_similarity": 0.9821633696556091
+      },
+      "packed_payload_bytes": 2435328
+    }
+  },
+  "status": "measured-real-bf16-versus-packed-expert"
+}

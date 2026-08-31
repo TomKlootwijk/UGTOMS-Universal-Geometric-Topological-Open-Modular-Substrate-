@@ -1,0 +1,36 @@
+{
+  "device": "NVIDIA GeForce RTX 5070 Ti Laptop GPU",
+  "compute_capability": [
+    12,
+    0
+  ],
+  "torch": "2.7.1+cu128",
+  "cuda_runtime": "12.8",
+  "shape": [
+    257,
+    513
+  ],
+  "row_offset": 2,
+  "row_count": 253,
+  "bits": 2,
+  "residual_fraction": 0.0,
+  "batch": 1,
+  "median_ms": 0.034223999828100204,
+  "p10_ms": 0.02595200017094612,
+  "p90_ms": 0.07548800110816956,
+  "serialized_tensor_bytes": 52528,
+  "estimated_kernel_bytes_per_batch": 51612,
+  "effective_weight_read_gbps": 1.5080645237037162,
+  "max_abs_error_vs_dequantized_fp16": 0.03125,
+  "max_relative_error_vs_dequantized_fp16": 0.09072580933570862,
+  "rmse_vs_dequantized_fp16": 0.005616683512926102,
+  "normalized_rmse_vs_dequantized_fp16": 0.0002703207868514239,
+  "cosine_similarity_vs_dequantized_fp16": 1.0,
+  "equivalence_thresholds": {
+    "max_abs": 0.5,
+    "normalized_rmse": 0.001,
+    "min_cosine_similarity": 0.99999
+  },
+  "equivalence_ok": true,
+  "status": "pass"
+}

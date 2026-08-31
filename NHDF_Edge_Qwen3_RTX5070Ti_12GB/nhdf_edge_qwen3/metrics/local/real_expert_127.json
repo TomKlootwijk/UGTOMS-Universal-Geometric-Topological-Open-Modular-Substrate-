@@ -1,0 +1,47 @@
+{
+  "source_revision": "0d7cf23991f47feeb3a57ecb4c9cee8ea4a17bfe",
+  "layer": 0,
+  "expert": 127,
+  "tokens": 32,
+  "seed": 2026,
+  "shape": {
+    "hidden": 2048,
+    "intermediate": 768
+  },
+  "gate_up_weight": {
+    "rmse": 0.005028374493122101,
+    "reference_rms": 0.014053463004529476,
+    "normalized_rmse": 0.35780322551727295,
+    "max_abs": 0.14867115020751953,
+    "cosine_similarity": 0.9338374137878418
+  },
+  "down_weight": {
+    "rmse": 0.0068856109865009785,
+    "reference_rms": 0.01903669908642769,
+    "normalized_rmse": 0.36170193552970886,
+    "max_abs": 0.2377166748046875,
+    "cosine_similarity": 0.9323803782463074
+  },
+  "gate_up_projection": {
+    "rmse": 0.226532444357872,
+    "reference_rms": 0.6341045498847961,
+    "normalized_rmse": 0.3572477698326111,
+    "max_abs": 1.111657738685608,
+    "cosine_similarity": 0.9340343475341797
+  },
+  "activated_hidden": {
+    "rmse": 0.13868889212608337,
+    "reference_rms": 0.3370286226272583,
+    "normalized_rmse": 0.4115047752857208,
+    "max_abs": 3.237602710723877,
+    "cosine_similarity": 0.9147712588310242
+  },
+  "expert_output": {
+    "rmse": 0.1260499805212021,
+    "reference_rms": 0.28121066093444824,
+    "normalized_rmse": 0.44824039936065674,
+    "max_abs": 3.393209934234619,
+    "cosine_similarity": 0.9170385599136353
+  },
+  "status": "measured-real-bf16-versus-packed-expert"
+}

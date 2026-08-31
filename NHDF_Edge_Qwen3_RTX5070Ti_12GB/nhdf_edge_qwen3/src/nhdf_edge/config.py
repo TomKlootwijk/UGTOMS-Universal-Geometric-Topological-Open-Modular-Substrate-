@@ -14,13 +14,13 @@ from .quantize import QuantizationPolicy
 class ModelProfile:
     repo_id: str = "Qwen/Qwen3-30B-A3B-Instruct-2507"
     revision: str = "main"
-    total_parameters: int = 30_532_110_336
+    total_parameters: int = 30_532_122_624
     expert_parameters: int = 28_991_029_248
     attention_parameters: int = 905_969_664
     embedding_parameters: int = 311_164_928
     lm_head_parameters: int = 311_164_928
     router_parameters: int = 12_582_912
-    norm_parameters: int = 198_656
+    norm_parameters: int = 210_944
     active_experts: int = 8
     total_experts: int = 128
     layers: int = 48
@@ -36,6 +36,9 @@ class TargetProfile:
     vram_gb_decimal: float = 12.0
     default_context_tokens: int = 8192
     kv_bits: int = 8
+    kv_group_size: int = 64
+    kv_residual_length: int = 128
+    kv_scale_zero_bits_per_group: int = 32
     workspace_gb: float = 0.75
     runtime_reserve_gb: float = 0.90
     memory_bandwidth_gbps: float = 672.0
@@ -51,7 +54,7 @@ class PackingProfile:
     expert_bits: int = 2
     expert_residual_fraction: float = 0.15
     sensitive_bits: int = 4
-    phase_gain: float = 0.25
+    phase_gain: float = 0.0
     gamma: float = 1.0
     iterations: int = 3
     raw_router_and_norms: bool = True

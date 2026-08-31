@@ -1,0 +1,32 @@
+{
+  "experiment": "llama_cpp_cuda_mul_mat_id_equivalence",
+  "runtime_version": "llama.cpp 6014 (b6014)",
+  "command": "test-backend-ops.exe test -o MUL_MAT_ID -b CUDA0",
+  "gpu": "NVIDIA GeForce RTX 5070 Ti Laptop GPU",
+  "compute_capability": "12.0",
+  "reported_device_memory_mib": 12226,
+  "reported_free_memory_mib": 11026,
+  "tests_passed": 8132,
+  "tests_total": 8132,
+  "covered_control_types": [
+    "f16",
+    "f32",
+    "q2_K",
+    "q3_K",
+    "q4_K",
+    "q5_K",
+    "q8_0",
+    "iq1_s",
+    "iq1_m",
+    "iq2_xxs",
+    "iq2_xs",
+    "iq2_s",
+    "iq3_xxs",
+    "iq3_s",
+    "iq4_nl",
+    "iq4_xs",
+    "bf16"
+  ],
+  "exit_code": 0,
+  "status": "pass"
+}

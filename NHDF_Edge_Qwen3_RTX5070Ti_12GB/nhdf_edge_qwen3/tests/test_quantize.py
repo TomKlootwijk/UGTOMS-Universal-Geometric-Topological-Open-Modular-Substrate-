@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import pytest
 import torch
 
 from nhdf_edge.quantize import (
+    PackedTensor,
     QuantizationPolicy,
     dequantize_tensor,
     quantize_tensor,
@@ -79,3 +81,51 @@ def test_selected_row_decode_matches_full_decode() -> None:
 
     rows = torch.tensor([0, 3, 3, 15])
     assert torch.equal(dequantize_rows(packed, rows), dequantize_tensor(packed)[rows])
+
+
+def test_chunk_boundaries_preserve_packed_output_with_padding_and_hessian() -> None:
+    weight = torch.randn((5, 7, 777), generator=torch.Generator().manual_seed(112), dtype=torch.float16)
+    hessian = torch.rand(777, generator=torch.Generator().manual_seed(113))
+    for bits, residual_fraction in ((2, 0.20), (4, 0.0)):
+        common = {
+            "base_bits": bits,
+            "group_size": 256,
+            "residual_fraction": residual_fraction,
+            "iterations": 3,
+        }
+
+        single_chunk = quantize_tensor(
+            weight,
+            QuantizationPolicy(**common, chunk_groups=100_000),
+            name="chunked",
+            hessian_diag=hessian,
+        )
+        many_chunks = quantize_tensor(
+            weight,
+            QuantizationPolicy(**common, chunk_groups=5),
+            name="chunked",
+            hessian_diag=hessian,
+        )
+
+        assert single_chunk.tensor_dict().keys() == many_chunks.tensor_dict().keys()
+        for key, expected in single_chunk.tensor_dict().items():
+            assert torch.equal(expected, many_chunks.tensor_dict()[key]), (bits, key)
+        assert single_chunk.stats == many_chunks.stats
+
+
+def test_serialized_geometry_and_prefix_are_validated_before_runtime() -> None:
+    packed = quantize_tensor(
+        torch.randn(8, 512, generator=torch.Generator().manual_seed(114)),
+        QuantizationPolicy(base_bits=2, group_size=256, residual_fraction=0.25),
+        name="validated.weight",
+    )
+    metadata = packed.metadata()
+    metadata["padded_cols"] = 768
+    with pytest.raises(ValueError, match="inconsistent padded/group geometry"):
+        PackedTensor.from_tensor_dict(metadata, packed.tensor_dict())
+
+    tensors = packed.tensor_dict()
+    tensors["residual_prefix"] = tensors["residual_prefix"].clone()
+    tensors["residual_prefix"][0] = 1
+    with pytest.raises(ValueError, match="residual prefix does not match"):
+        PackedTensor.from_tensor_dict(packed.metadata(), tensors)

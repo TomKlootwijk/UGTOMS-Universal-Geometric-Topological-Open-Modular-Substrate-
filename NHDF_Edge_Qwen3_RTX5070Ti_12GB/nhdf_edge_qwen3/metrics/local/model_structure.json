@@ -1,0 +1,33 @@
+{
+  "model_dir": "C:\\UGTOMS(Universal Geometric Topological Open Modular Substrate)\\NHDF_Edge_Qwen3_RTX5070Ti_12GB\\nhdf_edge_qwen3\\models\\Qwen3-30B-A3B-Instruct-2507",
+  "model_type": "qwen3_moe",
+  "architectures": [
+    "Qwen3MoeForCausalLM"
+  ],
+  "state_tensors": 531,
+  "source_checkpoint_tensors": 18867,
+  "logical_source_tensors": 531,
+  "source_layout_transformed_tensors": 96,
+  "source_names_not_in_model": [],
+  "model_names_not_in_source": [],
+  "source_namespace_matches_model": true,
+  "actual_parameters": 30532122624,
+  "configured_parameters": 30532122624,
+  "parameter_count_matches": true,
+  "policy_tensor_counts": {
+    "4bit_residual_0": 194,
+    "raw": 241,
+    "2bit_residual_0.15": 96
+  },
+  "policy_parameter_counts": {
+    "4bit_residual_0": 1528299520,
+    "raw": 12793856,
+    "2bit_residual_0.15": 28991029248
+  },
+  "expert_blocks": 48,
+  "incomplete_expert_blocks": {},
+  "replacement_errors": [],
+  "meta_parameter_count_before_replacement": 531,
+  "meta_buffers_before_replacement": [],
+  "status": "pass"
+}

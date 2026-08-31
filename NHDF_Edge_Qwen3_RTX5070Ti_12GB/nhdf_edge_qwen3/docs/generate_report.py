@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Generate the NHDF Edge engineering report as DOCX.
+"""Generate the legacy v0.1 NHDF Edge engineering report as DOCX.
+
+This generator predates the v0.3 specification and the measured custom-codec
+quality failure. See docs/README.md before regenerating or citing its output.
 
 The DOCX is converted and visually verified by the repository build workflow.
 """

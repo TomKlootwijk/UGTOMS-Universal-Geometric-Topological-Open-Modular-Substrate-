@@ -1,0 +1,26 @@
+{
+  "source_revision": "0d7cf23991f47feeb3a57ecb4c9cee8ea4a17bfe",
+  "source_parameters": 30532122624,
+  "source_checkpoint_tensors": 18867,
+  "logical_runtime_tensors": 531,
+  "packed_tensors": 531,
+  "partial_pack": false,
+  "logical_layout_version": "qwen2_moe_numeric_stack_gate_then_up_v1",
+  "packed_tensor_file_bytes": 9152386624,
+  "complete_directory_bytes": 9169104362,
+  "projected_packed_bytes": 9228413777.92,
+  "difference_from_projection_bytes": -76027153.92,
+  "policy_tensor_counts": {
+    "expert_2bit_residual_0_15": 96,
+    "sensitive_4bit": 194,
+    "raw_fp16": 241
+  },
+  "verification": {
+    "manifest_sha256": true,
+    "crc_files_checked": 531,
+    "crc_failures": 0,
+    "parity_tensors_checked": 531,
+    "parity_failures": 0
+  },
+  "status": "complete-and-verified"
+}

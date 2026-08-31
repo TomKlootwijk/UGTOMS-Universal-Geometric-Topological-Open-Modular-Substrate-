@@ -1,0 +1,43 @@
+{
+  "experiment": "equal_budget_gguf_functional_control",
+  "scope": "external control; not an NHDF codec validation",
+  "runtime": "C:\\UGTOMS(Universal Geometric Topological Open Modular Substrate)\\NHDF_Edge_Qwen3_RTX5070Ti_12GB\\nhdf_edge_qwen3\\tools\\llama.cpp-b6014\\bin\\llama-cli.exe",
+  "runtime_version": "llama.cpp b6014",
+  "model": "C:\\UGTOMS(Universal Geometric Topological Open Modular Substrate)\\NHDF_Edge_Qwen3_RTX5070Ti_12GB\\nhdf_edge_qwen3\\models\\Qwen3-30B-A3B-Instruct-2507-IQ2_M\\Qwen_Qwen3-30B-A3B-Instruct-2507-IQ2_M.gguf",
+  "model_bytes": 9870270464,
+  "context_tokens": 8192,
+  "kv_cache": "q8_0 K/V with Flash Attention",
+  "gpu": "NVIDIA GeForce RTX 5070 Ti Laptop GPU",
+  "results": [
+    {
+      "id": "exact_ok",
+      "user": "Reply with exactly the single word OK.",
+      "acceptance_rule": {
+        "kind": "exact",
+        "value": "OK"
+      },
+      "passed": true,
+      "exit_code": 0,
+      "generated_text": "OK",
+      "elapsed_seconds": 26.644165200006682,
+      "baseline_gpu_memory_mib": 287,
+      "peak_gpu_memory_mib": 10487,
+      "incremental_peak_gpu_memory_mib": 10200,
+      "peak_gpu_utilization_percent": 93,
+      "samples": 133,
+      "llama_metrics": {
+        "load_ms": 23960.74,
+        "prompt_tokens_per_second": 26.68,
+        "decode_tokens_per_second": 25.34,
+        "total_ms": 24006.97,
+        "cuda_model_buffer_mib": 9279.83,
+        "cuda_kv_buffer_mib": 408.0,
+        "cuda_compute_buffer_mib": 300.75
+      },
+      "stderr_tail": "info: FIM SUF token    = 151661 '<|fim_suffix|>'\nprint_info: FIM MID token    = 151660 '<|fim_middle|>'\nprint_info: FIM PAD token    = 151662 '<|fim_pad|>'\nprint_info: FIM REP token    = 151663 '<|repo_name|>'\nprint_info: FIM SEP token    = 151664 '<|file_sep|>'\nprint_info: EOG token        = 151643 '<|endoftext|>'\nprint_info: EOG token        = 151645 '<|im_end|>'\nprint_info: EOG token        = 151662 '<|fim_pad|>'\nprint_info: EOG token        = 151663 '<|repo_name|>'\nprint_info: EOG token        = 151664 '<|file_sep|>'\nprint_info: max token length = 256\nload_tensors: loading model tensors, this can take a while... (mmap = true)\nload_tensors: offloading 48 repeating layers to GPU\nload_tensors: offloading output layer to GPU\nload_tensors: offloaded 49/49 layers to GPU\nload_tensors:        CUDA0 model buffer size =  9279.83 MiB\nload_tensors:   CPU_Mapped model buffer size =   127.51 MiB\n..................................................................................................\nllama_context: constructing llama_context\nllama_context: non-unified KV cache requires ggml_set_rows() - forcing unified KV cache\nllama_context: n_seq_max     = 1\nllama_context: n_ctx         = 8192\nllama_context: n_ctx_per_seq = 8192\nllama_context: n_batch       = 2048\nllama_context: n_ubatch      = 512\nllama_context: causal_attn   = 1\nllama_context: flash_attn    = 1\nllama_context: kv_unified    = true\nllama_context: freq_base     = 10000000.0\nllama_context: freq_scale    = 1\nllama_context: n_ctx_per_seq (8192) < n_ctx_train (262144) -- the full capacity of the model will not be utilized\nllama_context:  CUDA_Host  output buffer size =     0.58 MiB\nllama_kv_cache_unified:      CUDA0 KV buffer size =   408.00 MiB\nllama_kv_cache_unified: size =  408.00 MiB (  8192 cells,  48 layers,  1/ 1 seqs), K (q8_0):  204.00 MiB, V (q8_0):  204.00 MiB\nllama_kv_cache_unified: LLAMA_SET_ROWS=0, using old ggml_cpy() method for backwards compatibility\nllama_context:      CUDA0 compute buffer size =   300.75 MiB\nllama_context:  CUDA_Host compute buffer size =    20.01 MiB\nllama_context: graph nodes  = 3079\nllama_context: graph splits = 2\ncommon_init_from_params: added <|endoftext|> logit bias = -inf\ncommon_init_from_params: added <|im_end|> logit bias = -inf\ncommon_init_from_params: added <|fim_pad|> logit bias = -inf\ncommon_init_from_params: added <|repo_name|> logit bias = -inf\ncommon_init_from_params: added <|file_sep|> logit bias = -inf\ncommon_init_from_params: setting dry_penalty_last_n to ctx_size = 8192\nmain: llama threadpool init, n_threads = 20\n\nsystem_info: n_threads = 20 (n_threads_batch = 20) / 20 | CUDA : ARCHS = 1200 | USE_GRAPHS = 1 | PEER_MAX_BATCH_SIZE = 128 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | \n\nsampler seed: 2026\nsampler params: \n\trepeat_last_n = 64, repeat_penalty = 1.000, frequency_penalty = 0.000, presence_penalty = 0.000\n\tdry_multiplier = 0.000, dry_base = 1.750, dry_allowed_length = 2, dry_penalty_last_n = 8192\n\ttop_k = 1, top_p = 0.950, min_p = 0.050, xtc_probability = 0.000, xtc_threshold = 0.100, typical_p = 1.000, top_n_sigma = -1.000, temp = 0.000\n\tmirostat = 0, mirostat_lr = 0.100, mirostat_ent = 5.000\nsampler chain: logits -> logit-bias -> penalties -> dry -> top-n-sigma -> top-k -> typical -> top-p -> min-p -> xtc -> temp-ext -> dist \ngenerate: n_ctx = 8192, n_batch = 2048, n_predict = 8, n_keep = 0\n\nllama_perf_sampler_print:    sampling time =       0.17 ms /    29 runs   (    0.01 ms per token, 168604.65 tokens per second)\nllama_perf_context_print:        load time =   23960.74 ms\nllama_perf_context_print: prompt eval time =    1011.86 ms /    27 tokens (   37.48 ms per token,    26.68 tokens per second)\nllama_perf_context_print:        eval time =      39.46 ms /     1 runs   (   39.46 ms per token,    25.34 tokens per second)\nllama_perf_context_print:       total time =   24006.97 ms /    28 tokens\nllama_perf_context_print:    graphs reused =          0\n"
+    }
+  ],
+  "passed": true,
+  "status": "functional-control-pass",
+  "interpretation": "A pass establishes that the exact model, GPU and byte budget can preserve useful behavior. It does not validate the failed NHDF scalar codec."
+}

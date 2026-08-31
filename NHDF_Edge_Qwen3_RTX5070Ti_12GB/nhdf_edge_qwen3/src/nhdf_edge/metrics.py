@@ -74,9 +74,23 @@ def kv_cache_bytes(
     t = cfg.target
     context = context_tokens or t.default_context_tokens
     bits = kv_bits or t.kv_bits
+    elements_per_token = batch_size * 2 * m.layers * m.kv_heads * m.head_dim
+    if bits == 8:
+        # The runtime uses Transformers' HQQ cache. Quantized elements carry
+        # one FP16 scale and zero point per group, while the most recent
+        # ``residual_length - 1`` tokens may remain FP16 between flushes.
+        residual_tokens = min(max(context - 1, 0), max(t.kv_residual_length - 1, 0))
+        quantized_tokens = context - residual_tokens
+        quantized_bytes_per_element = bits / 8.0 + (
+            t.kv_scale_zero_bits_per_group / 8.0 / t.kv_group_size
+        )
+        return int(
+            quantized_tokens * elements_per_token * quantized_bytes_per_element
+            + residual_tokens * elements_per_token * 2.0
+        )
     bytes_per_element = bits / 8.0
     # K + V, every layer, only KV heads (GQA).
-    return int(batch_size * context * 2 * m.layers * m.kv_heads * m.head_dim * bytes_per_element)
+    return int(context * elements_per_token * bytes_per_element)
 
 
 def estimate(cfg: NHDFConfig, *, context_tokens: int | None = None) -> Estimate:

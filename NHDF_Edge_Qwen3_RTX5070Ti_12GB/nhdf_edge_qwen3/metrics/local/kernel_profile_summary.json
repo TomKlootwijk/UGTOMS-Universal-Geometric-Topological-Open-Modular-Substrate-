@@ -1,0 +1,16 @@
+{
+  "tool": "NVIDIA Nsight Compute 2025.1",
+  "report": "kernel_profile.ncu-rep",
+  "report_kernel_id": 28,
+  "kernel": "void <unnamed>::gemv_kernel<c10::Half>(...)",
+  "grid": [1024, 1, 1],
+  "block": [256, 1, 1],
+  "duration_us": 120.832,
+  "dram_throughput_pct_of_peak_sustained": 3.038215,
+  "memory_throughput_pct_of_peak_sustained": 34.949561,
+  "compute_sm_throughput_pct_of_peak_sustained": 63.572648,
+  "theoretical_occupancy_percent": 100.0,
+  "achieved_occupancy_percent": 90.169358,
+  "registers_per_thread": 40,
+  "status": "measured-custom-gemv-kernel"
+}

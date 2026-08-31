@@ -1,0 +1,120 @@
+{
+  "estimate": {
+    "expert_effective_bpp": 2.32078125,
+    "sensitive_effective_bpp": 4.14890625,
+    "packed_weight_gb": 9.22841377792,
+    "packed_weight_gib": 8.59463007926941,
+    "compression_vs_bf16": 6.620856137399095,
+    "compression_vs_official_int4": 1.8313006337486857,
+    "kv_cache_gb": 0.433671168,
+    "projected_total_vram_gb": 11.31208494592,
+    "projected_total_vram_gib": 10.53520007610321,
+    "nominal_headroom_gb": 0.6879150540799994,
+    "active_weight_bytes_per_token_gb": 1.1824492288,
+    "peak_bandwidth_roofline_tps": 568.311927169993,
+    "decode_tps_by_efficiency": {
+      "2%": 11.366238543399861,
+      "3%": 17.049357815099793,
+      "5%": 28.415596358499656,
+      "7%": 39.781834901899515,
+      "10%": 56.83119271699931
+    },
+    "fits_nominal_12gb": true
+  },
+  "residual_fraction_sweep": [
+    {
+      "residual_fraction": 0.0,
+      "expert_bpp": 2.15671875,
+      "packed_weight_gb": 8.63387118592,
+      "total_vram_gb": 10.71754235392,
+      "active_weight_gb_per_token": 1.1452903168,
+      "roofline_tps": 586.7507916050514,
+      "fits_12gb": true
+    },
+    {
+      "residual_fraction": 0.05,
+      "expert_bpp": 2.2114062499999996,
+      "packed_weight_gb": 8.832052049919998,
+      "total_vram_gb": 10.915723217919998,
+      "active_weight_gb_per_token": 1.1576766207999998,
+      "roofline_tps": 580.4729817689691,
+      "fits_12gb": true
+    },
+    {
+      "residual_fraction": 0.1,
+      "expert_bpp": 2.26609375,
+      "packed_weight_gb": 9.03023291392,
+      "total_vram_gb": 11.113904081920001,
+      "active_weight_gb_per_token": 1.1700629247999998,
+      "roofline_tps": 574.3280859145808,
+      "fits_12gb": true
+    },
+    {
+      "residual_fraction": 0.15,
+      "expert_bpp": 2.32078125,
+      "packed_weight_gb": 9.22841377792,
+      "total_vram_gb": 11.31208494592,
+      "active_weight_gb_per_token": 1.1824492288,
+      "roofline_tps": 568.311927169993,
+      "fits_12gb": true
+    },
+    {
+      "residual_fraction": 0.2,
+      "expert_bpp": 2.3754687500000005,
+      "packed_weight_gb": 9.42659464192,
+      "total_vram_gb": 11.51026580992,
+      "active_weight_gb_per_token": 1.1948355328,
+      "roofline_tps": 562.4205018620618,
+      "fits_12gb": true
+    },
+    {
+      "residual_fraction": 0.25,
+      "expert_bpp": 2.43015625,
+      "packed_weight_gb": 9.62477550592,
+      "total_vram_gb": 11.708446673920001,
+      "active_weight_gb_per_token": 1.2072218368,
+      "roofline_tps": 556.6499706311475,
+      "fits_12gb": true
+    },
+    {
+      "residual_fraction": 0.3,
+      "expert_bpp": 2.4848437499999996,
+      "packed_weight_gb": 9.822956369919998,
+      "total_vram_gb": 11.906627537919999,
+      "active_weight_gb_per_token": 1.2196081407999997,
+      "roofline_tps": 550.9966500873,
+      "fits_12gb": true
+    }
+  ],
+  "context_sweep": [
+    {
+      "context_tokens": 4096,
+      "kv_cache_gb": 0.219761664,
+      "total_vram_gb": 11.09817544192,
+      "headroom_gb": 0.9018245580799995,
+      "fits_12gb": true
+    },
+    {
+      "context_tokens": 8192,
+      "kv_cache_gb": 0.433671168,
+      "total_vram_gb": 11.31208494592,
+      "headroom_gb": 0.6879150540799994,
+      "fits_12gb": true
+    },
+    {
+      "context_tokens": 16384,
+      "kv_cache_gb": 0.861490176,
+      "total_vram_gb": 11.73990395392,
+      "headroom_gb": 0.26009604607999925,
+      "fits_12gb": true
+    },
+    {
+      "context_tokens": 32768,
+      "kv_cache_gb": 1.717128192,
+      "total_vram_gb": 12.595541969920001,
+      "headroom_gb": -0.5955419699200011,
+      "fits_12gb": false
+    }
+  ],
+  "status": "analytical-not-measured"
+}

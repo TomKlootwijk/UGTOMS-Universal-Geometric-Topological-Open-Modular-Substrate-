@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "Semantics-first NHDF weight packing and edge runtime for Qwen3-MoE"
 readme = "README.md"
 requires-python = ">=3.10"
-license = {text = "Apache-2.0"}
+license = "Apache-2.0"
 authors = [
   {name = "Tom Klootwijk"},
 ]
@@ -23,6 +23,7 @@ dependencies = [
 runtime = [
   "transformers>=4.57",
   "accelerate>=1.0",
+  "hqq>=0.2.1",
 ]
 dev = [
   "pytest>=8",

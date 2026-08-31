@@ -146,7 +146,7 @@ def branch_score(
     theta: torch.Tensor,
     *,
     hessian_diag: torch.Tensor | None = None,
-    phase_gain: float = 0.25,
+    phase_gain: float = 0.0,
 ) -> torch.Tensor:
     """Score groups for the bounded one-bit residual branch."""
 

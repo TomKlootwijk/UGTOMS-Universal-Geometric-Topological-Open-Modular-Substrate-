@@ -1,0 +1,47 @@
+{
+  "device": "NVIDIA GeForce RTX 5070 Ti Laptop GPU",
+  "system_prompt": "You are a precise assistant.",
+  "user_prompt": "Reply with exactly the single word OK.",
+  "decoding": "greedy",
+  "prompt_tokens": 27,
+  "requested_new_tokens": 16,
+  "model_load_seconds": 42.910810300003504,
+  "model_load_peak_allocated_gb": 9.162242048,
+  "model_load_peak_reserved_gb": 9.172942848,
+  "runs": [
+    {
+      "seconds": 4.049399900002754,
+      "generated_tokens": 16,
+      "generated_text": "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n",
+      "time_to_first_token_seconds": 1.4922191000077873,
+      "prefill_tokens_per_second": 18.09385766464127,
+      "steady_decode_tokens_per_second": 5.878311429191262,
+      "median_inter_token_seconds": 0.17007449999800883,
+      "end_to_end_tokens_per_second": 3.9512027448781035
+    }
+  ],
+  "generation_peak_allocated_gb": 9.176658432,
+  "generation_peak_reserved_gb": 9.202302976,
+  "runtime_budget": {
+    "free_bytes_before_load": 11561598976,
+    "total_device_bytes": 12820480000,
+    "pack_bytes": 9152386624,
+    "kv_cache_bytes": 433671168,
+    "workspace_bytes": 750000000,
+    "reserve_bytes": 900000000,
+    "required_bytes": 11236057792,
+    "context_tokens": 8192,
+    "kv_bits": 8
+  },
+  "cache_implementation": "quantized",
+  "cache_config": {
+    "backend": "hqq",
+    "nbits": 8,
+    "axis_key": 0,
+    "axis_value": 0,
+    "q_group_size": 64,
+    "residual_length": 128
+  },
+  "quality_observation": "Expected OK; generated only repeated newline tokens.",
+  "status": "measured-runtime-quality-failed"
+}

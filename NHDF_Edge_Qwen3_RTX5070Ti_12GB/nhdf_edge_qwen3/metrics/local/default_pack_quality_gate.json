@@ -1,0 +1,38 @@
+{
+  "artifact": "packs/qwen3-30b-a3b-nhdf",
+  "decision": "reject",
+  "functional_generation": {
+    "exact_response_expected": "OK",
+    "observed_failure_modes": [
+      "repeated newline tokens",
+      "10000000"
+    ]
+  },
+  "real_layer0_expert_output": {
+    "expert_0": {
+      "normalized_rmse": 0.4813,
+      "cosine_similarity": 0.8805
+    },
+    "expert_17": {
+      "normalized_rmse": 0.4749,
+      "cosine_similarity": 0.8935
+    },
+    "expert_127": {
+      "normalized_rmse": 0.4482,
+      "cosine_similarity": 0.9170
+    }
+  },
+  "integrity": {
+    "crc_files_passed": 531,
+    "crc_files_total": 531,
+    "parity_tensors_passed": 531,
+    "parity_tensors_total": 531
+  },
+  "source_metrics": [
+    "metrics/local/model_benchmark.json",
+    "metrics/local/real_expert_0.json",
+    "metrics/local/real_expert_17.json",
+    "metrics/local/real_expert_127.json",
+    "VALIDATION_STATUS.md"
+  ]
+}

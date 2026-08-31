@@ -1,0 +1,32 @@
+{
+  "source_checkpoint_tensors": 18867,
+  "logical_runtime_tensors": 531,
+  "source_namespace_matches_transformers_5_16": true,
+  "partial_pack_tensors": 8,
+  "partial_pack_bytes": 335377373,
+  "partial_source_parameters": 916459648,
+  "crc_and_parity_verified": true,
+  "gate_up": {
+    "name": "model.layers.0.mlp.experts.gate_up_proj",
+    "shape": [128, 1536, 2048],
+    "base_bits": 2,
+    "residual_fraction": 0.15,
+    "packed_payload_bytes": 115802126,
+    "sampled_source_experts": [0, 17, 127],
+    "sample_rmse": 0.005512554198503494,
+    "sample_max_abs": 0.08180618286132812,
+    "sample_cosine_mean": 0.9387140870094299
+  },
+  "down": {
+    "name": "model.layers.0.mlp.experts.down_proj",
+    "shape": [128, 2048, 768],
+    "base_bits": 2,
+    "residual_fraction": 0.15,
+    "packed_payload_bytes": 57901063,
+    "sampled_source_experts": [0, 17, 127],
+    "sample_rmse": 0.007082237862050533,
+    "sample_max_abs": 0.065521240234375,
+    "sample_cosine_mean": 0.9498043656349182
+  },
+  "status": "real-checkpoint-layout-and-pack-smoke"
+}

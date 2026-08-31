@@ -1,0 +1,27 @@
+{
+  "experiment": "llama_cpp_equal_budget_control_benchmark",
+  "runtime": "llama.cpp 6014 (b6014)",
+  "backend": "CUDA",
+  "gpu": "NVIDIA GeForce RTX 5070 Ti Laptop GPU",
+  "cpu": "Intel(R) Core(TM) Ultra 7 255HX",
+  "model_type": "qwen3moe 30B.A3B IQ2_M - 2.7 bpw",
+  "model_parameters": 30532122624,
+  "ggml_tensor_bytes": 9864300544,
+  "gguf_file_bytes": 9870270464,
+  "gpu_layers_requested": 999,
+  "kv_cache_k": "q8_0",
+  "kv_cache_v": "q8_0",
+  "flash_attention": true,
+  "repetitions": 3,
+  "prompt_64": {
+    "average_tokens_per_second": 458.556783,
+    "standard_deviation_tokens_per_second": 4.037985,
+    "samples_tokens_per_second": [455.986, 463.211, 456.474]
+  },
+  "decode_64": {
+    "average_tokens_per_second": 101.717109,
+    "standard_deviation_tokens_per_second": 2.459917,
+    "samples_tokens_per_second": [100.257, 100.337, 104.557]
+  },
+  "status": "measured"
+}

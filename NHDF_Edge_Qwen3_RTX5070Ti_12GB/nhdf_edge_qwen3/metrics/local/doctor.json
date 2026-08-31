@@ -1,0 +1,20 @@
+{
+  "python": "3.13.11",
+  "platform": "Windows-11-10.0.26200-SP0",
+  "torch": "2.7.1+cu128",
+  "cuda_available": true,
+  "cuda_runtime": "12.8",
+  "device_name": "NVIDIA GeForce RTX 5070 Ti Laptop GPU",
+  "capability": [
+    12,
+    0
+  ],
+  "total_vram_gb": 12.82048,
+  "free_vram_gb": 11.561598976,
+  "driver": "591.59",
+  "cuda_extension": true,
+  "projected_pack_vram_gb": 11.31208494592,
+  "projected_headroom_gb": 0.6879150540799994,
+  "verdict": "ready-for-benchmark",
+  "warnings": []
+}

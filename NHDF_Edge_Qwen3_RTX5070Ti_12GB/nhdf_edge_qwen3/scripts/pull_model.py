@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
 
-from huggingface_hub import snapshot_download
+from huggingface_hub import HfApi, snapshot_download
 
 
 def main() -> None:
@@ -17,9 +18,16 @@ def main() -> None:
     args = parser.parse_args()
     target = Path(args.output)
     target.parent.mkdir(parents=True, exist_ok=True)
+    resolved_revision = HfApi().model_info(
+        args.repo,
+        revision=args.revision,
+        token=args.token,
+    ).sha
     path = snapshot_download(
         repo_id=args.repo,
-        revision=args.revision,
+        # Pin the immutable commit resolved at the start of the download so a
+        # moving branch cannot mix files from different upstream revisions.
+        revision=resolved_revision,
         local_dir=target,
         token=args.token,
         allow_patterns=[
@@ -32,6 +40,17 @@ def main() -> None:
             "merges.txt",
             "vocab.json",
         ],
+    )
+    (target / "NHDF_SOURCE.json").write_text(
+        json.dumps(
+            {
+                "repo_id": args.repo,
+                "requested_revision": args.revision,
+                "resolved_revision": resolved_revision,
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
     )
     print(path)
 

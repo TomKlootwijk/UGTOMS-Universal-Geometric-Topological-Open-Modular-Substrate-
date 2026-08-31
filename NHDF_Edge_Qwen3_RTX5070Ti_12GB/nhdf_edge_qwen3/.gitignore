@@ -10,3 +10,8 @@ packs/
 benchmarks/local/
 *.pt
 *.bin
+tmp/
+tools/
+metrics/local/*.ncu-rep
+*.zip
+.pytest_cache/

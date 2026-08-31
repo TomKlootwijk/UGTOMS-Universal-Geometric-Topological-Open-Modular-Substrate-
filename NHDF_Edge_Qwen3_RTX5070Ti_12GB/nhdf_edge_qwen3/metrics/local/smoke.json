@@ -1,0 +1,17 @@
+{
+  "shape": [
+    256,
+    1024
+  ],
+  "base_mse": 0.11607714742422104,
+  "branch_mse": 0.10397731512784958,
+  "mse_reduction_percent": 10.423957311899512,
+  "branch_effective_bpp": 2.30120849609375,
+  "zero_set_max_abs": 3.67872416973114e-08,
+  "parity": {
+    "groups": 1024,
+    "mismatches": 0,
+    "ok": true,
+    "note": "one-bit parity misses even-count faults; use shard CRC32 for full integrity verification"
+  }
+}

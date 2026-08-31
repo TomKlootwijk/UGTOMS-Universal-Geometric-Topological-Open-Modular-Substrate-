@@ -5,11 +5,11 @@
     1024
   ],
   "default_residual_fraction": 0.15,
-  "base_2bit_mse": 0.3218592405319214,
+  "base_2bit_mse": 0.321859210729599,
   "default_mse": 0.2893194556236267,
-  "default_mse_reduction_percent": 10.109942735997802,
+  "default_mse_reduction_percent": 10.109934412692523,
   "default_effective_bpp": 2.3006744384765625,
-  "default_zero_set_max_abs": 6.542541086673737e-08,
+  "default_zero_set_max_abs": 6.891787052154541e-08,
   "default_parity_ok": true,
-  "fourbit_mse": 0.09999720752239227
+  "fourbit_mse": 0.09999719262123108
 }

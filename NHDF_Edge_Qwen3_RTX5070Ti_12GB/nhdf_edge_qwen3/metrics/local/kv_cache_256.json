@@ -1,0 +1,22 @@
+{
+  "device": "NVIDIA GeForce RTX 5070 Ti Laptop GPU",
+  "tokens": 256,
+  "layers": 48,
+  "kv_heads": 4,
+  "head_dim": 128,
+  "bits": 8,
+  "group_size": 64,
+  "residual_length": 128,
+  "one_layer_stored_bytes": 400448,
+  "extrapolated_all_layer_bytes": 19221504,
+  "median_update_ms": 0.12799999862909317,
+  "first_update_ms": 131.75144958496094,
+  "p90_update_ms": 0.17190399765968323,
+  "p99_update_ms": 3.4251201152801514,
+  "max_update_ms": 131.75144958496094,
+  "max_update_token_index": 0,
+  "max_abs_error": 0.01904296875,
+  "rmse": 0.003730612341314554,
+  "normalized_rmse": 0.0037128734575294416,
+  "status": "measured-hqq-int8-cache"
+}
