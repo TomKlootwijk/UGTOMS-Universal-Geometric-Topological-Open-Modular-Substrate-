@@ -83,9 +83,9 @@ CANONICAL_VALIDATION_EVIDENCE_PATH = (
 CANONICAL_VALIDATION_SNAPSHOT_PATH = (
     "metrics/local/ugtoms_local_agent_32k/functional_gate.json"
 )
-EXPECTED_VALIDATION_EVIDENCE_BYTES = 33_249
+EXPECTED_VALIDATION_EVIDENCE_BYTES = 32_876
 EXPECTED_VALIDATION_EVIDENCE_SHA256 = (
-    "45b097462dd89cce1d6a8f458ba69b577b5b0cd6d7c630067bdb4564367eb68d"
+    "d56140c0a4bc97fb9fab5d3930222a494e681744570363d0f810a8e872aa01c1"
 )
 CANONICAL_RUNTIME_PATHS = (
     CANONICAL_RUNTIME_ENTRYPOINT,
@@ -1001,10 +1001,10 @@ def _validate_evidence_claims(
         raise LocalCoderError("validation evidence throughput threshold changed")
     if thresholds.get("full_offload_required") != [49, 49]:
         raise LocalCoderError("validation evidence offload threshold changed")
-    if prompt.get("tokens") != 64 or prompt.get("average_tokens_per_second") != 797.667364:
+    if prompt.get("tokens") != 64 or prompt.get("average_tokens_per_second") != 442.151809:
         raise LocalCoderError("validation evidence prompt measurement changed")
     if generation.get("tokens") != 64 or (
-        generation.get("average_tokens_per_second") != 142.143349
+        generation.get("average_tokens_per_second") != 132.502673
     ):
         raise LocalCoderError("validation evidence generation measurement changed")
 

@@ -639,6 +639,10 @@ class ModelDownloader:
                         "Completed partial model failed SHA-256 and was discarded; retry "
                         "Download Model."
                     ) from None
+                if cancel_event.is_set():
+                    raise DownloadCancelled(
+                        "Model download cancelled; verified partial bytes were kept."
+                    )
                 if destination.exists() or destination.is_symlink():
                     raise GuiError(
                         "Model destination appeared during verification; refusing overwrite."
@@ -737,18 +741,31 @@ class ModelDownloader:
                 "Download Model."
             ) from None
 
+        if cancel_event.is_set():
+            raise DownloadCancelled(
+                "Model download cancelled; verified partial bytes were kept."
+            )
         self._validate_destination_layout()
         if destination.exists() or destination.is_symlink():
             raise GuiError(
                 "Model destination appeared during download; refusing overwrite."
             )
         os.replace(partial, destination)
-        self._verify_exact_file(
+        installed = _require_safe_path(
             destination,
-            cancel_event=cancel_event,
-            on_progress=on_progress,
-            phase="verifying installed model",
-            resumed=offset > 0,
+            trusted_root=self.trusted_root,
+            must_exist=True,
+            require_file=True,
+        )
+        if installed.stat().st_size != self.control.expected_bytes:
+            raise GuiError("Atomically installed model changed size unexpectedly.")
+        on_progress(
+            DownloadProgress(
+                phase="installed",
+                completed_bytes=self.control.expected_bytes,
+                total_bytes=self.control.expected_bytes,
+                resumed=offset > 0,
+            )
         )
         return destination
 
@@ -1393,6 +1410,10 @@ class LocalCoderController:
         self._lock = threading.RLock()
         self._context: _ResidentContext | None = None
         self._prompt_cancel: threading.Event | None = None
+        self._start_cancel: threading.Event | None = None
+        self._starting_server: Any | None = None
+        self._start_done = threading.Event()
+        self._start_done.set()
         self._closing = False
 
     @property
@@ -1452,6 +1473,30 @@ class LocalCoderController:
                 raise GuiError("The local coder is shutting down.")
             if self._context is not None:
                 raise GuiError("The resident model is already started.")
+            if self._start_cancel is not None:
+                raise GuiError("A resident model start is already in progress.")
+            self._start_cancel = cancel_event
+            self._start_done.clear()
+        try:
+            return self._start_resident(
+                repository,
+                cancel_event=cancel_event,
+                on_status=on_status,
+            )
+        finally:
+            with self._lock:
+                if self._start_cancel is cancel_event:
+                    self._start_cancel = None
+                    self._starting_server = None
+                self._start_done.set()
+
+    def _start_resident(
+        self,
+        repository: Path,
+        *,
+        cancel_event: threading.Event,
+        on_status: Callable[[str], None],
+    ) -> str:
         target, worktree_root = self.launcher.validate_git_target(repository)
         config = self.launcher.validate_config(self.launcher.DEFAULT_CONFIG)
         executable = self.launcher.validate_local_install(self.launcher.OPENCODE_EXE)
@@ -1468,6 +1513,11 @@ class LocalCoderController:
             verify_payload_hash=True,
             artifact_approval=validated.server_approval,
         )
+        with self._lock:
+            if self._closing or cancel_event.is_set():
+                server.stop()
+                raise OperationCancelled("Resident model start was cancelled.")
+            self._starting_server = server
         environment = self.launcher.isolated_environment(config, server.base_url)
         self.launcher.verify_execution_inputs(executable, config, environment)
         expected_contract = (
@@ -1701,7 +1751,17 @@ class LocalCoderController:
     def shutdown(self) -> None:
         with self._lock:
             self._closing = True
+            start_cancel = self._start_cancel
+            starting_server = self._starting_server
+        if start_cancel is not None:
+            start_cancel.set()
         self.setup_runner.cancel()
+        if starting_server is not None:
+            starting_server.stop()
+        self.stop()
+        self._start_done.wait()
+        # A start that was still validating when shutdown began cannot publish a
+        # context because _closing is set, but stop once more to cover the boundary.
         self.stop()
 
 

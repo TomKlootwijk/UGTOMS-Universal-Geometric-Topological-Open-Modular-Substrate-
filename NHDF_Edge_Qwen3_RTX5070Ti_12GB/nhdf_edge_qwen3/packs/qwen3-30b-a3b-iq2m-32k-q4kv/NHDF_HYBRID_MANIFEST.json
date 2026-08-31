@@ -1,0 +1,221 @@
+{
+  "artifact_kind": "external-codec-reference",
+  "assurance_evidence": [
+    {
+      "bytes": 1003,
+      "path": "../../substrate/profiles/registry.json",
+      "sha256": "aa1d788808ebd624dcff435538cd4e63f13004bf84101956ffe4119f14b14152"
+    },
+    {
+      "bytes": 4856,
+      "path": "../../substrate/evidence/application_proofs.json",
+      "sha256": "94f815f5b3e28592077e13005dbfd9d1c5cdb22253ca6a3d0f1273511817de44"
+    },
+    {
+      "bytes": 9796,
+      "path": "../../substrate/AGENT_CONTRACT.md",
+      "sha256": "54bbf57e0b26154df0c417c909dc756bdfbfad3df74622dc456f94d0f46a0035"
+    }
+  ],
+  "created_at_utc": "2026-08-31T20:53:36.481450Z",
+  "events": [
+    {
+      "hash": "40951153ad3d0da4ba1a25549860e2df7fbc40bb1b34818159d372fd77e9d0f4",
+      "kind": "ARTIFACT_CREATED",
+      "payload": {
+        "codec": "GGUF/IQ2_M",
+        "payload_bytes": 9870270464,
+        "payload_sha256": "f2dc78edd3ec0171904f1945d8c05a948131b1103172b1710b763db2eb65f52a",
+        "validation_status": "UNCALIBRATED"
+      },
+      "previous": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "hash": "847db81352f8323f306b5fd5d3492183443dcf6f1d1f185bc44a290ded4ce5b2",
+      "kind": "VALIDATION_STATUS_CHANGED",
+      "payload": {
+        "evidence_sha256": "d56140c0a4bc97fb9fab5d3930222a494e681744570363d0f810a8e872aa01c1",
+        "previous_status": "UNCALIBRATED",
+        "status": "VALIDATED"
+      },
+      "previous": "40951153ad3d0da4ba1a25549860e2df7fbc40bb1b34818159d372fd77e9d0f4"
+    }
+  ],
+  "execution_profile": {
+    "batch": 2048,
+    "expected_offloaded_layers": [
+      49,
+      49
+    ],
+    "flash_attention": true,
+    "gpu_layers": 999,
+    "kv_cache_k": "q4_0",
+    "kv_cache_v": "q4_0",
+    "maximum_context_tokens": 32768,
+    "minimum_generation_tokens_per_second": 80.0,
+    "model_family": "qwen3moe",
+    "poll": 50,
+    "priority": 2,
+    "priority_batch": 2,
+    "prompt_template": "explicit-current-nonthinking-qwen-chatml",
+    "sampling": {
+      "seed": 2026,
+      "temperature": 0.0,
+      "top_k": 1
+    },
+    "split_mode": "none",
+    "threads": 4,
+    "threads_batch": 4,
+    "ubatch": 512
+  },
+  "format": "nhdf-edge-hybrid-0.1",
+  "model": {
+    "id": "Qwen/Qwen3-30B-A3B-Instruct-2507",
+    "parameters": 30532122624,
+    "source_bf16_tensor_bytes": 61064245248,
+    "source_revision": "0d7cf23991f47feeb3a57ecb4c9cee8ea4a17bfe"
+  },
+  "payload": {
+    "bytes": 9870270464,
+    "file_size_bits_per_parameter": 2.5861996129260665,
+    "ggml_tensor_bytes": 9864300544,
+    "link_mode": "workspace-relative-reference",
+    "path": "../../models/Qwen3-30B-A3B-Instruct-2507-IQ2_M/Qwen_Qwen3-30B-A3B-Instruct-2507-IQ2_M.gguf",
+    "sha256": "f2dc78edd3ec0171904f1945d8c05a948131b1103172b1710b763db2eb65f52a"
+  },
+  "resource_contract": {
+    "maximum_validated_context_tokens": 32768,
+    "measured_incremental_peak_vram_mib": 10200,
+    "required_free_vram_mib": 10712,
+    "reserve_vram_mib": 512,
+    "source_bf16_weight_mib": 58235.40234375,
+    "target_gpu": "NVIDIA GeForce RTX 5070 Ti Laptop GPU",
+    "target_vram_mib": 12227
+  },
+  "runtime": {
+    "argument_profile": "current-2026",
+    "benchmark_entrypoint": "../../tools/llama.cpp-f8dbcd61/bin/llama-bench.exe",
+    "build_number": 10720,
+    "entrypoint": "../../tools/llama.cpp-f8dbcd61/bin/llama-completion.exe",
+    "files": [
+      {
+        "bytes": 10752,
+        "path": "../../tools/llama.cpp-f8dbcd61/bin/llama-completion.exe",
+        "sha256": "d687544bc1e82d3fc18e4da0d64dc5a94f08e8a8bd358bc96a3243d00df38f31"
+      },
+      {
+        "bytes": 10752,
+        "path": "../../tools/llama.cpp-f8dbcd61/bin/llama-bench.exe",
+        "sha256": "48b29766bdb58bbec86804589decf2b12049a3eb8ca62899a57d063cb989280a"
+      },
+      {
+        "bytes": 10752,
+        "path": "../../tools/llama.cpp-f8dbcd61/bin/llama-server.exe",
+        "sha256": "3f1041dcc2e797a05b80324e0b04a20021cd14fba272f6e2945d16b2ead2364c"
+      },
+      {
+        "bytes": 671744,
+        "path": "../../tools/llama.cpp-f8dbcd61/bin/ggml-base.dll",
+        "sha256": "5debdf44b6a8a30cbc9e733b41712bac29b9dbc68c94b6f9ecfde9a5cce82acb"
+      },
+      {
+        "bytes": 907264,
+        "path": "../../tools/llama.cpp-f8dbcd61/bin/ggml-cpu.dll",
+        "sha256": "9230df69ab901f24fd6742949bf04c8f725bebacae189aac54d349c773c7ad1d"
+      },
+      {
+        "bytes": 52752896,
+        "path": "../../tools/llama.cpp-f8dbcd61/bin/ggml-cuda.dll",
+        "sha256": "734b80b60afeb373e91ad876f03698a713324102c63f0e755a417d56147e4536"
+      },
+      {
+        "bytes": 67072,
+        "path": "../../tools/llama.cpp-f8dbcd61/bin/ggml.dll",
+        "sha256": "bfa741c63302c8051b80a717749ca796c2e65d8ae6267b776d512391b51f1cf9"
+      },
+      {
+        "bytes": 904704,
+        "path": "../../tools/llama.cpp-f8dbcd61/bin/llama-bench-impl.dll",
+        "sha256": "08d8e3a0a03e4d4d3d48c6315385ee312653109c575e9c0ef11cf466838243ac"
+      },
+      {
+        "bytes": 873472,
+        "path": "../../tools/llama.cpp-f8dbcd61/bin/llama-cli-impl.dll",
+        "sha256": "25cc56a47561d5c153731a6f783b512fac3c9cb0222a70321d06c9cbc31bde64"
+      },
+      {
+        "bytes": 8201216,
+        "path": "../../tools/llama.cpp-f8dbcd61/bin/llama-common.dll",
+        "sha256": "4ed30d4d551f42c4b5f8dc761a06172402922bab01e2fce03d34f489d6a65cf8"
+      },
+      {
+        "bytes": 247808,
+        "path": "../../tools/llama.cpp-f8dbcd61/bin/llama-completion-impl.dll",
+        "sha256": "a2539189c876a5f31afa4066650476b31800f0bdb494ed527808e396ce3777b5"
+      },
+      {
+        "bytes": 13089280,
+        "path": "../../tools/llama.cpp-f8dbcd61/bin/llama-server-impl.dll",
+        "sha256": "666adac5159f65338a897a1bb3e404ab207796f6653f25ee24fb1ee4220876a2"
+      },
+      {
+        "bytes": 2567680,
+        "path": "../../tools/llama.cpp-f8dbcd61/bin/llama.dll",
+        "sha256": "216dc4e66b6505766f531d1539d87f6a66d018cdb82d5955c65cc130b19c916d"
+      },
+      {
+        "bytes": 2377728,
+        "path": "../../tools/llama.cpp-f8dbcd61/bin/mtmd.dll",
+        "sha256": "b816fd936992b81e3ce29a170ad4983cbf7d6db3ea71ebb55119e3c6c1c3224b"
+      }
+    ],
+    "implementation": "llama.cpp",
+    "revision": "f8dbcd61893702976f9ab03be89c2b9f436d532c",
+    "server_entrypoint": "../../tools/llama.cpp-f8dbcd61/bin/llama-server.exe"
+  },
+  "source_record": {
+    "bytes": 948,
+    "path": "../../models/Qwen3-30B-A3B-Instruct-2507-IQ2_M/CONTROL_SOURCE.json",
+    "sha256": "9b184e403b591bd4fc9a6adc176ff47bbe0f372cd529168dc999fa09b4f6543a"
+  },
+  "substrate": {
+    "name": "UGTOMS-grounded local-agent transport",
+    "role": [
+      "bind a selected substrate contract without claiming a substrate-native tensor codec",
+      "SHA-256-sealed local provenance and evidence chain",
+      "typed capability and validation state",
+      "bounded GPU/context allocation",
+      "fail-closed execution policy",
+      "replaceable tensor-codec boundary"
+    ],
+    "specification": {
+      "bytes": 10187,
+      "path": "../../substrate/kernel/contract.json",
+      "sha256": "9b5fa7cff4483129e80e1c234055d57e0f79a574dcd2e131c418bbe0259448c3"
+    }
+  },
+  "validation": {
+    "deployment_loadable": true,
+    "evidence": {
+      "bytes": 32876,
+      "path": "evidence/functional_gate.json",
+      "sha256": "d56140c0a4bc97fb9fab5d3930222a494e681744570363d0f810a8e872aa01c1"
+    },
+    "evidence_summary": {
+      "functional_prompts_passed": 4,
+      "generation_tokens_per_second": 132.502673,
+      "passed": true,
+      "peak_gpu_memory_mib": 11068
+    },
+    "hardware_scope": "NVIDIA GeForce RTX 5070 Ti Laptop GPU",
+    "previous_status": "UNCALIBRATED",
+    "status": "VALIDATED"
+  },
+  "weight_codec": {
+    "attribution": "The low-bit tensor encoding is GGUF/IQ2_M. NHDF does not claim authorship of this codec.",
+    "container": "GGUF",
+    "nhdf_native_codec": false,
+    "owner": "ggml/Bartowski",
+    "profile": "IQ2_M mixed-bit"
+  }
+}

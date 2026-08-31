@@ -216,6 +216,31 @@ def test_downloader_cancel_keeps_partial_and_never_promotes(
     assert not control.destination.exists()
 
 
+def test_downloader_cancel_after_hash_keeps_verified_partial(
+    gui, tmp_path: Path
+) -> None:
+    payload = b"0123456789"
+    control = _load_control(gui, tmp_path, payload)
+    cancel = threading.Event()
+
+    def progress(value) -> None:
+        if value.phase == "verifying download" and value.completed_bytes == len(
+            payload
+        ):
+            cancel.set()
+
+    with pytest.raises(gui.DownloadCancelled, match="verified partial bytes were kept"):
+        gui.ModelDownloader(
+            control,
+            trusted_root=tmp_path,
+            opener=_FakeOpener(_FakeResponse(payload, status=200)),
+        ).download(cancel_event=cancel, on_progress=progress)
+
+    partial = control.destination.with_name(control.destination.name + ".download.part")
+    assert partial.read_bytes() == payload
+    assert not control.destination.exists()
+
+
 def test_downloader_rejects_wrong_range_and_does_not_promote(
     gui, tmp_path: Path
 ) -> None:
@@ -619,6 +644,51 @@ def test_controller_keeps_server_resident_and_binds_owned_session(
     assert controller.scoped_work_authorized is False
     controller.stop()
     assert server.stopped is True
+
+
+def test_shutdown_waits_for_inflight_start_and_cannot_orphan_server(
+    gui, tmp_path: Path
+) -> None:
+    class BlockingServer(_FakeServer):
+        def __init__(self) -> None:
+            super().__init__()
+            self.entered = threading.Event()
+            self.release = threading.Event()
+
+        def start(self, *, wait_ready: bool = True):
+            self.start_wait_ready = wait_ready
+            self.is_running = True
+            self.entered.set()
+            assert self.release.wait(timeout=2)
+            return self
+
+        def stop(self):
+            self.stopped = True
+            self.is_running = False
+            self.release.set()
+
+    server = BlockingServer()
+    controller, _launcher = _controller(gui, tmp_path, server)
+    failures = []
+
+    def start() -> None:
+        try:
+            controller.start(tmp_path)
+        except BaseException as exc:
+            failures.append(exc)
+
+    thread = threading.Thread(target=start)
+    thread.start()
+    assert server.entered.wait(timeout=1)
+
+    controller.shutdown()
+    thread.join(timeout=1)
+
+    assert not thread.is_alive()
+    assert server.stopped is True
+    assert controller.is_running is False
+    assert len(failures) == 1
+    assert isinstance(failures[0], gui.OperationCancelled)
 
 
 def test_executor_callback_failure_terminates_owned_process_and_drains_pipes(
