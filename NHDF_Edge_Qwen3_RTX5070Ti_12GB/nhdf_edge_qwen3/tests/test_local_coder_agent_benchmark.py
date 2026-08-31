@@ -33,6 +33,39 @@ def gate() -> ModuleType:
     return _load_gate()
 
 
+def test_public_evidence_metadata_is_path_safe_and_counted(
+    gate: ModuleType,
+) -> None:
+    project_input = gate.PROJECT_ROOT / "configs" / "opencode_nhdf_local.json"
+    external_input = gate.PROJECT_ROOT.parent / "private-user-directory" / "input.json"
+
+    assert gate._public_path(project_input, fallback="<CONFIG>") == (
+        "<PROJECT_ROOT>/configs/opencode_nhdf_local.json"
+    )
+    assert gate._public_path(external_input, fallback="<CONFIG>") == "<CONFIG>"
+    diagnostic = f"failed at {project_input} and {external_input}"
+    redacted = gate._public_failure_message(
+        diagnostic, private_paths={external_input: "<CONFIG>"}
+    )
+    assert str(gate.PROJECT_ROOT.resolve()) not in redacted
+    assert str(external_input.resolve()) not in redacted
+    assert "<PROJECT_ROOT>" in redacted
+    assert "<CONFIG>" in redacted
+
+    assert (
+        gate._verified_pytest_pass_count(
+            b"....                                                                     [100%]\n"
+            b"4 passed in 0.12s\n",
+            b"",
+            expected=gate.EXPECTED_FINAL_PYTEST_TESTS,
+        )
+        == 4
+    )
+    with pytest.raises(gate.GateError, match="expected exactly 4/4"):
+        gate._verified_pytest_pass_count(b"3 passed in 0.12s\n", b"", expected=4)
+    assert '"response_id"' not in SCRIPT.read_text(encoding="utf-8")
+
+
 def _config() -> dict:
     return json.loads(CONFIG.read_text(encoding="utf-8"))
 

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -13,6 +14,7 @@ from nhdf_edge import cli, server
 
 class _Process:
     def __init__(self) -> None:
+        self.pid = 4242
         self.returncode: int | None = None
         self.terminated = False
         self.killed = False
@@ -82,10 +84,28 @@ def _patch_valid_artifact(monkeypatch, tmp_path, *, manifest=None):
         observed["popen"] = (command, kwargs)
         return process
 
+    class FakeGuard:
+        def __init__(self, _specs) -> None:
+            self.active = False
+
+        def __enter__(self):
+            self.active = True
+            return self
+
+        def close(self) -> None:
+            self.active = False
+
     monkeypatch.setattr(server.hybrid, "verify_hybrid_artifact", fake_verify)
-    monkeypatch.setattr(server.hybrid, "load_hybrid_manifest", lambda _path: value)
+    monkeypatch.setattr(
+        server.hybrid,
+        "load_hybrid_manifest_snapshot",
+        lambda _path, **_kwargs: (value, "a" * 64),
+    )
+    monkeypatch.setattr(server.hybrid, "_ExecutionFileGuard", FakeGuard)
+    monkeypatch.setattr(server.hybrid, "_execution_file_specs", lambda *_args, **_kwargs: ())
     monkeypatch.setattr(server.hybrid, "_preflight", fake_preflight)
     monkeypatch.setattr(server.subprocess, "Popen", fake_popen)
+    monkeypatch.setenv("HTTP_PROXY", "http://attacker.invalid")
     return root, value, process, observed
 
 
@@ -135,7 +155,9 @@ def _approved_artifact(root: Path) -> tuple[server.ArtifactApproval, dict[str, A
 
 def test_start_verifies_once_then_launches_fixed_resident_profile(monkeypatch, tmp_path) -> None:
     root, manifest, process, observed = _patch_valid_artifact(monkeypatch, tmp_path)
-    runtime = server.HybridServer(root, port=18081, threads=20).start(wait_ready=False)
+    runtime = server.HybridServer(
+        root, port=18081, threads=20, allow_self_sealed=True
+    ).start(wait_ready=False)
 
     assert runtime.is_running
     assert observed["verify"] == (
@@ -167,8 +189,30 @@ def test_start_verifies_once_then_launches_fixed_resident_profile(monkeypatch, t
     assert "--no-webui" in command
     assert popen_kwargs["shell"] is False
     assert popen_kwargs["cwd"] == str((root / "runtime").resolve())
+    assert "HTTP_PROXY" not in popen_kwargs["env"]
+    assert "AWS_SECRET_ACCESS_KEY" not in popen_kwargs["env"]
     assert runtime.preflight_result == {"gpu": "RTX", "free_mib": 11_000}
     assert process.terminated is False
+    runtime.stop()
+
+
+def test_self_sealed_resident_execution_is_rejected_by_default(tmp_path) -> None:
+    with pytest.raises(server.HybridServerConfigurationError, match="self-sealed"):
+        server.HybridServer(tmp_path).start(wait_ready=False)
+
+
+def test_external_manifest_digest_authorizes_generic_resident_execution(
+    monkeypatch, tmp_path
+) -> None:
+    root, _manifest_value, _process, observed = _patch_valid_artifact(
+        monkeypatch, tmp_path
+    )
+    runtime = server.HybridServer(
+        root,
+        expected_manifest_sha256="a" * 64,
+    ).start(wait_ready=False)
+    assert "popen" in observed
+    runtime.stop()
 
 
 def test_externally_approved_start_uses_exact_snapshot_and_rehashes_before_popen(
@@ -194,14 +238,45 @@ def test_externally_approved_start_uses_exact_snapshot_and_rehashes_before_popen
     runtime = server.HybridServer(root, artifact_approval=approval)
     runtime.start(wait_ready=False)
 
-    command = observed["popen"][0]
+    command, popen_kwargs = observed["popen"]
     assert command[0] == str(approval.server.path)
     assert command[command.index("-m") + 1] == str(approval.payload.path)
     assert observed["preflight"][0] == manifest
+    assert "HTTP_PROXY" not in popen_kwargs["env"]
+    assert runtime._execution_guard is not None
+    assert runtime._execution_guard.active
+    runtime.stop()
     with pytest.raises(server.HybridServerConfigurationError, match="cannot skip"):
         server.HybridServer(
             root, artifact_approval=approval, verify_payload_hash=False
         )
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Win32 deny-write/delete lock semantics")
+def test_windows_execution_handles_block_mutation_during_popen(
+    monkeypatch, tmp_path
+) -> None:
+    root = tmp_path / "artifact"
+    root.mkdir()
+    approval, _manifest = _approved_artifact(root)
+    runtime_path = approval.server.path
+    replacement = tmp_path / "replacement.exe"
+    replacement.write_bytes(b"server")
+    process = _Process()
+
+    monkeypatch.setattr(server.hybrid, "_preflight", lambda *_args, **_kwargs: {})
+
+    def fake_popen(_command, **_kwargs):
+        with pytest.raises(OSError):
+            runtime_path.write_bytes(b"tamper")
+        with pytest.raises(OSError):
+            os.replace(replacement, runtime_path)
+        return process
+
+    monkeypatch.setattr(server.subprocess, "Popen", fake_popen)
+    runtime = server.HybridServer(root, artifact_approval=approval)
+    runtime.start(wait_ready=False)
+    runtime.stop()
 
 
 def test_artifact_approval_rejects_any_out_of_root_execution_file(tmp_path) -> None:
@@ -280,7 +355,7 @@ def test_approved_manifest_mutation_during_preflight_fails_before_popen(
         lambda *_args, **_kwargs: pytest.fail("mutated approval must not execute"),
     )
 
-    with pytest.raises(server.HybridServerConfigurationError, match="manifest SHA-256 changed"):
+    with pytest.raises(server.HybridServerConfigurationError, match="SHA-256 changed"):
         server.HybridServer(root, artifact_approval=approval).start(wait_ready=False)
 
 
@@ -310,7 +385,7 @@ def test_start_fails_closed_before_manifest_or_process_on_bad_integrity(
     )
 
     with pytest.raises(OSError, match="SHA-256 mismatch"):
-        server.HybridServer(root).start(wait_ready=False)
+        server.HybridServer(root, allow_self_sealed=True).start(wait_ready=False)
 
 
 def test_server_entrypoint_must_be_sealed(monkeypatch, tmp_path) -> None:
@@ -324,7 +399,7 @@ def test_server_entrypoint_must_be_sealed(monkeypatch, tmp_path) -> None:
     _patch_valid_artifact(monkeypatch, tmp_path, manifest=manifest)
 
     with pytest.raises(server.HybridServerConfigurationError, match="not present"):
-        server.HybridServer(root).start(wait_ready=False)
+        server.HybridServer(root, allow_self_sealed=True).start(wait_ready=False)
 
 
 def test_unique_sealed_llama_server_is_accepted_for_legacy_manifest(
@@ -335,9 +410,10 @@ def test_unique_sealed_llama_server_is_accepted_for_legacy_manifest(
     manifest = _manifest(root, server_entrypoint=False)
     _, _, _, observed = _patch_valid_artifact(monkeypatch, tmp_path, manifest=manifest)
 
-    server.HybridServer(root).start(wait_ready=False)
+    runtime = server.HybridServer(root, allow_self_sealed=True).start(wait_ready=False)
 
     assert observed["popen"][0][0].endswith("llama-server.exe")
+    runtime.stop()
 
 
 @pytest.mark.parametrize("host", ["localhost", "0.0.0.0", "::1", "192.168.1.2"])
@@ -356,7 +432,7 @@ def test_manifest_profile_rejects_unvalidated_cache_type(
     _, _, _, observed = _patch_valid_artifact(monkeypatch, tmp_path, manifest=manifest)
 
     with pytest.raises(server.HybridServerConfigurationError, match="validated KV cache"):
-        server.HybridServer(root).start(wait_ready=False)
+        server.HybridServer(root, allow_self_sealed=True).start(wait_ready=False)
     assert "popen" not in observed
 
 
@@ -376,9 +452,9 @@ def test_start_uses_manifest_32k_q4_profile_and_quick_verification(
         monkeypatch, tmp_path, manifest=manifest
     )
 
-    runtime = server.HybridServer(root, verify_payload_hash=False).start(
-        wait_ready=False
-    )
+    runtime = server.HybridServer(
+        root, verify_payload_hash=False, allow_self_sealed=True
+    ).start(wait_ready=False)
 
     assert observed["verify"] == (
         root.resolve(),
@@ -390,6 +466,7 @@ def test_start_uses_manifest_32k_q4_profile_and_quick_verification(
     assert command[command.index("-ctk") + 1] == "q4_0"
     assert command[command.index("-ctv") + 1] == "q4_0"
     assert runtime._maximum_context_tokens == 32_768
+    runtime.stop()
 
 
 @pytest.mark.parametrize(
@@ -411,14 +488,20 @@ def test_server_refuses_too_small_or_not_fully_validated_context(
     )
 
     with pytest.raises(server.HybridServerConfigurationError, match="context"):
-        server.HybridServer(root).start(wait_ready=False)
+        server.HybridServer(root, allow_self_sealed=True).start(wait_ready=False)
     assert "popen" not in observed
 
 
 class _Response:
-    def __init__(self, value: dict[str, Any], status: int = 200) -> None:
+    def __init__(
+        self,
+        value: dict[str, Any],
+        status: int = 200,
+        final_url: str | None = None,
+    ) -> None:
         self.status = status
         self._body = json.dumps(value).encode("utf-8")
+        self._final_url = final_url
 
     def __enter__(self):
         return self
@@ -429,26 +512,70 @@ class _Response:
     def read(self) -> bytes:
         return self._body
 
+    def geturl(self) -> str:
+        assert self._final_url is not None
+        return self._final_url
+
+
+def _bound_runtime(tmp_path: Path, *, port: int = 19090) -> server.HybridServer:
+    model = tmp_path / "model.gguf"
+    model.write_bytes(b"model")
+    runtime = server.HybridServer(tmp_path, port=port)
+    runtime._process = _Process()
+    runtime._model_path = model.resolve()
+    runtime._maximum_context_tokens = 8_192
+    runtime._manifest_snapshot = {
+        "runtime": {"revision": "b6014", "build_number": 6014},
+        "execution_profile": {
+            "sampling": {"temperature": 0.0, "top_k": 1, "seed": 2026}
+        },
+    }
+    return runtime
+
+
+def _props(runtime: server.HybridServer) -> dict[str, Any]:
+    return {
+        "build_info": "b6014-b6014",
+        "model_path": str(runtime._model_path),
+        "total_slots": 1,
+        "default_generation_settings": {
+            "n_ctx": 8_192,
+            "params": {"temperature": 0.0, "top_k": 1, "seed": 2026},
+        },
+    }
+
 
 def test_health_and_completion_use_loopback_and_fixed_sampling(monkeypatch, tmp_path) -> None:
-    runtime = server.HybridServer(tmp_path, port=19090)
-    runtime._process = _Process()
+    runtime = _bound_runtime(tmp_path)
     requests = []
 
-    def fake_urlopen(request, *, timeout):
-        requests.append((request, timeout))
-        if request.full_url.endswith("/health"):
-            return _Response({"status": "ok"})
-        return _Response({"content": "answer<|im_end|>", "tokens_predicted": 1})
+    class Opener:
+        def open(self, request, *, timeout):
+            requests.append((request, timeout))
+            if request.full_url.endswith("/health"):
+                value = {"status": "ok"}
+            elif request.full_url.endswith("/props"):
+                value = _props(runtime)
+            else:
+                value = {"content": "answer<|im_end|>", "tokens_predicted": 1}
+            return _Response(value, final_url=request.full_url)
 
-    monkeypatch.setattr(server, "urlopen", fake_urlopen)
+    observed_handlers = []
+
+    def fake_build_opener(*handlers):
+        observed_handlers.extend(handlers)
+        return Opener()
+
+    monkeypatch.setenv("HTTP_PROXY", "http://attacker.invalid:8080")
+    monkeypatch.setattr(server, "build_opener", fake_build_opener)
+    monkeypatch.setattr(server, "_listener_owner_pids", lambda _port: {4242})
 
     assert runtime.health() == {"status": "ok"}
     result = runtime.completion("Write Python.", max_tokens=32)
 
     assert result["generated_text"] == "answer"
     assert result["sampling"] == {"temperature": 0.0, "top_k": 1, "seed": 2026}
-    request, timeout = requests[1]
+    request, timeout = requests[-1]
     assert request.full_url == "http://127.0.0.1:19090/completion"
     assert timeout == runtime.request_timeout_seconds
     payload = json.loads(request.data)
@@ -464,18 +591,79 @@ def test_health_and_completion_use_loopback_and_fixed_sampling(monkeypatch, tmp_
         "stop": ["<|im_end|>"],
     }
     assert result["cache_prompt"] is False
+    proxy_handlers = [
+        item for item in observed_handlers if isinstance(item, server.ProxyHandler)
+    ]
+    assert proxy_handlers and all(item.proxies == {} for item in proxy_handlers)
 
 
 def test_unhealthy_or_malformed_completion_fails_closed(monkeypatch, tmp_path) -> None:
-    runtime = server.HybridServer(tmp_path)
-    runtime._process = _Process()
-    monkeypatch.setattr(server, "urlopen", lambda *_args, **_kwargs: _Response({"status": "loading"}))
+    runtime = _bound_runtime(tmp_path)
+    monkeypatch.setattr(server, "_listener_owner_pids", lambda _port: {4242})
+
+    class UnhealthyOpener:
+        def open(self, request, **_kwargs):
+            return _Response({"status": "loading"}, final_url=request.full_url)
+
+    monkeypatch.setattr(server, "build_opener", lambda *_args: UnhealthyOpener())
     with pytest.raises(server.HybridServerUnavailableError, match="not ok"):
         runtime.health()
 
-    monkeypatch.setattr(server, "urlopen", lambda *_args, **_kwargs: _Response({"tokens": 3}))
+    class MalformedOpener:
+        def open(self, request, **_kwargs):
+            if request.full_url.endswith("/health"):
+                value = {"status": "ok"}
+            elif request.full_url.endswith("/props"):
+                value = _props(runtime)
+            else:
+                value = {"tokens": 3}
+            return _Response(value, final_url=request.full_url)
+
+    monkeypatch.setattr(server, "build_opener", lambda *_args: MalformedOpener())
     with pytest.raises(server.HybridServerUnavailableError, match="text content"):
         runtime.completion("prompt")
+
+
+def test_health_rejects_redirect_wrong_pid_and_wrong_model(monkeypatch, tmp_path) -> None:
+    runtime = _bound_runtime(tmp_path)
+
+    class RedirectOpener:
+        def open(self, request, **_kwargs):
+            return _Response(
+                {"status": "ok"},
+                final_url="http://attacker.invalid/health",
+            )
+
+    monkeypatch.setattr(server, "build_opener", lambda *_args: RedirectOpener())
+    with pytest.raises(server.HybridServerUnavailableError, match="redirected"):
+        runtime.health()
+
+    class BoundOpener:
+        def open(self, request, **_kwargs):
+            value = {"status": "ok"} if request.full_url.endswith("/health") else _props(runtime)
+            return _Response(value, final_url=request.full_url)
+
+    monkeypatch.setattr(server, "build_opener", lambda *_args: BoundOpener())
+    monkeypatch.setattr(server, "_listener_owner_pids", lambda _port: {9999})
+    with pytest.raises(server.HybridServerUnavailableError, match="child PID"):
+        runtime.health()
+
+    monkeypatch.setattr(server, "_listener_owner_pids", lambda _port: {4242})
+
+    class WrongModelOpener:
+        def open(self, request, **_kwargs):
+            if request.full_url.endswith("/health"):
+                value = {"status": "ok"}
+            else:
+                value = _props(runtime)
+                wrong = tmp_path / "wrong.gguf"
+                wrong.write_bytes(b"wrong")
+                value["model_path"] = str(wrong.resolve())
+            return _Response(value, final_url=request.full_url)
+
+    monkeypatch.setattr(server, "build_opener", lambda *_args: WrongModelOpener())
+    with pytest.raises(server.HybridServerUnavailableError, match="model mismatch"):
+        runtime.health()
 
 
 def test_stop_terminates_owned_process(monkeypatch, tmp_path) -> None:
@@ -510,6 +698,31 @@ def test_stop_escalates_after_timeout(monkeypatch, tmp_path) -> None:
     assert process.wait_calls == [0.5, 0.5]
 
 
+def test_failed_shutdown_retains_process_and_file_guard(tmp_path) -> None:
+    runtime = server.HybridServer(tmp_path)
+
+    class FailingProcess(_Process):
+        def terminate(self) -> None:
+            raise OSError("access denied")
+
+    class Guard:
+        active = True
+
+        def close(self) -> None:
+            self.active = False
+
+    process = FailingProcess()
+    guard = Guard()
+    runtime._process = process
+    runtime._execution_guard = guard
+
+    with pytest.raises(OSError, match="access denied"):
+        runtime.stop()
+    assert runtime._process is process
+    assert runtime._execution_guard is guard
+    assert guard.active is True
+
+
 def test_cli_preserves_default_profile_and_exposes_large_context_quick_mode() -> None:
     parser = cli.build_parser()
     defaults = parser.parse_args(
@@ -538,3 +751,8 @@ def test_cli_preserves_default_profile_and_exposes_large_context_quick_mode() ->
     assert configured.maximum_context == 32_768
     assert configured.kv_cache_k == configured.kv_cache_v == "q4_0"
     assert serve.quick is True
+    assert serve.manifest_sha256 is None
+    secured = parser.parse_args(
+        ["serve", "artifact", "--manifest-sha256", "a" * 64]
+    )
+    assert secured.manifest_sha256 == "a" * 64

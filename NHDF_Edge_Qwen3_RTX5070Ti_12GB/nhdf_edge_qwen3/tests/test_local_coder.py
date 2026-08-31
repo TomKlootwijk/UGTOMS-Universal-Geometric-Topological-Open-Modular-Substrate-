@@ -4,8 +4,10 @@ import copy
 import hashlib
 import importlib.util
 import json
+import os
 import subprocess
 import sys
+import zipfile
 from pathlib import Path
 from types import ModuleType
 
@@ -24,6 +26,46 @@ def _load_launcher() -> ModuleType:
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
     return module
+
+
+def _powershell_literal(value: str | Path) -> str:
+    return "'" + str(value).replace("'", "''") + "'"
+
+
+def _run_bundled_archive_installer(
+    project: Path,
+    archive: Path,
+    executable_bytes: bytes,
+    *,
+    archive_sha256: str | None = None,
+) -> subprocess.CompletedProcess[str]:
+    executable_sha256 = hashlib.sha256(executable_bytes).hexdigest()
+    expected_archive_sha256 = archive_sha256 or hashlib.sha256(archive.read_bytes()).hexdigest()
+    install_root = project / ".local-coder"
+    executable = install_root / "node_modules/opencode-ai/bin/opencode.exe"
+    script = ROOT / "scripts" / "setup_local_coder.ps1"
+    command = "; ".join(
+        (
+            f". {_powershell_literal(script)} -FunctionsOnly",
+            f"$ProjectRoot = {_powershell_literal(project)}",
+            f"$InstallRoot = {_powershell_literal(install_root)}",
+            f"$NpmCache = {_powershell_literal(install_root / 'npm-cache')}",
+            f"$OpenCodeExe = {_powershell_literal(executable)}",
+            f"$BundledArchive = {_powershell_literal(archive)}",
+            f"$PinnedArchiveBytes = {archive.stat().st_size}",
+            f"$PinnedArchiveSha256 = '{expected_archive_sha256}'",
+            f"$PinnedExecutableBytes = {len(executable_bytes)}",
+            f"$PinnedSha256 = '{executable_sha256}'",
+            "Install-OpenCodeFromBundledArchive",
+        )
+    )
+    return subprocess.run(
+        ["powershell", "-NoProfile", "-NonInteractive", "-Command", command],
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
 
 
 def _validated_canonical_manifest(launcher: ModuleType) -> dict:
@@ -199,11 +241,24 @@ def test_parse_noninteractive_arguments() -> None:
     [
         "--share",
         "--auto",
+        "--no-auto",
         "--model=cloud/model",
         "--agent",
         "--attach",
+        "--command",
+        "--continue",
+        "--hostname=0.0.0.0",
+        "--cors=*",
+        "--pure",
+        "--no-pure",
+        "--pure=false",
+        "--no-pure=true",
+        "-c",
         "-f",
+        "-ic",
+        "-imcloud/model",
         "-mcloud/model",
+        "-sforeign-session",
     ],
 )
 def test_parse_rejects_run_options_that_bypass_isolation(unsafe: str) -> None:
@@ -231,6 +286,96 @@ def test_validate_git_target_rejects_plain_directory(tmp_path: Path) -> None:
 
     with pytest.raises(launcher.LocalCoderError, match="Git working tree"):
         launcher.validate_git_target(tmp_path)
+
+
+def test_git_resolver_ignores_hostile_target_and_path(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    launcher = _load_launcher()
+    fake = tmp_path / ("git.exe" if os.name == "nt" else "git")
+    fake.write_bytes(b"hostile target-local executable")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("PATH", str(tmp_path))
+
+    resolved = launcher._resolve_git_executable()
+
+    assert resolved.is_absolute()
+    assert resolved != fake.resolve()
+
+
+def test_git_target_probe_uses_exact_executable_safe_cwd_and_scrubbed_env(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    launcher = _load_launcher()
+    repository = tmp_path / "repo"
+    target = repository / "src"
+    trusted_git = tmp_path / "machine-git" / "git.exe"
+    target.mkdir(parents=True)
+    trusted_git.parent.mkdir()
+    trusted_git.write_bytes(b"fixture")
+    hostile = target / "git.exe"
+    hostile.write_bytes(b"hostile")
+    monkeypatch.setenv("PATH", str(target))
+    monkeypatch.setenv("GITHUB_TOKEN", "must-not-leak")
+    monkeypatch.setattr(launcher, "_resolve_git_executable", lambda: trusted_git.resolve())
+    observed: dict[str, object] = {}
+
+    def fake_run(command, **kwargs):
+        observed["command"] = command
+        observed["kwargs"] = kwargs
+        return subprocess.CompletedProcess(
+            command, 0, stdout=f"{repository.resolve()}\n", stderr=""
+        )
+
+    monkeypatch.setattr(launcher.subprocess, "run", fake_run)
+    resolved_target, worktree = launcher.validate_git_target(target)
+
+    assert resolved_target == target.resolve()
+    assert worktree == repository.resolve()
+    command = observed["command"]
+    kwargs = observed["kwargs"]
+    assert command[0] == str(trusted_git.resolve())
+    assert command[1:3] == ["-C", str(target.resolve())]
+    assert kwargs["cwd"] == str(trusted_git.resolve().parent)
+    assert kwargs["env"]["NoDefaultCurrentDirectoryInExePath"] == "1"
+    assert str(target) not in kwargs["env"].get("PATH", "")
+    assert "GITHUB_TOKEN" not in kwargs["env"]
+
+
+def test_gpu_probes_use_exact_system_executable_and_scrubbed_path(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    launcher = _load_launcher()
+    system_directory = tmp_path / "system"
+    hostile_directory = tmp_path / "target"
+    system_directory.mkdir()
+    hostile_directory.mkdir()
+    trusted = system_directory / "nvidia-smi.exe"
+    trusted.write_bytes(b"fixture")
+    (hostile_directory / "nvidia-smi.exe").write_bytes(b"hostile")
+    monkeypatch.setenv("PATH", str(hostile_directory))
+    monkeypatch.setenv("NVIDIA_API_KEY", "must-not-leak")
+    monkeypatch.setattr(
+        launcher.hybrid, "_trusted_system_executable", lambda _name: trusted.resolve()
+    )
+    calls: list[tuple[list[str], dict[str, object]]] = []
+
+    def fake_run(command, **kwargs):
+        calls.append((command, kwargs))
+        stdout = "NVIDIA GeForce RTX 5070 Ti Laptop GPU\n"
+        if "memory.total" in command[1]:
+            stdout = "12227, 1000, 12\n"
+        return subprocess.CompletedProcess(command, 0, stdout=stdout, stderr="")
+
+    monkeypatch.setattr(launcher.hybrid.subprocess, "run", fake_run)
+
+    assert launcher.hybrid._gpu_name() == "NVIDIA GeForce RTX 5070 Ti Laptop GPU"
+    assert launcher.hybrid._gpu_sample() == (12227, 1000, 12)
+    assert len(calls) == 2
+    for command, kwargs in calls:
+        assert command[0] == str(trusted.resolve())
+        assert str(hostile_directory) not in kwargs["env"].get("PATH", "")
+        assert "NVIDIA_API_KEY" not in kwargs["env"]
 
 
 def test_canonical_artifact_path_rejects_an_alternate_self_signed_pack(
@@ -451,11 +596,18 @@ def test_local_install_accepts_only_matching_digest_and_version(
         launcher, "EXPECTED_OPENCODE_SHA256", hashlib.sha256(content).hexdigest()
     )
 
-    def pinned_version(command, **_kwargs):
+    observed: dict[str, object] = {}
+
+    def pinned_version(command, **kwargs):
+        observed["command"] = command
+        observed["kwargs"] = kwargs
         return subprocess.CompletedProcess(command, 0, stdout="1.18.25\n", stderr="")
 
     monkeypatch.setattr(launcher.subprocess, "run", pinned_version)
-    launcher.validate_local_install(executable)
+    assert launcher.validate_local_install(executable) == executable.resolve()
+    assert observed["command"] == [str(executable.resolve()), "--version"]
+    assert observed["kwargs"]["cwd"] == str(executable.resolve().parent)
+    assert observed["kwargs"]["env"]["NoDefaultCurrentDirectoryInExePath"] == "1"
 
     executable.write_bytes(content + b"mutation")
     with pytest.raises(launcher.LocalCoderError, match="digest mismatch"):
@@ -482,6 +634,39 @@ def test_local_install_rejects_matching_binary_from_noncanonical_path(
 
     with pytest.raises(launcher.LocalCoderError, match="canonical project-local"):
         launcher.validate_local_install(alternate)
+
+
+def test_local_install_rejects_a_reparse_aliased_canonical_binary(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    launcher = _load_launcher()
+    project = tmp_path / "project"
+    canonical = project / ".local-coder/node_modules/opencode-ai/bin/opencode.exe"
+    outside = tmp_path / "outside/opencode.exe"
+    canonical.parent.mkdir(parents=True)
+    outside.parent.mkdir()
+    content = b"same pinned bytes"
+    outside.write_bytes(content)
+    try:
+        canonical.symlink_to(outside)
+    except OSError:
+        pytest.skip("file symlinks are unavailable on this Windows host")
+    monkeypatch.setattr(launcher, "PROJECT_ROOT", project)
+    monkeypatch.setattr(launcher, "OPENCODE_EXE", canonical)
+    monkeypatch.setattr(
+        launcher, "EXPECTED_OPENCODE_SHA256", hashlib.sha256(content).hexdigest()
+    )
+    called = False
+
+    def forbidden_run(*_args, **_kwargs):
+        nonlocal called
+        called = True
+        raise AssertionError("a reparse-aliased executable must not run")
+
+    monkeypatch.setattr(launcher.subprocess, "run", forbidden_run)
+    with pytest.raises(launcher.LocalCoderError, match="symlink|reparse|aliased"):
+        launcher.validate_local_install(canonical)
+    assert called is False
 
 
 def test_final_execution_rehash_rejects_every_mutable_client_input(
@@ -513,6 +698,7 @@ def test_final_execution_rehash_rejects_every_mutable_client_input(
     source_contract.write_bytes(contract_bytes)
     installed_contract.write_bytes(contract_bytes)
     monkeypatch.setattr(launcher, "PROJECT_ROOT", project)
+    monkeypatch.setattr(launcher, "OPENCODE_EXE", executable)
     monkeypatch.setattr(launcher, "SUBSTRATE_CONTRACT", source_contract)
     monkeypatch.setattr(
         launcher, "EXPECTED_OPENCODE_SHA256", hashlib.sha256(executable_bytes).hexdigest()
@@ -613,7 +799,9 @@ def test_owned_server_is_stopped_and_quick_mode_is_forwarded(
 
     monkeypatch.setattr(launcher, "OPENCODE_EXE", executable)
     monkeypatch.setattr(launcher, "validate_git_target", lambda path: (target, target))
-    monkeypatch.setattr(launcher, "validate_local_install", lambda _path: None)
+    monkeypatch.setattr(
+        launcher, "validate_local_install", lambda _path: executable.resolve()
+    )
     monkeypatch.setattr(launcher, "resolve_canonical_artifact", lambda _path: artifact)
     approval = object()
     validated = type("Validated", (), {"server_approval": approval})()
@@ -689,7 +877,9 @@ def test_owned_server_is_stopped_when_client_fails(
 
     monkeypatch.setattr(launcher, "OPENCODE_EXE", executable)
     monkeypatch.setattr(launcher, "validate_git_target", lambda path: (target, target))
-    monkeypatch.setattr(launcher, "validate_local_install", lambda _path: None)
+    monkeypatch.setattr(
+        launcher, "validate_local_install", lambda _path: executable.resolve()
+    )
     monkeypatch.setattr(launcher, "resolve_canonical_artifact", lambda _path: artifact)
     validated = type("Validated", (), {"server_approval": object()})()
     monkeypatch.setattr(launcher, "validate_agent_artifact", lambda _path: validated)
@@ -719,22 +909,110 @@ def test_setup_script_pins_a_project_local_install() -> None:
     script = (ROOT / "scripts" / "setup_local_coder.ps1").read_text(encoding="utf-8")
 
     assert 'PinnedVersion = "1.18.25"' in script
+    assert 'PinnedArchiveBytes = 62030007' in script
+    assert (
+        'PinnedArchiveSha256 = "35fe618642f733aa1db8e26a78a1c9ee7cfce47e94cdbd36a37312c9d55e2a45"'
+        in script
+    )
+    assert 'PinnedExecutableBytes = 179651624' in script
     assert (
         'PinnedSha256 = "ef06e41a35795066e95acde276a42fbbf85d7a683c2787f6a19ed20bcde9b6ff"'
         in script
     )
-    assert "Get-FileHash -LiteralPath $OpenCodeExe -Algorithm SHA256" in script
-    assert "digest differs from the pinned package output" in script
+    assert (
+        'vendor\\opencode\\opencode-windows-x64-1.18.25.zip"' in script
+    )
+    assert "Get-VerifiedPlatformOpenCode" in script
+    assert "opencode-windows-x64\\bin\\opencode.exe" in script
+    assert "opencode-windows-x64-baseline\\bin\\opencode.exe" in script
+    assert "function Install-OpenCodeFromBundledArchive" in script
+    assert "function Install-OpenCodeFromNpm" in script
+    assert "function Install-PinnedOpenCode" in script
+    assert "function Invoke-LocalCoderPreflight" in script
+    assert "[switch]$FunctionsOnly" in script
     assert "Assert-SafeProjectPath" in script
     assert "FileAttributes]::ReparsePoint" in script
-    post_install = script.split(
-        'throw "The project-local OpenCode installation failed with exit code $LASTEXITCODE."',
-        maxsplit=1,
-    )[1]
-    assert post_install.index("Assert-SafeProjectPath -Path $OpenCodeExe") < (
-        post_install.index("if (-not (Test-PinnedOpenCode))")
-    )
     assert "--prefix $InstallRoot" in script
     assert "--cache $NpmCache" in script
     assert "--save-exact" in script
+    assert "--ignore-scripts" in script
     assert " -g " not in script
+
+    pinned_probe = script.split("function Test-PinnedOpenCode", maxsplit=1)[1].split(
+        "function Get-VerifiedPlatformOpenCode", maxsplit=1
+    )[0]
+    first_hash = pinned_probe.index("Get-Sha256File -Path $ExecutablePath")
+    execution = pinned_probe.index("& $ExecutablePath --version")
+    second_hash = pinned_probe.rindex("Get-Sha256File -Path $ExecutablePath")
+    assert first_hash < execution < second_hash
+
+    platform_selection = script.split(
+        "function Get-VerifiedPlatformOpenCode", maxsplit=1
+    )[1].split("Assert-SafeProjectPath -Path $InstallRoot", maxsplit=1)[0]
+    assert platform_selection.index("Get-Sha256File -Path $Candidate") < (
+        script.index("[System.IO.File]::Copy")
+    )
+
+    archive_install = script.split(
+        "function Install-OpenCodeFromBundledArchive", maxsplit=1
+    )[1].split("function Install-OpenCodeFromNpm", maxsplit=1)[0]
+    assert archive_install.index("$ArchiveItem.Length -ne $PinnedArchiveBytes") < (
+        archive_install.index("[System.IO.Compression.ZipFile]::OpenRead")
+    )
+    assert archive_install.index("$ArchiveSha256 -ne $PinnedArchiveSha256") < (
+        archive_install.index("[System.IO.Compression.ZipFile]::OpenRead")
+    )
+    assert '$Entry.FullName -cne "opencode.exe"' in archive_install
+    assert "$Archive.Entries.Count -ne 1" in archive_install
+
+    installer = script.split("function Install-PinnedOpenCode", maxsplit=1)[1]
+    archive_branch = installer.index(
+        "if (Test-Path -LiteralPath $BundledArchive -PathType Leaf)"
+    )
+    bundled_call = installer.index("Install-OpenCodeFromBundledArchive")
+    npm_call = installer.index("Install-OpenCodeFromNpm")
+    assert archive_branch < bundled_call < npm_call
+
+
+def test_bundled_archive_installs_only_the_verified_single_entry(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "project"
+    archive = project / "vendor/opencode/opencode-windows-x64-1.18.25.zip"
+    archive.parent.mkdir(parents=True)
+    executable_bytes = b"small deterministic OpenCode fixture"
+    with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as bundle:
+        bundle.writestr("opencode.exe", executable_bytes)
+
+    completed = _run_bundled_archive_installer(project, archive, executable_bytes)
+
+    assert completed.returncode == 0, completed.stderr
+    installed = project / ".local-coder/node_modules/opencode-ai/bin/opencode.exe"
+    assert installed.read_bytes() == executable_bytes
+
+
+@pytest.mark.parametrize("mutation", ["digest", "extra-entry"])
+def test_bundled_archive_rejects_tamper_without_npm_fallback(
+    tmp_path: Path, mutation: str
+) -> None:
+    project = tmp_path / "project"
+    archive = project / "vendor/opencode/opencode-windows-x64-1.18.25.zip"
+    archive.parent.mkdir(parents=True)
+    executable_bytes = b"small deterministic OpenCode fixture"
+    with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as bundle:
+        bundle.writestr("opencode.exe", executable_bytes)
+        if mutation == "extra-entry":
+            bundle.writestr("unexpected.txt", b"must be rejected")
+    expected_digest = "0" * 64 if mutation == "digest" else None
+
+    completed = _run_bundled_archive_installer(
+        project,
+        archive,
+        executable_bytes,
+        archive_sha256=expected_digest,
+    )
+
+    assert completed.returncode != 0
+    assert not (
+        project / ".local-coder/node_modules/opencode-ai/bin/opencode.exe"
+    ).exists()

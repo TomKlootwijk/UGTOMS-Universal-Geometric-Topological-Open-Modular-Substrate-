@@ -18,4 +18,5 @@ metrics/local/coding_benchmark/
 metrics/local/coding_agent_32k/
 metrics/local/substrate_coding_agent_32k/
 *.zip
+!vendor/opencode/opencode-windows-x64-1.18.25.zip
 .pytest_cache/

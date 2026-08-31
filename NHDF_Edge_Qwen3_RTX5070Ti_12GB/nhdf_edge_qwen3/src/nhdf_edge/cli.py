@@ -141,6 +141,7 @@ def command_gate_hybrid(args: argparse.Namespace) -> int:
         minimum_generation_tokens_per_second=args.minimum_generation_tps,
         reserve_vram_mib=args.reserve_vram_mib,
         verify_payload_hash=not args.quick,
+        allow_self_sealed=args.allow_self_sealed,
     )
     _json(
         {
@@ -169,6 +170,8 @@ def command_run(args: argparse.Namespace) -> int:
         allow_unvalidated=args.allow_unvalidated,
         verify_payload_hash=not args.quick,
         monitor_resources=args.monitor_resources,
+        expected_manifest_sha256=args.manifest_sha256,
+        allow_self_sealed=args.allow_self_sealed,
     )
     if args.text_only:
         print(result["generated_text"])
@@ -189,6 +192,8 @@ def command_serve(args: argparse.Namespace) -> int:
         startup_timeout_seconds=args.startup_timeout,
         request_timeout_seconds=args.request_timeout,
         verify_payload_hash=not args.quick,
+        expected_manifest_sha256=args.manifest_sha256,
+        allow_self_sealed=args.allow_self_sealed,
     )
     runtime.start()
     _json(
@@ -443,7 +448,16 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--repetitions", type=int, default=3)
     p.add_argument("--minimum-generation-tps", type=float, default=80.0)
     p.add_argument("--reserve-vram-mib", type=int, default=512)
-    p.add_argument("--quick", action="store_true", help="skip the large-payload rehash")
+    p.add_argument(
+        "--quick",
+        action="store_true",
+        help="skip only the preliminary payload hash; the final locked hash remains mandatory",
+    )
+    p.add_argument(
+        "--allow-self-sealed",
+        action="store_true",
+        help="explicitly authorize research execution from an adjacent self-sealed manifest",
+    )
     p.set_defaults(func=command_gate_hybrid)
 
     p = sub.add_parser("run", help="run a validated NHDF hybrid artifact")
@@ -458,7 +472,20 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="sample GPU telemetry during generation (adds subprocess overhead)",
     )
-    p.add_argument("--quick", action="store_true", help="skip the large-payload rehash")
+    p.add_argument(
+        "--quick",
+        action="store_true",
+        help="skip only the preliminary payload hash; the final locked hash remains mandatory",
+    )
+    p.add_argument(
+        "--manifest-sha256",
+        help="externally approved manifest SHA-256 required for normal execution",
+    )
+    p.add_argument(
+        "--allow-self-sealed",
+        action="store_true",
+        help="explicit research-only override when no external manifest digest is available",
+    )
     p.add_argument(
         "--allow-unvalidated",
         action="store_true",
@@ -478,7 +505,16 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument(
         "--quick",
         action="store_true",
-        help="verify sealed metadata/runtime but skip rehashing the large model payload",
+        help="skip only the preliminary payload hash; the final locked hash remains mandatory",
+    )
+    p.add_argument(
+        "--allow-self-sealed",
+        action="store_true",
+        help="explicit research-only override when no external approval is available",
+    )
+    p.add_argument(
+        "--manifest-sha256",
+        help="externally approved manifest SHA-256 for a normal secured serve",
     )
     p.set_defaults(func=command_serve)
 

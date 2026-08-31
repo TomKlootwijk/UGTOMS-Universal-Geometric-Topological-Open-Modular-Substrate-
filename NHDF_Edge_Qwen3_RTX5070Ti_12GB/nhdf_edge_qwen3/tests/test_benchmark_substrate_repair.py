@@ -98,6 +98,21 @@ def test_gate_reuses_canonical_local_identity_and_narrow_scope(gate: ModuleType)
         "ef06e41a35795066e95acde276a42fbbf85d7a683c2787f6a19ed20bcde9b6ff"
     )
     assert gate.MIN_CONTEXT_TOKENS == 32_768
+    assert gate.EXPECTED_FINAL_PYTEST_TESTS == 3
+    scope = gate._claim_scope()
+    assert scope["answer_fully_disclosed"] is True
+    assert scope["independent_diagnosis_demonstrated"] is False
+    assert any("independent diagnosis" in claim for claim in scope["does_not_prove"])
+    assert (
+        gate._BASE._verified_pytest_pass_count(
+            b"...                                                                      [100%]\n"
+            b"3 passed in 0.12s\n",
+            b"",
+            expected=gate.EXPECTED_FINAL_PYTEST_TESTS,
+        )
+        == 3
+    )
+    assert '"response_id"' not in SCRIPT.read_text(encoding="utf-8")
     text = (gate.__doc__ or "") + gate._agent_prompt() + gate._parser().description
     for phrase in (
         "focused",

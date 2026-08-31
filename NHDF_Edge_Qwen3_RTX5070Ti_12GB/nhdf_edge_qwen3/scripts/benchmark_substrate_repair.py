@@ -60,6 +60,7 @@ PINNED_OPENCODE_VERSION = _BASE.PINNED_OPENCODE_VERSION
 MIN_CONTEXT_TOKENS = _BASE.MIN_CONTEXT_TOKENS
 EXPECTED_SOURCE = "src/sclp_repair.py"
 PYTEST_COMMAND = "python -m pytest -q"
+EXPECTED_FINAL_PYTEST_TESTS = 3
 PROFILE_ID = "sclp-foundational"
 KEY_WIDTHS = {"rho": 20, "theta": 18, "time": 14, "phi": 12}
 
@@ -123,6 +124,32 @@ def _write_text(path: Path, value: str) -> None:
 
 def _write_json(path: Path, value: Any) -> None:
     _write_text(path, json.dumps(value, indent=2, sort_keys=True) + "\n")
+
+
+def _claim_scope() -> dict[str, Any]:
+    """Return the narrow, machine-readable claim boundary for this gate."""
+
+    return {
+        "classification": "focused_substrate_semantic_repair_acceptance_gate",
+        "proves": [
+            "one local agent repaired the one declared n-to-n feedback defect",
+            "the repaired program built a content-addressed graph with explicit n-to-n+1 feedback",
+            "the repaired deterministic SCLP replay passed twice",
+            "only one declared source file changed and exact Git HEAD stayed unchanged",
+        ],
+        "does_not_prove": [
+            "independent diagnosis or broad substrate understanding",
+            "broad substrate authoring or broad coding competence",
+            "NHDF, model, tensor, or semantic compression",
+            "general intelligence, production safety, or universal substrate correctness",
+            "preventive process, filesystem, or network sandboxing",
+        ],
+        "legacy_or_archive_material_loaded": False,
+        "post_run_audits_are_retrospective": True,
+        "preventive_sandbox": False,
+        "answer_fully_disclosed": True,
+        "independent_diagnosis_demonstrated": False,
+    }
 
 
 def _repository_root(path: Path) -> Path:
@@ -975,24 +1002,7 @@ def _run_gate(args: argparse.Namespace) -> tuple[int, Path]:
         "format": FORMAT,
         "started_at_utc": _utc_now(),
         "status": "FAILED",
-        "scope": {
-            "classification": "focused_substrate_semantic_repair_acceptance_gate",
-            "proves": [
-                "one local agent repaired the one declared n-to-n feedback defect",
-                "the repaired program built a content-addressed graph with explicit n-to-n+1 feedback",
-                "the repaired deterministic SCLP replay passed twice",
-                "only one declared source file changed and exact Git HEAD stayed unchanged",
-            ],
-            "does_not_prove": [
-                "broad substrate authoring or broad coding competence",
-                "NHDF, model, tensor, or semantic compression",
-                "general intelligence, production safety, or universal substrate correctness",
-                "preventive process, filesystem, or network sandboxing",
-            ],
-            "legacy_or_archive_material_loaded": False,
-            "post_run_audits_are_retrospective": True,
-            "preventive_sandbox": False,
-        },
+        "scope": _claim_scope(),
     }
     try:
         server_url = _BASE._normalize_server_url(args.server_url)
@@ -1001,12 +1011,19 @@ def _run_gate(args: argparse.Namespace) -> tuple[int, Path]:
         config_gate = _BASE._validate_opencode_config(config, server_url)
         evidence["inputs"] = {
             "server_url": server_url,
-            "opencode_executable": str(executable),
+            "opencode_executable": _BASE._public_path(
+                executable, fallback="<PINNED_OPENCODE_EXECUTABLE>"
+            ),
             "opencode_executable_sha256": _sha256_file(executable),
             "expected_opencode_sha256": _BASE._LAUNCHER.EXPECTED_OPENCODE_SHA256,
-            "config_path": str(config_path),
+            "config_path": _BASE._public_path(
+                config_path, fallback="<PINNED_LOCAL_CODER_CONFIG>"
+            ),
             "config_sha256": _sha256_bytes(config_bytes),
             "model": MODEL_ID,
+            "output_directory": _BASE._public_path(
+                run_dir, fallback="<OUTPUT_ROOT>/<RUN_DIRECTORY>"
+            ),
         }
         evidence["config_gate"] = config_gate
 
@@ -1118,6 +1135,11 @@ def _run_gate(args: argparse.Namespace) -> tuple[int, Path]:
             (run_dir / "fixture.final-pytest.stderr.txt").write_bytes(final_test.stderr)
             if final_test.returncode != 0:
                 raise GateError("independent focused repair pytest did not pass")
+            final_passed_tests = _BASE._verified_pytest_pass_count(
+                final_test.stdout,
+                final_test.stderr,
+                expected=EXPECTED_FINAL_PYTEST_TESTS,
+            )
             replay_gate = _evaluate_replay(
                 fixture,
                 temp_root / "independent-replays",
@@ -1159,6 +1181,9 @@ def _run_gate(args: argparse.Namespace) -> tuple[int, Path]:
                 "final_pytest": {
                     "passed": True,
                     "returncode": final_test.returncode,
+                    "passed_tests": final_passed_tests,
+                    "total_tests": EXPECTED_FINAL_PYTEST_TESTS,
+                    "result": f"{final_passed_tests}/{EXPECTED_FINAL_PYTEST_TESTS}",
                     "stdout_sha256": _sha256_bytes(final_test.stdout),
                     "stderr_sha256": _sha256_bytes(final_test.stderr),
                 },
@@ -1171,12 +1196,34 @@ def _run_gate(args: argparse.Namespace) -> tuple[int, Path]:
     except (GateError, ValueError) as exc:
         evidence["status"] = "FAILED"
         evidence["all_gates_passed"] = False
-        evidence["failure"] = {"type": type(exc).__name__, "message": str(exc)}
+        evidence["failure"] = {
+            "type": type(exc).__name__,
+            "message": _BASE._public_failure_message(
+                str(exc),
+                private_paths={
+                    output_root: "<OUTPUT_ROOT>",
+                    run_dir: "<OUTPUT_ROOT>/<RUN_DIRECTORY>",
+                    args.opencode_exe: "<OPENCODE_EXECUTABLE>",
+                    args.config: "<CONFIG_PATH>",
+                },
+            ),
+        }
         exit_code = 1
     except Exception as exc:
         evidence["status"] = "ERROR"
         evidence["all_gates_passed"] = False
-        evidence["failure"] = {"type": type(exc).__name__, "message": str(exc)}
+        evidence["failure"] = {
+            "type": type(exc).__name__,
+            "message": _BASE._public_failure_message(
+                str(exc),
+                private_paths={
+                    output_root: "<OUTPUT_ROOT>",
+                    run_dir: "<OUTPUT_ROOT>/<RUN_DIRECTORY>",
+                    args.opencode_exe: "<OPENCODE_EXECUTABLE>",
+                    args.config: "<CONFIG_PATH>",
+                },
+            ),
+        }
         exit_code = 2
     evidence["finished_at_utc"] = _utc_now()
     _write_json(run_dir / "evidence.json", evidence)
@@ -1224,7 +1271,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         json.dumps(
             {
                 "status": "PASSED" if exit_code == 0 else "FAILED",
-                "evidence": str(run_dir),
+                "evidence": _BASE._public_path(
+                    run_dir, fallback="<OUTPUT_ROOT>/<RUN_DIRECTORY>"
+                ),
             }
         )
     )

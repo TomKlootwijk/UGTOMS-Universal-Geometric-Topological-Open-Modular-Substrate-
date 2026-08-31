@@ -65,10 +65,10 @@
     "post_run_audits_are_retrospective": true,
     "preventive_sandbox": false,
     "proves": [
-      "one local model can complete the exact clean-room SCLP fixture",
-      "the completed fixture passes the named deterministic primitive checks",
-      "the application manifest binds the sealed kernel/profile/replay evidence",
-      "the repository PDF renderer produces reopenable text-validated evidence"
+      "the loopback server, pinned configuration, and reported 32K context prechecks passed",
+      "one native OpenAI-compatible tool-call JSON exchange passed",
+      "the expected unimplemented clean-room baseline was verified with 4/4 tests failing",
+      "the broad authoring attempt timed out after 1200 seconds without a completed fixture"
     ]
   },
   "started_at_utc": "2026-08-31T17:48:43.119745Z",

@@ -69,6 +69,7 @@ LONG_CONTEXT_TARGET_TOKENS = 22_000
 LONG_CONTEXT_TOLERANCE_TOKENS = 500
 LONG_CONTEXT_NEEDLE = "UGTOMS_LOCAL_GATE_KEY_7F3A91C2D8B4"
 EXPECTED_SOURCE = "src/intervals.py"
+EXPECTED_FINAL_PYTEST_TESTS = 4
 ALLOWED_TOOL_NAMES = frozenset(
     {"read", "grep", "glob", "edit", "bash", "todowrite"}
 )
@@ -130,6 +131,53 @@ def _write_text(path: Path, text: str) -> None:
 
 def _write_json(path: Path, value: Any) -> None:
     _write_text(path, json.dumps(value, indent=2, sort_keys=True) + "\n")
+
+
+def _public_path(path: Path, *, fallback: str) -> str:
+    """Represent a host path without publishing host-specific directory names."""
+
+    resolved = path.expanduser().resolve()
+    try:
+        relative = resolved.relative_to(PROJECT_ROOT.resolve())
+    except ValueError:
+        return fallback
+    return f"<PROJECT_ROOT>/{relative.as_posix()}"
+
+
+def _public_failure_message(
+    message: str, *, private_paths: Mapping[str | Path, str]
+) -> str:
+    """Replace known private roots in a diagnostic before it enters public JSON."""
+
+    replacements: list[tuple[str, str]] = [
+        (str(PROJECT_ROOT.resolve()), "<PROJECT_ROOT>"),
+        (str(Path(tempfile.gettempdir()).resolve()), "<TEMP_ROOT>"),
+    ]
+    for private, public in private_paths.items():
+        try:
+            candidate = Path(private).expanduser()
+        except (TypeError, ValueError):
+            continue
+        if candidate.is_absolute():
+            replacements.append((str(candidate.resolve()), public))
+    result = message
+    for private, public in sorted(replacements, key=lambda item: len(item[0]), reverse=True):
+        result = result.replace(private, public)
+        result = result.replace(private.replace("\\", "/"), public)
+    return result
+
+
+def _verified_pytest_pass_count(stdout: bytes, stderr: bytes, *, expected: int) -> int:
+    """Return an exact pytest pass count or fail closed on missing/ambiguous output."""
+
+    output = (stdout + b"\n" + stderr).decode("utf-8", errors="replace")
+    counts = {int(value) for value in re.findall(r"(?<!\d)(\d+) passed\b", output)}
+    if counts != {expected}:
+        raise GateError(
+            f"independent final pytest reported pass counts {sorted(counts)!r}; "
+            f"expected exactly {expected}/{expected}"
+        )
+    return expected
 
 
 def _normalize_server_url(value: str) -> str:
@@ -1186,11 +1234,17 @@ def _run_gate(args: argparse.Namespace) -> tuple[int, Path]:
         config_gate = _validate_opencode_config(config, server_url)
         evidence["inputs"] = {
             "server_url": server_url,
-            "opencode_executable": str(executable),
+            "opencode_executable": _public_path(
+                executable, fallback="<PINNED_OPENCODE_EXECUTABLE>"
+            ),
             "opencode_executable_sha256": _sha256_file(executable),
-            "config_path": str(config_path),
+            "config_path": _public_path(
+                config_path, fallback="<PINNED_LOCAL_CODER_CONFIG>"
+            ),
             "config_sha256": _sha256_bytes(config_bytes),
-            "output_directory": str(run_dir),
+            "output_directory": _public_path(
+                run_dir, fallback="<OUTPUT_ROOT>/<RUN_DIRECTORY>"
+            ),
         }
         evidence["config_gate"] = config_gate
 
@@ -1211,7 +1265,6 @@ def _run_gate(args: argparse.Namespace) -> tuple[int, Path]:
         )
         tool_gate = _evaluate_tool_probe(tool_response)
         tool_gate["request"] = tool_timing
-        tool_gate["response_id"] = tool_response.get("id")
         tool_gate["response_model"] = tool_response.get("model")
         tool_gate["usage"] = tool_response.get("usage")
         evidence["native_tool_call_gate"] = tool_gate
@@ -1256,7 +1309,6 @@ def _run_gate(args: argparse.Namespace) -> tuple[int, Path]:
                 "tolerance_tokens": LONG_CONTEXT_TOLERANCE_TOKENS,
                 "calibration_trace": calibration_trace,
                 "inference_request": long_timing,
-                "response_id": long_response.get("id"),
                 "response_model": long_response.get("model"),
             }
         )
@@ -1349,6 +1401,11 @@ def _run_gate(args: argparse.Namespace) -> tuple[int, Path]:
             (run_dir / "fixture.final-pytest.stderr.txt").write_bytes(final.stderr)
             if final.returncode != 0:
                 raise GateError("independent final pytest did not pass after agent repair")
+            final_passed_tests = _verified_pytest_pass_count(
+                final.stdout,
+                final.stderr,
+                expected=EXPECTED_FINAL_PYTEST_TESTS,
+            )
 
             final_head = _run_git(fixture, ["rev-parse", "HEAD"]).decode("ascii").strip()
             head_unchanged = final_head == fixture_evidence["initial_head"]
@@ -1384,6 +1441,11 @@ def _run_gate(args: argparse.Namespace) -> tuple[int, Path]:
                     "final_pytest": {
                         "returncode": final.returncode,
                         "passed": True,
+                        "passed_tests": final_passed_tests,
+                        "total_tests": EXPECTED_FINAL_PYTEST_TESTS,
+                        "result": (
+                            f"{final_passed_tests}/{EXPECTED_FINAL_PYTEST_TESTS}"
+                        ),
                         "stdout_sha256": _sha256_bytes(final.stdout),
                         "stderr_sha256": _sha256_bytes(final.stderr),
                     },
@@ -1422,12 +1484,34 @@ def _run_gate(args: argparse.Namespace) -> tuple[int, Path]:
     except (GateError, ValueError) as exc:
         evidence["status"] = "FAILED"
         evidence["all_gates_passed"] = False
-        evidence["failure"] = {"type": type(exc).__name__, "message": str(exc)}
+        evidence["failure"] = {
+            "type": type(exc).__name__,
+            "message": _public_failure_message(
+                str(exc),
+                private_paths={
+                    output_root: "<OUTPUT_ROOT>",
+                    run_dir: "<OUTPUT_ROOT>/<RUN_DIRECTORY>",
+                    args.opencode_exe: "<OPENCODE_EXECUTABLE>",
+                    args.config: "<CONFIG_PATH>",
+                },
+            ),
+        }
         exit_code = 1
     except Exception as exc:  # Preserve evidence for unexpected harness defects.
         evidence["status"] = "ERROR"
         evidence["all_gates_passed"] = False
-        evidence["failure"] = {"type": type(exc).__name__, "message": str(exc)}
+        evidence["failure"] = {
+            "type": type(exc).__name__,
+            "message": _public_failure_message(
+                str(exc),
+                private_paths={
+                    output_root: "<OUTPUT_ROOT>",
+                    run_dir: "<OUTPUT_ROOT>/<RUN_DIRECTORY>",
+                    args.opencode_exe: "<OPENCODE_EXECUTABLE>",
+                    args.config: "<CONFIG_PATH>",
+                },
+            ),
+        }
         exit_code = 2
     evidence["finished_at_utc"] = _utc_now()
     _write_json(run_dir / "evidence.json", evidence)
@@ -1464,7 +1548,16 @@ def main(argv: Sequence[str] | None = None) -> int:
         if getattr(args, name) <= 0:
             _parser().error(f"--{name.replace('_', '-')} must be positive")
     exit_code, run_dir = _run_gate(args)
-    print(json.dumps({"status": "PASSED" if exit_code == 0 else "FAILED", "evidence": str(run_dir)}))
+    print(
+        json.dumps(
+            {
+                "status": "PASSED" if exit_code == 0 else "FAILED",
+                "evidence": _public_path(
+                    run_dir, fallback="<OUTPUT_ROOT>/<RUN_DIRECTORY>"
+                ),
+            }
+        )
+    )
     return exit_code
 
 

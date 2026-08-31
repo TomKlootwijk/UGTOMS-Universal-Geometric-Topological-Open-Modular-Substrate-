@@ -1,0 +1,22 @@
+{
+  "format": "ugtoms-vendored-client-0.1",
+  "package": "opencode-ai",
+  "version": "1.18.25",
+  "platform": "windows-x64",
+  "source_package": "opencode-windows-x64@1.18.25",
+  "license": "MIT",
+  "archive": {
+    "path": "opencode-windows-x64-1.18.25.zip",
+    "bytes": 62030007,
+    "sha256": "35fe618642f733aa1db8e26a78a1c9ee7cfce47e94cdbd36a37312c9d55e2a45",
+    "members": [
+      "opencode.exe"
+    ]
+  },
+  "executable": {
+    "path": "opencode.exe",
+    "bytes": 179651624,
+    "sha256": "ef06e41a35795066e95acde276a42fbbf85d7a683c2787f6a19ed20bcde9b6ff"
+  },
+  "installation_policy": "Verify the archive before extraction and the executable before first execution."
+}

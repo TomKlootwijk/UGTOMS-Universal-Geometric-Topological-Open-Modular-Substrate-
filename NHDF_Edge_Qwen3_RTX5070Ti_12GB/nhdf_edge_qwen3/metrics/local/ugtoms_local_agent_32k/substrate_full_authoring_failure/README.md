@@ -1,9 +1,10 @@
 # Full substrate-authoring negative result
 
 This directory preserves the failed 2026-08-31 live acceptance attempt against
-the 32K local Qwen3-30B-A3B runtime. The model passed the server, context,
-configuration, native-tool-call, and clean-room baseline checks, then timed out
-after 1,200 seconds while attempting the broad four-file SCLP application task.
+the 32K local Qwen3-30B-A3B runtime. The run passed the server, context,
+configuration, and native-tool-call prechecks; verified the expected 4/4
+failing unimplemented clean-room baseline; then timed out after 1,200 seconds
+while attempting the broad four-file SCLP application task.
 
 The raw run JSONL showed repeated oversized malformed Edit calls. This result
 therefore does **not** establish broad autonomous substrate authoring. It is

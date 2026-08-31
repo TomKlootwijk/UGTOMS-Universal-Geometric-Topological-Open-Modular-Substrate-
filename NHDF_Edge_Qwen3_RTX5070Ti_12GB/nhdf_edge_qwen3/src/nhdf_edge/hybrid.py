@@ -15,9 +15,11 @@ import shutil
 import subprocess
 import threading
 import time
+from contextlib import nullcontext
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Iterable, Mapping, Sequence
 
 
 HYBRID_FORMAT = "nhdf-edge-hybrid-0.1"
@@ -27,6 +29,251 @@ HYBRID_VALIDATION_STATUSES = frozenset(
     {"UNCALIBRATED", "QUALITY_FAILED", "RESOURCE_FAILED", "VALIDATED"}
 )
 VALIDATED_KV_CACHE_TYPES = frozenset({"q8_0", "q4_0"})
+
+
+@dataclass(frozen=True, slots=True)
+class _LockedFileSpec:
+    """Expected identity for one file held across process execution."""
+
+    path: Path
+    expected_bytes: int | None
+    expected_sha256: str
+    label: str
+
+    def __post_init__(self) -> None:
+        try:
+            resolved = Path(self.path).resolve(strict=True)
+        except OSError as exc:
+            raise OSError(f"execution file does not resolve ({self.label}): {self.path}") from exc
+        if not resolved.is_file():
+            raise OSError(f"execution path is not a file ({self.label}): {resolved}")
+        if self.expected_bytes is not None and (
+            isinstance(self.expected_bytes, bool)
+            or not isinstance(self.expected_bytes, int)
+            or self.expected_bytes <= 0
+        ):
+            raise ValueError(f"execution byte length is invalid ({self.label})")
+        digest = self.expected_sha256.lower()
+        if len(digest) != 64 or any(
+            character not in "0123456789abcdef" for character in digest
+        ):
+            raise ValueError(f"execution SHA-256 is invalid ({self.label})")
+        object.__setattr__(self, "path", resolved)
+        object.__setattr__(self, "expected_sha256", digest)
+
+
+class _ExecutionFileGuard:
+    """Hold verified files stable while a child consumes them.
+
+    Windows uses durable ``CreateFileW`` handles that deny write and delete
+    sharing.  Those handles prevent replacement or mutation until the guard is
+    closed.  POSIX keeps descriptors and advisory shared locks, verifies the
+    descriptor inode against the launch path, and hashes through the descriptor.
+    POSIX advisory locks cannot stop a hostile process that ignores locks and
+    renames a path, so callers requiring an adversarial guarantee should use the
+    externally approved Windows runtime path.
+    """
+
+    def __init__(self, specs: Sequence[_LockedFileSpec]) -> None:
+        unique: dict[str, _LockedFileSpec] = {}
+        for spec in specs:
+            key = os.path.normcase(str(spec.path))
+            previous = unique.get(key)
+            if previous is not None and previous != spec:
+                raise ValueError(f"conflicting execution records for {spec.path}")
+            unique[key] = spec
+        if not unique:
+            raise ValueError("execution file guard requires at least one file")
+        self._specs = tuple(sorted(unique.values(), key=lambda item: str(item.path)))
+        self._windows_handles: list[int] = []
+        self._posix_fds: dict[Path, int] = {}
+        self._active = False
+
+    @property
+    def active(self) -> bool:
+        return self._active
+
+    def __enter__(self) -> "_ExecutionFileGuard":
+        if self._active:
+            raise RuntimeError("execution file guard is already active")
+        try:
+            if os.name == "nt":
+                for spec in self._specs:
+                    self._windows_handles.append(_lock_windows_file(spec.path))
+            else:
+                import fcntl
+
+                for spec in self._specs:
+                    descriptor = os.open(
+                        spec.path,
+                        os.O_RDONLY | getattr(os, "O_CLOEXEC", 0),
+                    )
+                    try:
+                        fcntl.flock(descriptor, fcntl.LOCK_SH | fcntl.LOCK_NB)
+                    except BaseException:
+                        os.close(descriptor)
+                        raise
+                    self._posix_fds[spec.path] = descriptor
+            self._active = True
+            self.verify()
+            return self
+        except BaseException:
+            self.close()
+            raise
+
+    def verify(self, *, rehash: bool = True) -> None:
+        if not self._active:
+            raise RuntimeError("execution file guard is not active")
+        for spec in self._specs:
+            try:
+                resolved = spec.path.resolve(strict=True)
+                stat_result = resolved.stat()
+            except OSError as exc:
+                raise OSError(f"guarded file disappeared ({spec.label})") from exc
+            if resolved != spec.path:
+                raise OSError(f"guarded file path changed ({spec.label})")
+            if spec.expected_bytes is not None and (
+                stat_result.st_size != spec.expected_bytes
+            ):
+                raise OSError(f"guarded file byte length changed ({spec.label})")
+            if os.name != "nt":
+                descriptor = self._posix_fds[spec.path]
+                descriptor_stat = os.fstat(descriptor)
+                if (descriptor_stat.st_dev, descriptor_stat.st_ino) != (
+                    stat_result.st_dev,
+                    stat_result.st_ino,
+                ):
+                    raise OSError(f"guarded file path identity changed ({spec.label})")
+            if rehash:
+                if os.name == "nt":
+                    digest = sha256_file(spec.path)
+                else:
+                    digest = _sha256_descriptor(self._posix_fds[spec.path])
+                if digest.lower() != spec.expected_sha256:
+                    raise OSError(f"guarded file SHA-256 changed ({spec.label})")
+
+    def close(self) -> None:
+        if os.name == "nt":
+            if self._windows_handles:
+                import ctypes
+                from ctypes import wintypes
+
+                close_handle = ctypes.WinDLL("kernel32", use_last_error=True).CloseHandle
+                close_handle.argtypes = (wintypes.HANDLE,)
+                close_handle.restype = wintypes.BOOL
+                for handle in reversed(self._windows_handles):
+                    close_handle(handle)
+                self._windows_handles.clear()
+        else:
+            for descriptor in tuple(self._posix_fds.values()):
+                try:
+                    os.close(descriptor)
+                except OSError:
+                    pass
+            self._posix_fds.clear()
+        self._active = False
+
+    def __exit__(self, _type: object, _value: object, _traceback: object) -> None:
+        self.close()
+
+
+def _lock_windows_file(path: Path) -> int:
+    import ctypes
+    from ctypes import wintypes
+
+    create_file = ctypes.WinDLL("kernel32", use_last_error=True).CreateFileW
+    create_file.argtypes = (
+        wintypes.LPCWSTR,
+        wintypes.DWORD,
+        wintypes.DWORD,
+        wintypes.LPVOID,
+        wintypes.DWORD,
+        wintypes.DWORD,
+        wintypes.HANDLE,
+    )
+    create_file.restype = wintypes.HANDLE
+    handle = create_file(
+        str(path),
+        0x80000000,  # GENERIC_READ
+        0x00000001,  # FILE_SHARE_READ; deliberately deny write/delete sharing
+        None,
+        3,  # OPEN_EXISTING
+        0x08000000,  # FILE_FLAG_SEQUENTIAL_SCAN
+        None,
+    )
+    invalid = ctypes.c_void_p(-1).value
+    if handle == invalid:
+        error = ctypes.get_last_error()
+        raise OSError(error, f"could not lock execution file against mutation: {path}")
+    return int(handle)
+
+
+def _sha256_descriptor(descriptor: int, *, chunk_bytes: int = 8 * 1024 * 1024) -> str:
+    digest = hashlib.sha256()
+    position = os.lseek(descriptor, 0, os.SEEK_CUR)
+    try:
+        os.lseek(descriptor, 0, os.SEEK_SET)
+        while block := os.read(descriptor, chunk_bytes):
+            digest.update(block)
+    finally:
+        os.lseek(descriptor, position, os.SEEK_SET)
+    return digest.hexdigest()
+
+
+def _windows_system_directory() -> Path:
+    if os.name != "nt":
+        raise OSError("Windows system directory requested on a non-Windows host")
+    import ctypes
+
+    buffer = ctypes.create_unicode_buffer(32768)
+    length = ctypes.WinDLL("kernel32", use_last_error=True).GetSystemDirectoryW(
+        buffer, len(buffer)
+    )
+    if not length or length >= len(buffer):
+        raise OSError(ctypes.get_last_error(), "could not resolve Windows system directory")
+    return Path(buffer.value).resolve(strict=True)
+
+
+def _trusted_system_executable(name: str) -> Path | None:
+    """Resolve a system utility without consulting inherited ``PATH``."""
+
+    if Path(name).name != name or not name:
+        raise ValueError(f"system executable must be a bare filename: {name!r}")
+    if os.name == "nt":
+        candidates = (_windows_system_directory() / name,)
+    else:
+        candidates = tuple(Path(directory) / name for directory in ("/usr/bin", "/bin"))
+    for candidate in candidates:
+        try:
+            resolved = candidate.resolve(strict=True)
+        except OSError:
+            continue
+        if resolved.is_file():
+            return resolved
+    return None
+
+
+def _minimal_subprocess_environment(*, executable_directory: Path | None = None) -> dict[str, str]:
+    """Return a small environment without credentials, proxies, or user search paths."""
+
+    if os.name == "nt":
+        system_directory = _windows_system_directory()
+        windows_directory = system_directory.parent
+        path_entries = [str(system_directory), str(windows_directory)]
+        if executable_directory is not None:
+            path_entries.insert(0, str(executable_directory.resolve(strict=True)))
+        return {
+            "SystemRoot": str(windows_directory),
+            "WINDIR": str(windows_directory),
+            "SYSTEMDRIVE": windows_directory.drive,
+            "COMSPEC": str(system_directory / "cmd.exe"),
+            "PATHEXT": ".COM;.EXE;.BAT;.CMD",
+            "PATH": os.pathsep.join(path_entries),
+        }
+    path_entries = ["/usr/bin", "/bin"]
+    if executable_directory is not None:
+        path_entries.insert(0, str(executable_directory.resolve(strict=True)))
+    return {"PATH": os.pathsep.join(path_entries), "LANG": "C.UTF-8"}
 
 FUNCTIONAL_PROMPTS: tuple[dict[str, Any], ...] = (
     {
@@ -376,6 +623,75 @@ def load_hybrid_manifest(
     return manifest
 
 
+def _locked_spec_from_record(
+    root: Path,
+    record: Mapping[str, Any],
+    label: str,
+) -> _LockedFileSpec:
+    try:
+        reference = record["path"]
+        expected_bytes = record["bytes"]
+        expected_sha256 = record["sha256"]
+    except (KeyError, TypeError) as exc:
+        raise ValueError(f"execution record is incomplete ({label})") from exc
+    if not isinstance(reference, str) or not reference:
+        raise ValueError(f"execution record path is invalid ({label})")
+    path = _resolve_reference(root, reference)
+    if not isinstance(expected_bytes, int) or isinstance(expected_bytes, bool):
+        raise ValueError(f"execution record byte length is invalid ({label})")
+    if not isinstance(expected_sha256, str):
+        raise ValueError(f"execution record SHA-256 is invalid ({label})")
+    return _LockedFileSpec(path, expected_bytes, expected_sha256, label)
+
+
+def _execution_file_specs(
+    root: Path,
+    manifest: Mapping[str, Any],
+    manifest_sha256: str,
+    *,
+    required_entrypoints: Sequence[str],
+) -> tuple[_LockedFileSpec, ...]:
+    """Resolve and bind every file used by a manifest-selected child process."""
+
+    runtime = manifest.get("runtime")
+    payload = manifest.get("payload")
+    if not isinstance(runtime, Mapping) or not isinstance(payload, Mapping):
+        raise ValueError("hybrid execution manifest is missing runtime or payload records")
+    records = runtime.get("files")
+    if not isinstance(records, list) or not records:
+        raise ValueError("hybrid execution manifest has no sealed runtime files")
+    specs = [
+        _LockedFileSpec(
+            root / HYBRID_MANIFEST,
+            None,
+            manifest_sha256,
+            "hybrid manifest",
+        ),
+        _locked_spec_from_record(root, payload, "model payload"),
+    ]
+    runtime_by_path: dict[str, _LockedFileSpec] = {}
+    for index, record in enumerate(records):
+        if not isinstance(record, Mapping):
+            raise ValueError(f"runtime record {index} is not an object")
+        spec = _locked_spec_from_record(root, record, f"runtime:{index}")
+        key = os.path.normcase(str(spec.path))
+        previous = runtime_by_path.get(key)
+        if previous is not None and previous != spec:
+            raise ValueError(f"conflicting sealed runtime records for {spec.path}")
+        runtime_by_path[key] = spec
+        specs.append(spec)
+    for field in required_entrypoints:
+        reference = runtime.get(field)
+        if not isinstance(reference, str) or not reference:
+            raise ValueError(f"hybrid manifest does not declare runtime.{field}")
+        entrypoint = _resolve_reference(root, reference)
+        if os.path.normcase(str(entrypoint)) not in runtime_by_path:
+            raise ValueError(f"runtime.{field} is not in the sealed runtime file set")
+        if not entrypoint.is_absolute():
+            raise ValueError(f"runtime.{field} did not resolve to an absolute path")
+    return tuple(specs)
+
+
 def _verify_record(root: Path, record: dict[str, Any], label: str, *, hash_file: bool) -> dict[str, Any]:
     path = _resolve_reference(root, record["path"])
     result: dict[str, Any] = {"component": label, "path": str(path), "ok": True}
@@ -483,13 +799,21 @@ def require_hybrid_validated(artifact_dir: str | Path, *, allow_unvalidated: boo
 
 
 def _gpu_name() -> str | None:
+    nvidia_smi = _trusted_system_executable(
+        "nvidia-smi.exe" if os.name == "nt" else "nvidia-smi"
+    )
+    if nvidia_smi is None:
+        return None
     completed = subprocess.run(
-        ["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"],
+        [str(nvidia_smi), "--query-gpu=name", "--format=csv,noheader"],
         capture_output=True,
         text=True,
         encoding="utf-8",
         errors="replace",
         check=False,
+        env=_minimal_subprocess_environment(
+            executable_directory=nvidia_smi.parent
+        ),
         creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
     )
     if completed.returncode or not completed.stdout.strip():
@@ -498,9 +822,14 @@ def _gpu_name() -> str | None:
 
 
 def _gpu_sample() -> tuple[int, int, int] | None:
+    nvidia_smi = _trusted_system_executable(
+        "nvidia-smi.exe" if os.name == "nt" else "nvidia-smi"
+    )
+    if nvidia_smi is None:
+        return None
     completed = subprocess.run(
         [
-            "nvidia-smi",
+            str(nvidia_smi),
             "--query-gpu=memory.total,memory.used,utilization.gpu",
             "--format=csv,noheader,nounits",
         ],
@@ -509,6 +838,9 @@ def _gpu_sample() -> tuple[int, int, int] | None:
         encoding="utf-8",
         errors="replace",
         check=False,
+        env=_minimal_subprocess_environment(
+            executable_directory=nvidia_smi.parent
+        ),
         creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
     )
     if completed.returncode or not completed.stdout.strip():
@@ -620,15 +952,58 @@ def run_hybrid_prompt(
     allow_unvalidated: bool = False,
     verify_payload_hash: bool = True,
     monitor_resources: bool = False,
+    expected_manifest_sha256: str | None = None,
+    allow_self_sealed: bool = False,
+    _manifest_snapshot: tuple[dict[str, Any], str] | None = None,
+    _execution_guard: _ExecutionFileGuard | None = None,
 ) -> dict[str, Any]:
+    """Run one prompt only from externally anchored or explicitly research input.
+
+    An adjacent manifest digest is self-sealed and is not execution authority.
+    Normal callers must supply ``expected_manifest_sha256``.  The
+    ``allow_self_sealed`` switch exists only for an explicit local research or
+    gate workflow.  The final payload hash is always checked while durable file
+    locks are held; ``verify_payload_hash=False`` skips only the earlier
+    diagnostic pass.
+    """
+
+    if expected_manifest_sha256 is None and not allow_self_sealed:
+        raise RuntimeError(
+            "self-sealed hybrid execution is disabled; supply an externally approved "
+            "manifest SHA-256 or pass the explicit research-only override"
+        )
     root = Path(artifact_dir).resolve()
     verification = verify_hybrid_artifact(
         root, verify_payload_hash=verify_payload_hash, require_validated=False
     )
     if not verification["ok"]:
         raise OSError(f"hybrid artifact integrity failed: {verification['failures']}")
-    require_hybrid_validated(root, allow_unvalidated=allow_unvalidated)
-    manifest = load_hybrid_manifest(root)
+    if _manifest_snapshot is None:
+        manifest, manifest_sha256 = load_hybrid_manifest_snapshot(
+            root,
+            expected_sha256=expected_manifest_sha256,
+        )
+    else:
+        manifest, manifest_sha256 = _manifest_snapshot
+        if expected_manifest_sha256 is not None and (
+            manifest_sha256.lower() != expected_manifest_sha256.lower()
+        ):
+            raise OSError("internal manifest snapshot does not match external approval")
+        disk_manifest, disk_digest = load_hybrid_manifest_snapshot(
+            root,
+            expected_sha256=manifest_sha256,
+        )
+        if disk_digest != manifest_sha256 or disk_manifest != manifest:
+            raise OSError("internal manifest snapshot differs from the guarded file")
+    event_chain = _verify_event_chain(manifest)
+    if not event_chain["ok"]:
+        raise OSError(f"hybrid artifact event chain failed: {event_chain['error']}")
+    status = manifest["validation"]["status"]
+    if status != "VALIDATED" and not allow_unvalidated:
+        raise RuntimeError(
+            f"refusing to execute hybrid artifact with validation status {status}; "
+            "run the functional gate or pass the explicit research-only override"
+        )
     preflight = _preflight(manifest, context=context)
     runtime = _resolve_reference(root, manifest["runtime"]["entrypoint"])
     model = _resolve_reference(root, manifest["payload"]["path"])
@@ -702,19 +1077,38 @@ def run_hybrid_prompt(
     start = time.perf_counter()
     if sampler is not None:
         sampler.start()
-    process = subprocess.run(
-        command,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        check=False,
-        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
-    )
+    try:
+        owns_guard = _execution_guard is None
+        guard = _execution_guard or _ExecutionFileGuard(
+            _execution_file_specs(
+                root,
+                manifest,
+                manifest_sha256,
+                required_entrypoints=("entrypoint",),
+            )
+        )
+        if not owns_guard:
+            guard.verify(rehash=False)
+        guard_context = guard if owns_guard else nullcontext(guard)
+        with guard_context:
+            process = subprocess.run(
+                command,
+                cwd=str(runtime.parent),
+                env=_minimal_subprocess_environment(
+                    executable_directory=runtime.parent
+                ),
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                check=False,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            )
+    finally:
+        if sampler is not None:
+            stop.set()
+            sampler.join(timeout=2)
     elapsed = time.perf_counter() - start
-    if sampler is not None:
-        stop.set()
-        sampler.join(timeout=2)
     generated = _clean_generation(process.stdout)
     peak = max((int(sample["used_memory_mib"]) for sample in samples), default=None)
     peak_utilization = max(
@@ -774,7 +1168,11 @@ def _run_benchmark(
     repetitions: int,
     prompt_tokens: int,
     generation_tokens: int,
+    execution_guard: _ExecutionFileGuard,
 ) -> dict[str, Any]:
+    if not execution_guard.active:
+        raise RuntimeError("benchmark execution requires an active file guard")
+    execution_guard.verify(rehash=False)
     entrypoint = manifest["runtime"].get("benchmark_entrypoint")
     if not entrypoint:
         raise ValueError("hybrid manifest does not declare a benchmark entrypoint")
@@ -815,6 +1213,8 @@ def _run_benchmark(
             "json",
         ],
         capture_output=True,
+        cwd=str(runtime.parent),
+        env=_minimal_subprocess_environment(executable_directory=runtime.parent),
         text=True,
         encoding="utf-8",
         errors="replace",
@@ -943,6 +1343,40 @@ def set_hybrid_validation(
     return _write_manifest(root, manifest)
 
 
+def _artifact_relative_path_label(root: Path, value: str) -> str:
+    path = Path(value)
+    if not path.is_absolute():
+        return value.replace("\\", "/")
+    try:
+        return Path(os.path.relpath(path, root)).as_posix()
+    except ValueError:
+        return f"external/{path.name}"
+
+
+def _public_evidence_paths(value: Any, root: Path, *, key: str | None = None) -> Any:
+    """Replace host-absolute evidence paths with stable artifact-relative labels."""
+
+    if isinstance(value, dict):
+        return {
+            item_key: _public_evidence_paths(item, root, key=str(item_key))
+            for item_key, item in value.items()
+        }
+    if isinstance(value, list):
+        return [_public_evidence_paths(item, root, key=key) for item in value]
+    if isinstance(value, tuple):
+        return [_public_evidence_paths(item, root, key=key) for item in value]
+    if key == "artifact":
+        return "."
+    if isinstance(value, str) and key in {
+        "model_filename",
+        "model_path",
+        "path",
+        "runtime_path",
+    }:
+        return _artifact_relative_path_label(root, value)
+    return value
+
+
 def gate_hybrid_artifact(
     artifact_dir: str | Path,
     *,
@@ -952,12 +1386,18 @@ def gate_hybrid_artifact(
     minimum_generation_tokens_per_second: float = 80.0,
     reserve_vram_mib: int = 512,
     verify_payload_hash: bool = True,
+    allow_self_sealed: bool = False,
 ) -> dict[str, Any]:
+    if not allow_self_sealed:
+        raise RuntimeError(
+            "gating executes a self-sealed runtime; pass the explicit research-only "
+            "allow_self_sealed override"
+        )
     root = Path(artifact_dir).resolve()
     verification = verify_hybrid_artifact(root, verify_payload_hash=verify_payload_hash)
     if not verification["ok"]:
         raise OSError(f"hybrid artifact integrity failed: {verification['failures']}")
-    manifest = load_hybrid_manifest(root)
+    manifest, manifest_sha256 = load_hybrid_manifest_snapshot(root)
     contract_reserve = int(manifest["resource_contract"]["reserve_vram_mib"])
     if reserve_vram_mib < contract_reserve:
         raise ValueError(
@@ -972,41 +1412,57 @@ def gate_hybrid_artifact(
             f"generation threshold {minimum_generation_tokens_per_second} tok/s is below "
             f"the artifact contract ({contract_minimum_tps} tok/s)"
         )
+    specs = _execution_file_specs(
+        root,
+        manifest,
+        manifest_sha256,
+        required_entrypoints=("entrypoint", "benchmark_entrypoint"),
+    )
     results = []
-    for prompt in FUNCTIONAL_PROMPTS:
-        result = run_hybrid_prompt(
+    with _ExecutionFileGuard(specs) as execution_guard:
+        for prompt in FUNCTIONAL_PROMPTS:
+            result = run_hybrid_prompt(
+                root,
+                prompt=prompt["user"],
+                max_tokens=int(prompt["max_tokens"]),
+                context=512,
+                seed=seed,
+                acceptance_rule=prompt["accept"],
+                allow_unvalidated=True,
+                verify_payload_hash=False,
+                monitor_resources=True,
+                allow_self_sealed=True,
+                _manifest_snapshot=(manifest, manifest_sha256),
+                _execution_guard=execution_guard,
+            )
+            result["id"] = prompt["id"]
+            results.append(result)
+        validated_context = int(
+            manifest["execution_profile"]["maximum_context_tokens"]
+        )
+        residency = run_hybrid_prompt(
             root,
-            prompt=prompt["user"],
-            max_tokens=int(prompt["max_tokens"]),
-            context=512,
+            prompt=FUNCTIONAL_PROMPTS[0]["user"],
+            max_tokens=int(FUNCTIONAL_PROMPTS[0]["max_tokens"]),
+            context=validated_context,
             seed=seed,
-            acceptance_rule=prompt["accept"],
+            acceptance_rule=FUNCTIONAL_PROMPTS[0]["accept"],
             allow_unvalidated=True,
             verify_payload_hash=False,
             monitor_resources=True,
+            allow_self_sealed=True,
+            _manifest_snapshot=(manifest, manifest_sha256),
+            _execution_guard=execution_guard,
         )
-        result["id"] = prompt["id"]
-        results.append(result)
-    validated_context = int(manifest["execution_profile"]["maximum_context_tokens"])
-    residency = run_hybrid_prompt(
-        root,
-        prompt=FUNCTIONAL_PROMPTS[0]["user"],
-        max_tokens=int(FUNCTIONAL_PROMPTS[0]["max_tokens"]),
-        context=validated_context,
-        seed=seed,
-        acceptance_rule=FUNCTIONAL_PROMPTS[0]["accept"],
-        allow_unvalidated=True,
-        verify_payload_hash=False,
-        monitor_resources=True,
-    )
-    residency["id"] = "allocated_context_exact_ok"
-    benchmark = _run_benchmark(
-        root,
-        manifest,
-        repetitions=benchmark_repetitions,
-        prompt_tokens=64,
-        generation_tokens=64,
-    )
+        residency["id"] = "allocated_context_exact_ok"
+        benchmark = _run_benchmark(
+            root,
+            manifest,
+            repetitions=benchmark_repetitions,
+            prompt_tokens=64,
+            generation_tokens=64,
+            execution_guard=execution_guard,
+        )
     peaks = [
         int(result["peak_gpu_memory_mib"])
         for result in [*results, residency]
@@ -1080,6 +1536,7 @@ def gate_hybrid_artifact(
             "The weight codec is external GGUF/IQ2_M, not an NHDF-native tensor codec.",
         ],
     }
+    evidence = _public_evidence_paths(evidence, root)
     destination = Path(output).resolve() if output else root / "evidence" / "functional_gate.json"
     destination.parent.mkdir(parents=True, exist_ok=True)
     _atomic_write(destination, (json.dumps(evidence, indent=2) + "\n").encode("utf-8"))

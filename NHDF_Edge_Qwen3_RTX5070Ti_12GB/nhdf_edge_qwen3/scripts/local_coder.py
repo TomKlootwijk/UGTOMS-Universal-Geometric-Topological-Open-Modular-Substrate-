@@ -83,9 +83,9 @@ CANONICAL_VALIDATION_EVIDENCE_PATH = (
 CANONICAL_VALIDATION_SNAPSHOT_PATH = (
     "metrics/local/ugtoms_local_agent_32k/functional_gate.json"
 )
-EXPECTED_VALIDATION_EVIDENCE_BYTES = 33_248
+EXPECTED_VALIDATION_EVIDENCE_BYTES = 33_249
 EXPECTED_VALIDATION_EVIDENCE_SHA256 = (
-    "c56f79acf80f73773e80325bb3c865dc5b949c55abcdeefbf01f4fda1677baeb"
+    "45b097462dd89cce1d6a8f458ba69b577b5b0cd6d7c630067bdb4564367eb68d"
 )
 CANONICAL_RUNTIME_PATHS = (
     CANONICAL_RUNTIME_ENTRYPOINT,
@@ -194,19 +194,31 @@ FORBIDDEN_RUN_OPTIONS = frozenset(
         "--agent",
         "--attach",
         "--auto",
+        "--command",
+        "--continue",
+        "--cors",
         "--dir",
         "--file",
+        "--fork",
+        "--hostname",
+        "--mdns",
+        "--mdns-domain",
         "--model",
         "--password",
         "--port",
+        "--pure",
+        "--session",
         "--share",
         "--username",
+        "-c",
         "-f",
         "-m",
         "-p",
+        "-s",
         "-u",
     }
 )
+FORBIDDEN_SHORT_RUN_FLAGS = frozenset("cfmpsu")
 
 
 class LocalCoderError(RuntimeError):
@@ -277,8 +289,121 @@ def _is_reparse_point(path: Path) -> bool:
     try:
         attributes = int(getattr(path.lstat(), "st_file_attributes", 0))
     except OSError as exc:
-        raise LocalCoderError(f"could not inspect local state path {path}: {exc}") from exc
+        raise LocalCoderError(f"could not inspect path {path}: {exc}") from exc
     return path.is_symlink() or bool(attributes & 0x400)
+
+
+def _require_unaliased_executable(
+    path: Path,
+    *,
+    label: str,
+    trusted_root: Path,
+) -> Path:
+    """Resolve an executable without accepting symlink/reparse indirection."""
+
+    try:
+        root = trusted_root.resolve(strict=True)
+        lexical = Path(os.path.abspath(path))
+        relative = lexical.relative_to(root)
+    except (OSError, ValueError) as exc:
+        raise LocalCoderError(
+            f"{label} must be an absolute file below its trusted root: {path}"
+        ) from exc
+
+    current = root
+    for component in relative.parts:
+        current = current / component
+        if _is_reparse_point(current):
+            raise LocalCoderError(
+                f"{label} traverses a symlink, junction, or reparse point: {current}"
+            )
+    try:
+        resolved = lexical.resolve(strict=True)
+    except OSError as exc:
+        raise LocalCoderError(f"{label} does not resolve: {path}") from exc
+    if os.path.normcase(str(resolved)) != os.path.normcase(str(lexical)):
+        raise LocalCoderError(f"{label} resolves through an aliased path: {path}")
+    if not resolved.is_file():
+        raise LocalCoderError(f"{label} is not a regular file: {resolved}")
+    if os.name != "nt" and not os.access(resolved, os.X_OK):
+        raise LocalCoderError(f"{label} is not executable: {resolved}")
+    return resolved
+
+
+def _windows_git_install_roots() -> tuple[Path, ...]:
+    """Read machine-owned Git for Windows locations without consulting PATH."""
+
+    if os.name != "nt":
+        return ()
+    import winreg
+
+    roots: list[Path] = []
+    views = tuple(
+        flag
+        for flag in (
+            getattr(winreg, "KEY_WOW64_64KEY", 0),
+            getattr(winreg, "KEY_WOW64_32KEY", 0),
+        )
+    )
+    for view in views:
+        try:
+            with winreg.OpenKey(
+                winreg.HKEY_LOCAL_MACHINE,
+                r"SOFTWARE\GitForWindows",
+                0,
+                winreg.KEY_READ | view,
+            ) as key:
+                value, value_type = winreg.QueryValueEx(key, "InstallPath")
+        except OSError:
+            continue
+        if value_type == winreg.REG_SZ and isinstance(value, str) and value:
+            candidate = Path(value)
+            if candidate.is_absolute():
+                roots.append(candidate)
+
+    system_directory = hybrid._windows_system_directory()
+    roots.append(Path(system_directory.anchor) / "Program Files" / "Git")
+    unique: dict[str, Path] = {}
+    for root in roots:
+        unique.setdefault(os.path.normcase(str(root)), root)
+    return tuple(unique.values())
+
+
+def _resolve_git_executable() -> Path:
+    """Resolve Git only from a machine-owned location, never PATH or the target."""
+
+    if os.name == "nt":
+        candidates = tuple(
+            root / "cmd" / "git.exe" for root in _windows_git_install_roots()
+        )
+    else:
+        candidates = (Path("/usr/bin/git"), Path("/bin/git"))
+    failures: list[str] = []
+    for candidate in candidates:
+        try:
+            anchor = Path(candidate.anchor)
+            return _require_unaliased_executable(
+                candidate,
+                label="trusted Git executable",
+                trusted_root=anchor,
+            )
+        except LocalCoderError as exc:
+            failures.append(str(exc))
+    detail = "; ".join(failures) if failures else "no machine-owned candidates"
+    raise LocalCoderError(f"could not locate a trusted Git executable: {detail}")
+
+
+def _native_probe_environment(executable: Path) -> dict[str, str]:
+    """Build a credential-free environment for native identity probes."""
+
+    environment = hybrid._minimal_subprocess_environment(
+        executable_directory=executable.parent
+    )
+    environment["NoDefaultCurrentDirectoryInExePath"] = "1"
+    environment["GIT_CONFIG_NOSYSTEM"] = "1"
+    environment["GIT_TERMINAL_PROMPT"] = "0"
+    environment["GCM_INTERACTIVE"] = "Never"
+    return environment
 
 
 def _ensure_safe_project_directory(path: Path) -> Path:
@@ -428,11 +553,17 @@ def parse_options(argv: Sequence[str] | None = None) -> LaunchOptions:
     if args.run is not None:
         for argument in args.run:
             option = argument.split("=", 1)[0]
-            compact_short_option = any(
-                argument.startswith(prefix) and argument != prefix
-                for prefix in ("-f", "-m", "-p", "-u")
+            canonical_option = (
+                f"--{option[5:]}" if option.startswith("--no-") else option
             )
-            if option in FORBIDDEN_RUN_OPTIONS or compact_short_option:
+            compact_short_option = (
+                argument.startswith("-")
+                and not argument.startswith("--")
+                and any(
+                    character in FORBIDDEN_SHORT_RUN_FLAGS for character in argument[1:]
+                )
+            )
+            if canonical_option in FORBIDDEN_RUN_OPTIONS or compact_short_option:
                 raise LocalCoderError(
                     f"{option} cannot override the local-coder isolation contract"
                 )
@@ -458,13 +589,23 @@ def validate_git_target(target: Path) -> tuple[Path, Path]:
     if not resolved.is_dir():
         raise LocalCoderError(f"target is not a directory: {resolved}")
 
+    git_executable = _resolve_git_executable()
     try:
         result = subprocess.run(
-            ["git", "-C", str(resolved), "rev-parse", "--show-toplevel"],
+            [
+                str(git_executable),
+                "-C",
+                str(resolved),
+                "rev-parse",
+                "--show-toplevel",
+            ],
+            cwd=str(git_executable.parent),
+            env=_native_probe_environment(git_executable),
             check=False,
             capture_output=True,
             text=True,
             timeout=10,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
         raise LocalCoderError(f"could not validate target with Git: {exc}") from exc
@@ -482,24 +623,31 @@ def validate_git_target(target: Path) -> tuple[Path, Path]:
     return resolved, worktree_root
 
 
-def validate_local_install(executable: Path) -> None:
+def validate_local_install(executable: Path) -> Path:
     try:
         project_root = PROJECT_ROOT.resolve(strict=True)
-        expected = OPENCODE_EXE.resolve(strict=True)
-        resolved = executable.resolve(strict=True)
     except OSError as exc:
         raise LocalCoderError(
             "project-local OpenCode is not installed; run scripts/setup_local_coder.ps1"
         ) from exc
-    if not _within(expected, project_root):
-        raise LocalCoderError("project-local OpenCode resolves outside the project repository")
+    expected = _require_unaliased_executable(
+        OPENCODE_EXE,
+        label="canonical project-local OpenCode executable",
+        trusted_root=project_root,
+    )
+    try:
+        resolved = _require_unaliased_executable(
+            executable,
+            label="requested OpenCode executable",
+            trusted_root=project_root,
+        )
+    except LocalCoderError as exc:
+        raise LocalCoderError(
+            f"only the canonical project-local OpenCode executable is permitted: {expected}"
+        ) from exc
     if resolved != expected:
         raise LocalCoderError(
             f"only the canonical project-local OpenCode executable is permitted: {expected}"
-        )
-    if not resolved.is_file():
-        raise LocalCoderError(
-            "project-local OpenCode is not installed; run scripts/setup_local_coder.ps1"
         )
     actual_digest = _sha256_file(resolved)
     if actual_digest != EXPECTED_OPENCODE_SHA256:
@@ -510,10 +658,13 @@ def validate_local_install(executable: Path) -> None:
     try:
         result = subprocess.run(
             [str(resolved), "--version"],
+            cwd=str(resolved.parent),
+            env=_native_probe_environment(resolved),
             check=False,
             capture_output=True,
             text=True,
             timeout=15,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
         raise LocalCoderError(f"could not run project-local OpenCode: {exc}") from exc
@@ -526,6 +677,7 @@ def validate_local_install(executable: Path) -> None:
     post_run_digest = _sha256_file(resolved)
     if post_run_digest != EXPECTED_OPENCODE_SHA256:
         raise LocalCoderError("project-local OpenCode executable changed during validation")
+    return resolved
 
 
 def validate_config(config_path: Path) -> ValidatedConfig:
@@ -836,10 +988,10 @@ def _validate_evidence_claims(
         "allocated_context_tokens": REQUIRED_CONTEXT_TOKENS,
         "allocated_context_passed": True,
         "full_offload_passed": True,
-        "peak_gpu_memory_mib": 11_064,
+        "peak_gpu_memory_mib": 11_068,
         "target_vram_mib": 12_227,
         "contract_target_vram_mib": 12_227,
-        "headroom_mib": 1_163,
+        "headroom_mib": 1_159,
         "resource_gate_passed": True,
         "throughput_gate_passed": True,
     }
@@ -849,10 +1001,10 @@ def _validate_evidence_claims(
         raise LocalCoderError("validation evidence throughput threshold changed")
     if thresholds.get("full_offload_required") != [49, 49]:
         raise LocalCoderError("validation evidence offload threshold changed")
-    if prompt.get("tokens") != 64 or prompt.get("average_tokens_per_second") != 885.013308:
+    if prompt.get("tokens") != 64 or prompt.get("average_tokens_per_second") != 797.667364:
         raise LocalCoderError("validation evidence prompt measurement changed")
     if generation.get("tokens") != 64 or (
-        generation.get("average_tokens_per_second") != 135.208586
+        generation.get("average_tokens_per_second") != 142.143349
     ):
         raise LocalCoderError("validation evidence generation measurement changed")
 
@@ -1132,7 +1284,23 @@ def verify_execution_inputs(
 ) -> None:
     """Rehash every local-client trust anchor immediately before execution."""
 
-    if _sha256_file(executable.resolve(strict=True)) != EXPECTED_OPENCODE_SHA256:
+    try:
+        project_root = PROJECT_ROOT.resolve(strict=True)
+    except OSError as exc:
+        raise LocalCoderError(f"project root changed after validation: {exc}") from exc
+    expected_executable = _require_unaliased_executable(
+        OPENCODE_EXE,
+        label="canonical project-local OpenCode executable",
+        trusted_root=project_root,
+    )
+    resolved_executable = _require_unaliased_executable(
+        executable,
+        label="requested OpenCode executable",
+        trusted_root=project_root,
+    )
+    if resolved_executable != expected_executable:
+        raise LocalCoderError("OpenCode executable path changed after validation")
+    if _sha256_file(resolved_executable) != EXPECTED_OPENCODE_SHA256:
         raise LocalCoderError("OpenCode executable changed after validation")
     if _sha256_file(config.path.resolve(strict=True)) != config.sha256:
         raise LocalCoderError("canonical OpenCode config changed after validation")
@@ -1208,7 +1376,7 @@ def run_local_coder(
 ) -> int:
     target, worktree_root = validate_git_target(options.target)
     config = validate_config(options.config)
-    validate_local_install(OPENCODE_EXE)
+    opencode_executable = validate_local_install(OPENCODE_EXE)
     artifact = resolve_canonical_artifact(options.artifact)
     validated_artifact = validate_agent_artifact(artifact)
 
@@ -1223,9 +1391,9 @@ def run_local_coder(
     )
     try:
         environment = isolated_environment(config, server.base_url)
-        verify_execution_inputs(OPENCODE_EXE, config, environment)
+        verify_execution_inputs(opencode_executable, config, environment)
         validate_resolved_config(
-            OPENCODE_EXE,
+            opencode_executable,
             target,
             environment,
             expected_base_url=server.base_url,
@@ -1236,7 +1404,7 @@ def run_local_coder(
             ),
         )
         server.start()
-        command = build_opencode_command(OPENCODE_EXE, options.run_args)
+        command = build_opencode_command(opencode_executable, options.run_args)
         print(f"Local coder target: {target}", file=sys.stderr)
         print(f"Git worktree: {worktree_root}", file=sys.stderr)
         print(f"Local model endpoint: {server.base_url}/v1", file=sys.stderr)
@@ -1247,7 +1415,7 @@ def run_local_coder(
             )
         else:
             print("Verification: strict sealed payload check", file=sys.stderr)
-        verify_execution_inputs(OPENCODE_EXE, config, environment)
+        verify_execution_inputs(opencode_executable, config, environment)
         completed = client_runner(
             command,
             cwd=str(target),

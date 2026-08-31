@@ -18,7 +18,13 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 from urllib.error import HTTPError, URLError
-from urllib.request import Request, urlopen
+from urllib.parse import urlsplit
+from urllib.request import (
+    HTTPRedirectHandler,
+    ProxyHandler,
+    Request,
+    build_opener,
+)
 
 from . import hybrid
 
@@ -42,6 +48,25 @@ class HybridServerConfigurationError(HybridServerError):
 
 class HybridServerUnavailableError(HybridServerError):
     """Raised when the resident process or its loopback API is unavailable."""
+
+
+class _RejectRedirects(HTTPRedirectHandler):
+    def redirect_request(
+        self,
+        req: Request,
+        fp: Any,
+        code: int,
+        msg: str,
+        headers: Any,
+        newurl: str,
+    ) -> Request | None:
+        raise HTTPError(
+            req.full_url,
+            code,
+            f"loopback redirects are disabled: {newurl}",
+            headers,
+            fp,
+        )
 
 
 def _same_path(left: Path, right: Path) -> bool:
@@ -133,52 +158,31 @@ class ArtifactApproval:
         object.__setattr__(self, "manifest_sha256", digest)
         object.__setattr__(self, "runtime_files", runtime_files)
 
+    def execution_file_specs(self) -> tuple[hybrid._LockedFileSpec, ...]:
+        """Return the externally pinned files that must remain locked."""
+
+        specs = [
+            hybrid._LockedFileSpec(
+                self.artifact_dir / hybrid.HYBRID_MANIFEST,
+                None,
+                self.manifest_sha256,
+                "approved manifest",
+            )
+        ]
+        specs.extend(
+            hybrid._LockedFileSpec(item.path, item.bytes, item.sha256, "approved file")
+            for item in (self.payload, *self.runtime_files)
+        )
+        return tuple(specs)
+
     def verify_files(self) -> None:
-        """Rehash every execution input immediately before process creation."""
+        """Acquire, verify, and release one snapshot of every approved file."""
 
-        manifest_path = self.artifact_dir / hybrid.HYBRID_MANIFEST
         try:
-            resolved_manifest = manifest_path.resolve(strict=True)
-        except OSError as error:
-            raise HybridServerConfigurationError(
-                "approved manifest disappeared before launch"
-            ) from error
-        if (
-            resolved_manifest != manifest_path
-            or not _within(resolved_manifest, self.artifact_dir)
-        ):
-            raise HybridServerConfigurationError(
-                "approved manifest path changed or escaped before launch"
-            )
-        if hybrid.sha256_file(resolved_manifest).lower() != self.manifest_sha256:
-            raise HybridServerConfigurationError(
-                "approved manifest SHA-256 changed before launch"
-            )
-
-        seen: set[Path] = set()
-        for item in (self.payload, *self.runtime_files):
-            if item.path in seen:
-                continue
-            seen.add(item.path)
-            try:
-                resolved = item.path.resolve(strict=True)
-                size = resolved.stat().st_size
-            except OSError as error:
-                raise HybridServerConfigurationError(
-                    f"approved file disappeared before launch: {item.path}"
-                ) from error
-            if resolved != item.path or not _within(resolved, self.reference_root):
-                raise HybridServerConfigurationError(
-                    f"approved file path changed or escaped before launch: {item.path}"
-                )
-            if size != item.bytes:
-                raise HybridServerConfigurationError(
-                    f"approved file byte length changed before launch: {item.path}"
-                )
-            if hybrid.sha256_file(resolved).lower() != item.sha256:
-                raise HybridServerConfigurationError(
-                    f"approved file SHA-256 changed before launch: {item.path}"
-                )
+            with hybrid._ExecutionFileGuard(self.execution_file_specs()):
+                pass
+        except (OSError, ValueError) as error:
+            raise HybridServerConfigurationError(str(error)) from error
 
 
 def _require_loopback(host: str) -> None:
@@ -331,6 +335,22 @@ def _request_json(
     payload: dict[str, Any] | None = None,
     timeout_seconds: float,
 ) -> dict[str, Any]:
+    parsed = urlsplit(url)
+    try:
+        port = parsed.port
+    except ValueError as exc:
+        raise HybridServerUnavailableError("loopback request URL has an invalid port") from exc
+    if (
+        parsed.scheme != "http"
+        or parsed.hostname != LOOPBACK_HOST
+        or port is None
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed.fragment
+    ):
+        raise HybridServerUnavailableError(
+            "runtime requests require an uncredentialed http://127.0.0.1:PORT URL"
+        )
     data = None if payload is None else json.dumps(payload).encode("utf-8")
     request = Request(
         url,
@@ -338,9 +358,16 @@ def _request_json(
         headers={"Content-Type": "application/json", "Accept": "application/json"},
         method="GET" if data is None else "POST",
     )
+    opener = build_opener(ProxyHandler({}), _RejectRedirects())
     try:
-        with urlopen(request, timeout=timeout_seconds) as response:
+        with opener.open(request, timeout=timeout_seconds) as response:
             status = int(getattr(response, "status", 200))
+            get_url = getattr(response, "geturl", None)
+            final_url = get_url() if callable(get_url) else request.full_url
+            if final_url != request.full_url:
+                raise HybridServerUnavailableError(
+                    "loopback request was redirected away from its exact URL"
+                )
             body = response.read()
     except HTTPError as exc:
         raise HybridServerUnavailableError(
@@ -361,6 +388,154 @@ def _request_json(
     return result
 
 
+def _listener_owner_pids(port: int) -> set[int]:
+    """Return PIDs listening on the exact IPv4 loopback port.
+
+    Windows uses the absolute System32 ``netstat.exe`` and a minimal
+    environment. Linux binds socket inodes through ``/proc``. Other platforms
+    fail closed because the standard library offers no durable listener-owner
+    proof there.
+    """
+
+    if os.name == "nt":
+        netstat = hybrid._trusted_system_executable("netstat.exe")
+        if netstat is None:
+            raise HybridServerUnavailableError(
+                "trusted System32 netstat.exe is unavailable for PID binding"
+            )
+        try:
+            completed = subprocess.run(
+                [str(netstat), "-ano", "-p", "tcp"],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                check=False,
+                env=hybrid._minimal_subprocess_environment(
+                    executable_directory=netstat.parent
+                ),
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            )
+        except OSError as exc:
+            raise HybridServerUnavailableError(
+                f"could not inspect loopback listener ownership: {exc}"
+            ) from exc
+        if completed.returncode != 0:
+            raise HybridServerUnavailableError(
+                "netstat failed while binding the listener to the child PID"
+            )
+        expected_endpoint = f"{LOOPBACK_HOST}:{port}"
+        owners: set[int] = set()
+        for line in completed.stdout.splitlines():
+            fields = line.split()
+            if (
+                len(fields) >= 5
+                and fields[0].upper() == "TCP"
+                and fields[1] == expected_endpoint
+                and fields[-2].upper() == "LISTENING"
+            ):
+                try:
+                    owners.add(int(fields[-1]))
+                except ValueError:
+                    continue
+        return owners
+
+    proc_tcp = Path("/proc/net/tcp")
+    if proc_tcp.is_file():
+        expected_local = f"0100007F:{port:04X}"
+        inodes: set[str] = set()
+        for line in proc_tcp.read_text(encoding="ascii").splitlines()[1:]:
+            fields = line.split()
+            if len(fields) > 9 and fields[1].upper() == expected_local and fields[3] == "0A":
+                inodes.add(fields[9])
+        owners: set[int] = set()
+        if not inodes:
+            return owners
+        for process_directory in Path("/proc").iterdir():
+            if not process_directory.name.isdecimal():
+                continue
+            descriptor_directory = process_directory / "fd"
+            try:
+                descriptors = tuple(descriptor_directory.iterdir())
+            except OSError:
+                continue
+            for descriptor in descriptors:
+                try:
+                    target = os.readlink(descriptor)
+                except OSError:
+                    continue
+                if target.startswith("socket:[") and target[8:-1] in inodes:
+                    owners.add(int(process_directory.name))
+                    break
+        return owners
+    raise HybridServerUnavailableError(
+        "listener PID binding is unsupported on this platform"
+    )
+
+
+def _verify_server_properties(
+    props: dict[str, Any],
+    *,
+    manifest: dict[str, Any],
+    expected_model: Path,
+    expected_context: int,
+) -> None:
+    build_info = props.get("build_info")
+    revision = str(manifest["runtime"]["revision"])
+    build_number = manifest["runtime"].get("build_number")
+    if build_number is not None:
+        expected_build = f"b{int(build_number)}-{revision[:8]}"
+        if build_info != expected_build:
+            raise HybridServerUnavailableError(
+                f"server build mismatch: expected {expected_build!r}, got {build_info!r}"
+            )
+    elif not isinstance(build_info, str) or (
+        revision not in build_info and revision[:8] not in build_info
+    ):
+        raise HybridServerUnavailableError("server build does not match the manifest")
+
+    reported_model = Path(str(props.get("model_path", "")))
+    if not reported_model.is_absolute():
+        raise HybridServerUnavailableError("server props did not report an absolute model path")
+    try:
+        resolved_model = reported_model.resolve(strict=True)
+    except OSError as exc:
+        raise HybridServerUnavailableError(
+            "server props reported a model path that does not resolve"
+        ) from exc
+    if not _same_path(resolved_model, expected_model):
+        raise HybridServerUnavailableError(
+            f"server model mismatch: expected {expected_model}, got {resolved_model}"
+        )
+    if props.get("total_slots") != 1:
+        raise HybridServerUnavailableError("server props did not report exactly one slot")
+    settings = props.get("default_generation_settings")
+    if not isinstance(settings, dict) or settings.get("n_ctx") != expected_context:
+        raise HybridServerUnavailableError(
+            "server context does not match the launched execution profile"
+        )
+    parameters = settings.get("params")
+    sampling = manifest["execution_profile"]["sampling"]
+    expected_sampling = {
+        "temperature": float(sampling["temperature"]),
+        "top_k": int(sampling["top_k"]),
+        "seed": int(sampling["seed"]),
+    }
+    actual_sampling = (
+        {
+            "temperature": parameters.get("temperature"),
+            "top_k": parameters.get("top_k"),
+            "seed": parameters.get("seed"),
+        }
+        if isinstance(parameters, dict)
+        else None
+    )
+    if actual_sampling != expected_sampling:
+        raise HybridServerUnavailableError(
+            "server sampling properties do not match the launched execution profile"
+        )
+
+
 @dataclass
 class HybridServer:
     """Own one verified, loopback-only, persistent llama-server process."""
@@ -373,11 +548,18 @@ class HybridServer:
     threads: int | None = None
     verify_payload_hash: bool = True
     artifact_approval: ArtifactApproval | None = None
+    expected_manifest_sha256: str | None = None
+    allow_self_sealed: bool = False
     _process: subprocess.Popen[Any] | None = field(default=None, init=False, repr=False)
     _command: tuple[str, ...] | None = field(default=None, init=False, repr=False)
     _preflight_result: dict[str, Any] | None = field(default=None, init=False, repr=False)
     _maximum_context_tokens: int = field(
         default=VALIDATED_CONTEXT_TOKENS, init=False, repr=False
+    )
+    _manifest_snapshot: dict[str, Any] | None = field(default=None, init=False, repr=False)
+    _model_path: Path | None = field(default=None, init=False, repr=False)
+    _execution_guard: hybrid._ExecutionFileGuard | None = field(
+        default=None, init=False, repr=False
     )
     _lock: threading.RLock = field(default_factory=threading.RLock, init=False, repr=False)
 
@@ -393,6 +575,10 @@ class HybridServer:
                 raise HybridServerConfigurationError(
                     "externally approved launches cannot skip the final payload hash"
                 )
+            if self.expected_manifest_sha256 is not None:
+                raise HybridServerConfigurationError(
+                    "use ArtifactApproval or expected_manifest_sha256, not both"
+                )
         if isinstance(self.port, bool) or not isinstance(self.port, int):
             raise HybridServerConfigurationError("server port must be an integer")
         if not 1 <= self.port <= 65_535:
@@ -401,6 +587,17 @@ class HybridServer:
             raise HybridServerConfigurationError("server timeouts must be positive")
         if not isinstance(self.verify_payload_hash, bool):
             raise HybridServerConfigurationError("verify_payload_hash must be a boolean")
+        if not isinstance(self.allow_self_sealed, bool):
+            raise HybridServerConfigurationError("allow_self_sealed must be a boolean")
+        if self.expected_manifest_sha256 is not None:
+            digest = self.expected_manifest_sha256.lower()
+            if len(digest) != 64 or any(
+                character not in "0123456789abcdef" for character in digest
+            ):
+                raise HybridServerConfigurationError(
+                    "expected_manifest_sha256 must contain 64 hexadecimal characters"
+                )
+            self.expected_manifest_sha256 = digest
         if self.threads is None:
             # Measured on the target Core Ultra 7 255HX: four generation
             # threads outperformed 2/8/12/20 while the model was fully offloaded.
@@ -447,9 +644,17 @@ class HybridServer:
         with self._lock:
             if self._process is not None and self._process.poll() is None:
                 raise HybridServerError("llama-server is already running")
+            if self._execution_guard is not None:
+                self._execution_guard.close()
+                self._execution_guard = None
 
             approval = self.artifact_approval
             if approval is None:
+                if self.expected_manifest_sha256 is None and not self.allow_self_sealed:
+                    raise HybridServerConfigurationError(
+                        "self-sealed resident execution is disabled; provide an external "
+                        "ArtifactApproval or pass the explicit research-only override"
+                    )
                 verification = hybrid.verify_hybrid_artifact(
                     self.artifact_dir,
                     verify_payload_hash=self.verify_payload_hash,
@@ -460,10 +665,19 @@ class HybridServer:
                         "refusing to launch hybrid server because artifact verification failed: "
                         f"{verification.get('failures', [])}"
                     )
-                manifest = hybrid.load_hybrid_manifest(self.artifact_dir)
+                manifest, manifest_digest = hybrid.load_hybrid_manifest_snapshot(
+                    self.artifact_dir,
+                    expected_sha256=self.expected_manifest_sha256,
+                )
                 server = _sealed_server_entrypoint(self.artifact_dir, manifest)
                 model = hybrid._resolve_reference(
                     self.artifact_dir, manifest["payload"]["path"]
+                )
+                execution_specs = hybrid._execution_file_specs(
+                    self.artifact_dir,
+                    manifest,
+                    manifest_digest,
+                    required_entrypoints=(),
                 )
             else:
                 manifest, _manifest_digest = hybrid.load_hybrid_manifest_snapshot(
@@ -479,6 +693,7 @@ class HybridServer:
                 # digests from the same manifest snapshot it validated.
                 server = approval.server.path
                 model = approval.payload.path
+                execution_specs = approval.execution_file_specs()
             _require_validated_profile(manifest)
             profile = manifest["execution_profile"]
             context = int(profile["maximum_context_tokens"])
@@ -544,23 +759,35 @@ class HybridServer:
                 "--metrics",
                 "--slots",
             ]
-            if approval is not None:
-                # Keep this immediately adjacent to Popen: it closes the long
-                # validation/preflight window for every executable input.
-                approval.verify_files()
-            process = subprocess.Popen(
-                command,
-                cwd=str(server.parent),
-                stdin=subprocess.DEVNULL,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                shell=False,
-                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
-            )
+            execution_guard = hybrid._ExecutionFileGuard(execution_specs)
+            try:
+                execution_guard.__enter__()
+            except (OSError, ValueError) as error:
+                execution_guard.close()
+                raise HybridServerConfigurationError(str(error)) from error
+            try:
+                process = subprocess.Popen(
+                    command,
+                    cwd=str(server.parent),
+                    env=hybrid._minimal_subprocess_environment(
+                        executable_directory=server.parent
+                    ),
+                    stdin=subprocess.DEVNULL,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    shell=False,
+                    creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                )
+            except BaseException:
+                execution_guard.close()
+                raise
             self._process = process
+            self._execution_guard = execution_guard
             self._command = tuple(command)
             self._preflight_result = preflight
             self._maximum_context_tokens = context
+            self._manifest_snapshot = manifest
+            self._model_path = model
 
         if wait_ready:
             try:
@@ -597,9 +824,9 @@ class HybridServer:
         )
 
     def health(self, *, timeout_seconds: float = 2.0) -> dict[str, Any]:
-        """Return the loopback health response or fail closed."""
+        """Return health only after binding endpoint, PID, build, and model."""
 
-        self._require_running()
+        process = self._require_running()
         result = _request_json(
             f"{self.base_url}/health", timeout_seconds=timeout_seconds
         )
@@ -607,6 +834,28 @@ class HybridServer:
             raise HybridServerUnavailableError(
                 f"llama-server health status is not ok: {result.get('status')!r}"
             )
+        process_id = getattr(process, "pid", None)
+        if isinstance(process_id, bool) or not isinstance(process_id, int) or process_id <= 0:
+            raise HybridServerUnavailableError("owned llama-server has no valid process ID")
+        owners = _listener_owner_pids(self.port)
+        if owners != {process_id}:
+            raise HybridServerUnavailableError(
+                f"loopback listener is not uniquely owned by child PID {process_id}: "
+                f"observed {sorted(owners)}"
+            )
+        manifest = self._manifest_snapshot
+        model = self._model_path
+        if manifest is None or model is None:
+            raise HybridServerUnavailableError("server launch binding state is incomplete")
+        props = _request_json(
+            f"{self.base_url}/props", timeout_seconds=timeout_seconds
+        )
+        _verify_server_properties(
+            props,
+            manifest=manifest,
+            expected_model=model,
+            expected_context=self._maximum_context_tokens,
+        )
         return result
 
     def completion(
@@ -624,7 +873,6 @@ class HybridServer:
         repeatability across different cache/batch states.
         """
 
-        self._require_running()
         if not isinstance(prompt, str) or not prompt.strip():
             raise ValueError("prompt must be a non-empty string")
         if (
@@ -640,6 +888,7 @@ class HybridServer:
         timeout = self.request_timeout_seconds if timeout_seconds is None else timeout_seconds
         if timeout <= 0:
             raise ValueError("completion timeout must be positive")
+        self.health(timeout_seconds=min(2.0, timeout))
         request_payload: dict[str, Any] = {
             "prompt": hybrid._chatml(prompt),
             "n_predict": max_tokens,
@@ -678,15 +927,21 @@ class HybridServer:
             raise ValueError("stop timeout must not be negative")
         with self._lock:
             process = self._process
-            self._process = None
-        if process is None or process.poll() is not None:
-            return
-        process.terminate()
-        try:
-            process.wait(timeout=timeout_seconds)
-        except subprocess.TimeoutExpired:
-            process.kill()
-            process.wait(timeout=timeout_seconds)
+            execution_guard = self._execution_guard
+            if process is None or process.poll() is not None:
+                self._process = None
+                self._execution_guard = None
+            else:
+                process.terminate()
+                try:
+                    process.wait(timeout=timeout_seconds)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    process.wait(timeout=timeout_seconds)
+                self._process = None
+                self._execution_guard = None
+        if execution_guard is not None and self._execution_guard is not execution_guard:
+            execution_guard.close()
 
     def __enter__(self) -> "HybridServer":
         return self.start()

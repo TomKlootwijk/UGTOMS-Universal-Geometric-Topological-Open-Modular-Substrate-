@@ -233,6 +233,7 @@ def test_hybrid_run_uses_fixed_profile(monkeypatch, tmp_path) -> None:
 
     def fake_run(command, **kwargs):
         observed["command"] = command
+        observed["kwargs"] = kwargs
         return SimpleNamespace(
             returncode=0,
             stdout="OK\n",
@@ -257,6 +258,7 @@ def test_hybrid_run_uses_fixed_profile(monkeypatch, tmp_path) -> None:
         context=512,
         acceptance_rule={"kind": "exact", "value": "OK"},
         verify_payload_hash=False,
+        allow_self_sealed=True,
     )
 
     assert result["passed"]
@@ -267,6 +269,7 @@ def test_hybrid_run_uses_fixed_profile(monkeypatch, tmp_path) -> None:
     assert command[command.index("-ctk") + 1] == "q8_0"
     assert command[command.index("-ctv") + 1] == "q8_0"
     assert "--temp" in command and command[command.index("--temp") + 1] == "0"
+    assert observed["kwargs"]["cwd"] == str((tmp_path / "components").resolve())
 
 
 def test_current_runtime_requests_trace_logs_only_for_monitored_evidence(
@@ -324,6 +327,7 @@ def test_current_runtime_requests_trace_logs_only_for_monitored_evidence(
             acceptance_rule={"kind": "exact", "value": "OK"},
             verify_payload_hash=False,
             monitor_resources=monitored,
+            allow_self_sealed=True,
         )
 
     assert "-lv" not in commands[0]
@@ -337,7 +341,7 @@ def test_llama_bench_uses_manifest_kv_cache_types(tmp_path, monkeypatch) -> None
         kv_cache_k="q4_0",
         kv_cache_v="q4_0",
     )
-    manifest = hybrid.load_hybrid_manifest(root)
+    manifest, manifest_sha256 = hybrid.load_hybrid_manifest_snapshot(root)
     observed = {}
 
     def fake_run(command, **kwargs):
@@ -366,13 +370,21 @@ def test_llama_bench_uses_manifest_kv_cache_types(tmp_path, monkeypatch) -> None
         )
 
     monkeypatch.setattr(hybrid.subprocess, "run", fake_run)
-    hybrid._run_benchmark(
+    specs = hybrid._execution_file_specs(
         root,
         manifest,
-        repetitions=1,
-        prompt_tokens=64,
-        generation_tokens=64,
+        manifest_sha256,
+        required_entrypoints=("benchmark_entrypoint",),
     )
+    with hybrid._ExecutionFileGuard(specs) as execution_guard:
+        hybrid._run_benchmark(
+            root,
+            manifest,
+            repetitions=1,
+            prompt_tokens=64,
+            generation_tokens=64,
+            execution_guard=execution_guard,
+        )
 
     command = observed["command"]
     assert command[command.index("-ctk") + 1] == "q4_0"
@@ -410,7 +422,7 @@ def test_gate_evidence_names_manifest_selected_context_generically(
         },
     )
 
-    evidence = hybrid.gate_hybrid_artifact(root)
+    evidence = hybrid.gate_hybrid_artifact(root, allow_self_sealed=True)
 
     assert observed_contexts == [512, 512, 512, 512, 32_768]
     assert evidence["allocated_context_residency_result"]["context_tokens"] == 32_768
@@ -428,3 +440,102 @@ def test_gate_evidence_names_manifest_selected_context_generically(
         hybrid.set_hybrid_validation(
             root, "VALIDATED", evidence_path=stale_path
         )
+
+
+def test_public_execution_and_gate_reject_self_sealed_authority_by_default(
+    tmp_path,
+) -> None:
+    root, _ = _artifact(tmp_path)
+    with pytest.raises(RuntimeError, match="self-sealed"):
+        hybrid.run_hybrid_prompt(
+            root,
+            prompt="test",
+            allow_unvalidated=True,
+        )
+    with pytest.raises(RuntimeError, match="self-sealed"):
+        hybrid.gate_hybrid_artifact(root)
+
+
+def test_final_guard_catches_runtime_mutation_after_preliminary_verification(
+    tmp_path, monkeypatch
+) -> None:
+    root, _ = _artifact(tmp_path)
+    manifest = hybrid.load_hybrid_manifest(root)
+    runtime = hybrid._resolve_reference(root, manifest["runtime"]["entrypoint"])
+    original = runtime.read_bytes()
+
+    def mutate_during_preflight(_manifest, *, context):
+        assert context == 512
+        runtime.write_bytes(b"X" * len(original))
+        return {"used_mib": 0}
+
+    monkeypatch.setattr(hybrid, "_preflight", mutate_during_preflight)
+    monkeypatch.setattr(
+        hybrid.subprocess,
+        "run",
+        lambda *_args, **_kwargs: pytest.fail("mutated runtime must not execute"),
+    )
+    with pytest.raises(OSError, match="SHA-256 changed"):
+        hybrid.run_hybrid_prompt(
+            root,
+            prompt="test",
+            allow_unvalidated=True,
+            allow_self_sealed=True,
+            verify_payload_hash=False,
+        )
+
+
+def test_gpu_queries_use_absolute_trusted_binary_and_minimal_environment(
+    tmp_path, monkeypatch
+) -> None:
+    executable = tmp_path / "nvidia-smi.exe"
+    executable.write_bytes(b"binary")
+    observed = []
+
+    def fake_run(command, **kwargs):
+        observed.append((command, kwargs))
+        return SimpleNamespace(returncode=0, stdout="Expected GPU\n")
+
+    monkeypatch.setenv("HTTPS_PROXY", "http://attacker.invalid")
+    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "secret")
+    monkeypatch.setattr(hybrid, "_trusted_system_executable", lambda _name: executable)
+    monkeypatch.setattr(hybrid.subprocess, "run", fake_run)
+
+    assert hybrid._gpu_name() == "Expected GPU"
+    command, kwargs = observed[0]
+    assert Path(command[0]).is_absolute()
+    assert command[0] == str(executable)
+    assert "HTTPS_PROXY" not in kwargs["env"]
+    assert "AWS_SECRET_ACCESS_KEY" not in kwargs["env"]
+
+
+def test_gate_evidence_rewrites_absolute_host_paths(
+    tmp_path, monkeypatch
+) -> None:
+    root, model = _artifact(tmp_path)
+
+    def fake_prompt(_root, *, context, **_kwargs):
+        return {
+            "passed": True,
+            "context_tokens": context,
+            "peak_gpu_memory_mib": 10_000,
+            "resource_preflight": {"total_mib": 12_227},
+            "llama_metrics": {"offloaded_layers": [49, 49]},
+        }
+
+    monkeypatch.setattr(hybrid, "run_hybrid_prompt", fake_prompt)
+    monkeypatch.setattr(
+        hybrid,
+        "_run_benchmark",
+        lambda *_args, **_kwargs: {
+            "runtime_records": [{"model_filename": str(model.resolve())}],
+            "prompt": {"average_tokens_per_second": 900.0},
+            "generation": {"average_tokens_per_second": 150.0},
+        },
+    )
+    evidence = hybrid.gate_hybrid_artifact(root, allow_self_sealed=True)
+
+    assert evidence["artifact"] == "."
+    model_label = evidence["benchmark"]["runtime_records"][0]["model_filename"]
+    assert model_label == hybrid._relative_reference(root, model)
+    assert str(tmp_path.resolve()) not in json.dumps(evidence)
