@@ -1,0 +1,301 @@
+{
+  "decoding": {
+    "cache_prompt": true,
+    "seed": 2026,
+    "temperature": 0.0,
+    "top_k": 1
+  },
+  "end_to_end_with_evaluation_seconds": 1.4248305999935837,
+  "extracted_source_sha256": "f211aea00343913005f6e4103dfea9cac42245e65bc94092f974ee08e0880e77",
+  "format": "nhdf-hybrid-coding-benchmark-0.1",
+  "function": "merge_intervals",
+  "generated_text_exact_after_runtime_marker_cleanup": "```python\ndef merge_intervals(intervals):\n    if not intervals:\n        return []\n    \n    # Sort intervals by start time\n    sorted_intervals = sorted(intervals, key=lambda x: x[0])\n    \n    merged = [sorted_intervals[0]]\n    \n    for current in sorted_intervals[1:]:\n        last = merged[-1]\n        if current[0] <= last[1]:  # Overlap or adjacent\n            merged[-1][1] = max(last[1], current[1])\n        else:\n            merged.append(current)\n    \n    return merged\n```",
+  "gpu": {
+    "baseline": {
+      "name": "NVIDIA GeForce RTX 5070 Ti Laptop GPU",
+      "total_memory_mib": 12227,
+      "used_memory_mib": 10493,
+      "utilization_percent": 85
+    },
+    "incremental_peak_memory_mib": 0,
+    "peak_used_memory_mib": 10493,
+    "peak_utilization_percent": 86,
+    "sample_count": 5
+  },
+  "http_status": 200,
+  "launch_index": 4,
+  "llama_metrics": {
+    "decode_eval_ms": 1099.016,
+    "decode_runs": 119,
+    "decode_tokens_per_second": 108.27867838138843,
+    "load_ms": null,
+    "prompt_eval_ms": 146.162,
+    "prompt_tokens": 113,
+    "prompt_tokens_per_second": 773.1147630711129,
+    "resident_estimate_method": "direct streamed request against already-resident server",
+    "resident_inference_ms_estimate": 1245.178,
+    "resident_ttft_ms_estimate": 171.52960000385065,
+    "server_reported_stop": true,
+    "server_reported_stop_type": "eos",
+    "total_ms": 1245.178
+  },
+  "mode": "resident_server",
+  "passed": false,
+  "process_cache_class": "resident_server_request",
+  "prompt": "Define exactly one Python function `def merge_intervals(intervals):`. Each interval is a two-item integer list [start, end] with start <= end. Return new two-item lists sorted by start, merging intervals that overlap or share an endpoint. Do not mutate intervals or any nested interval list.\n\nConstraints:\n- Return only Python source code, with no Markdown fences or explanation.\n- Define exactly the requested one top-level function and no other functions.\n- Do not import modules, read input, print, access files, or use global state.\n- The implementation must be deterministic.",
+  "raw_evidence": {
+    "request_bytes": 1054,
+    "request_path": "runs/004_r01_merge_intervals/request.json",
+    "request_sha256": "9b1c8d39813c2b4a64ee6c98ea4ae8bf0f0a5576d32c8150a59ed730987f4f8c",
+    "response_bytes": 17025,
+    "response_path": "runs/004_r01_merge_intervals/response.sse",
+    "response_sha256": "773bbac07d7e935bc203c4eaff25f493bb10fdb2728c9ce259cf56e9edffcad8",
+    "source_bytes": 484,
+    "source_path": "runs/004_r01_merge_intervals/generated.py",
+    "source_sha256": "6f7119070e2758556c873b7a3065b168df8a78e0ed4b26b1bc1a8c9cf2b3e830"
+  },
+  "repetition": 1,
+  "request": {
+    "cache_prompt": true,
+    "endpoint": "http://127.0.0.1:18080/completion",
+    "n_predict": 384,
+    "prompt": "<|im_start|>system\nYou are a precise coding assistant. Follow the requested Python interface exactly and return only executable source code.<|im_end|>\n<|im_start|>user\nDefine exactly one Python function `def merge_intervals(intervals):`. Each interval is a two-item integer list [start, end] with start <= end. Return new two-item lists sorted by start, merging intervals that overlap or share an endpoint. Do not mutate intervals or any nested interval list.\n\nConstraints:\n- Return only Python source code, with no Markdown fences or explanation.\n- Define exactly the requested one top-level function and no other functions.\n- Do not import modules, read input, print, access files, or use global state.\n- The implementation must be deterministic.<|im_end|>\n<|im_start|>assistant\n",
+    "reasoning_format": "none",
+    "seed": 2026,
+    "stop": [
+      "<|im_end|>"
+    ],
+    "stream": true,
+    "temperature": 0.0,
+    "top_k": 1
+  },
+  "response_headers": {
+    "access-control-allow-origin": "",
+    "connection": "close",
+    "content-type": "text/event-stream",
+    "server": "llama.cpp",
+    "transfer-encoding": "chunked"
+  },
+  "score": {
+    "evaluation_exit_code": 0,
+    "evaluation_seconds": 0.15400929999304935,
+    "passed": false,
+    "safe_to_execute": true,
+    "tests": [
+      {
+        "actual": [
+          [
+            1,
+            6
+          ],
+          [
+            8,
+            12
+          ]
+        ],
+        "exact_output_passed": true,
+        "exception": null,
+        "expected": [
+          [
+            1,
+            6
+          ],
+          [
+            8,
+            12
+          ]
+        ],
+        "index": 0,
+        "input_mutation_passed": false,
+        "mutation_checks": [
+          {
+            "after": [
+              [
+                1,
+                6
+              ],
+              [
+                2,
+                6
+              ],
+              [
+                8,
+                12
+              ],
+              [
+                10,
+                12
+              ]
+            ],
+            "argument_index": 0,
+            "before": [
+              [
+                1,
+                3
+              ],
+              [
+                2,
+                6
+              ],
+              [
+                8,
+                10
+              ],
+              [
+                10,
+                12
+              ]
+            ],
+            "unchanged": false
+          }
+        ],
+        "passed": false
+      },
+      {
+        "actual": [],
+        "exact_output_passed": true,
+        "exception": null,
+        "expected": [],
+        "index": 1,
+        "input_mutation_passed": true,
+        "mutation_checks": [
+          {
+            "after": [],
+            "argument_index": 0,
+            "before": [],
+            "unchanged": true
+          }
+        ],
+        "passed": true
+      },
+      {
+        "actual": [
+          [
+            5,
+            7
+          ]
+        ],
+        "exact_output_passed": true,
+        "exception": null,
+        "expected": [
+          [
+            5,
+            7
+          ]
+        ],
+        "index": 2,
+        "input_mutation_passed": true,
+        "mutation_checks": [
+          {
+            "after": [
+              [
+                5,
+                7
+              ]
+            ],
+            "argument_index": 0,
+            "before": [
+              [
+                5,
+                7
+              ]
+            ],
+            "unchanged": true
+          }
+        ],
+        "passed": true
+      },
+      {
+        "actual": [
+          [
+            -3,
+            -1
+          ],
+          [
+            1,
+            4
+          ],
+          [
+            9,
+            11
+          ]
+        ],
+        "exact_output_passed": true,
+        "exception": null,
+        "expected": [
+          [
+            -3,
+            -1
+          ],
+          [
+            1,
+            4
+          ],
+          [
+            9,
+            11
+          ]
+        ],
+        "index": 3,
+        "input_mutation_passed": false,
+        "mutation_checks": [
+          {
+            "after": [
+              [
+                9,
+                11
+              ],
+              [
+                1,
+                4
+              ],
+              [
+                2,
+                4
+              ],
+              [
+                -3,
+                -1
+              ]
+            ],
+            "argument_index": 0,
+            "before": [
+              [
+                9,
+                11
+              ],
+              [
+                1,
+                2
+              ],
+              [
+                2,
+                4
+              ],
+              [
+                -3,
+                -1
+              ]
+            ],
+            "unchanged": false
+          }
+        ],
+        "passed": false
+      }
+    ],
+    "tests_passed": 2,
+    "tests_total": 4
+  },
+  "server_error": null,
+  "server_event_count": 120,
+  "task_id": "merge_intervals",
+  "time_to_first_non_whitespace_output_seconds": 0.17152960000385065,
+  "ttft_observation": {
+    "exact_token_boundary": false,
+    "includes_http_queue_and_prompt_prefill": true,
+    "includes_model_load": false,
+    "method": "timestamp of first non-whitespace content in streamed SSE event",
+    "observable": true
+  },
+  "wall_elapsed_seconds": 1.2708213000005344
+}

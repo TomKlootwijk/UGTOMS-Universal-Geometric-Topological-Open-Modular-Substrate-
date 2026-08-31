@@ -1,0 +1,151 @@
+{
+  "decoding": {
+    "cache_prompt": true,
+    "seed": 2026,
+    "temperature": 0.0,
+    "top_k": 1
+  },
+  "end_to_end_with_evaluation_seconds": 0.9534784000134096,
+  "extracted_source_sha256": "bda5d44e3b43f156c4586c3ba392762e5be441606a4d6eaeed255f1f186b26d1",
+  "format": "nhdf-hybrid-coding-benchmark-0.1",
+  "function": "first_unique_index",
+  "generated_text_exact_after_runtime_marker_cleanup": "```python\ndef first_unique_index(text):\n    char_count = {}\n    for char in text:\n        char_count[char] = char_count.get(char, 0) + 1\n    \n    for i, char in enumerate(text):\n        if char_count[char] == 1:\n            return i\n    \n    return -1\n```",
+  "gpu": {
+    "baseline": {
+      "name": "NVIDIA GeForce RTX 5070 Ti Laptop GPU",
+      "total_memory_mib": 12227,
+      "used_memory_mib": 10493,
+      "utilization_percent": 84
+    },
+    "incremental_peak_memory_mib": 0,
+    "peak_used_memory_mib": 10493,
+    "peak_utilization_percent": 86,
+    "sample_count": 3
+  },
+  "http_status": 200,
+  "launch_index": 11,
+  "llama_metrics": {
+    "decode_eval_ms": 647.486,
+    "decode_runs": 68,
+    "decode_tokens_per_second": 105.02157575607812,
+    "load_ms": null,
+    "prompt_eval_ms": 141.31,
+    "prompt_tokens": 93,
+    "prompt_tokens_per_second": 658.127521053004,
+    "resident_estimate_method": "direct streamed request against already-resident server",
+    "resident_inference_ms_estimate": 788.796,
+    "resident_ttft_ms_estimate": 164.74860000016633,
+    "server_reported_stop": true,
+    "server_reported_stop_type": "eos",
+    "total_ms": 788.796
+  },
+  "mode": "resident_server",
+  "passed": true,
+  "process_cache_class": "resident_server_request",
+  "prompt": "Define exactly one Python function `def first_unique_index(text):`. Return the zero-based index of the first character that occurs exactly once in text, or -1 when there is no such character.\n\nConstraints:\n- Return only Python source code, with no Markdown fences or explanation.\n- Define exactly the requested one top-level function and no other functions.\n- Do not import modules, read input, print, access files, or use global state.\n- The implementation must be deterministic.",
+  "raw_evidence": {
+    "request_bytes": 954,
+    "request_path": "runs/011_r02_first_unique_character/request.json",
+    "request_sha256": "a8621c48d79310941ede4cf0f403803fd0409e799681fb04be8e9b580df92dfe",
+    "response_bytes": 10610,
+    "response_path": "runs/011_r02_first_unique_character/response.sse",
+    "response_sha256": "3aea8a3a06e395f026d2e47c996dcacee55211cdb2561476b0d8470555037ab0",
+    "source_bytes": 252,
+    "source_path": "runs/011_r02_first_unique_character/generated.py",
+    "source_sha256": "ce804e8ea67c830744da019ece7c66eab1ecff8d6af64c3a9d00bd9f9cf11626"
+  },
+  "repetition": 2,
+  "request": {
+    "cache_prompt": true,
+    "endpoint": "http://127.0.0.1:18080/completion",
+    "n_predict": 384,
+    "prompt": "<|im_start|>system\nYou are a precise coding assistant. Follow the requested Python interface exactly and return only executable source code.<|im_end|>\n<|im_start|>user\nDefine exactly one Python function `def first_unique_index(text):`. Return the zero-based index of the first character that occurs exactly once in text, or -1 when there is no such character.\n\nConstraints:\n- Return only Python source code, with no Markdown fences or explanation.\n- Define exactly the requested one top-level function and no other functions.\n- Do not import modules, read input, print, access files, or use global state.\n- The implementation must be deterministic.<|im_end|>\n<|im_start|>assistant\n",
+    "reasoning_format": "none",
+    "seed": 2026,
+    "stop": [
+      "<|im_end|>"
+    ],
+    "stream": true,
+    "temperature": 0.0,
+    "top_k": 1
+  },
+  "response_headers": {
+    "access-control-allow-origin": "",
+    "connection": "close",
+    "content-type": "text/event-stream",
+    "server": "llama.cpp",
+    "transfer-encoding": "chunked"
+  },
+  "score": {
+    "evaluation_exit_code": 0,
+    "evaluation_seconds": 0.14097630001197103,
+    "passed": true,
+    "safe_to_execute": true,
+    "tests": [
+      {
+        "actual": 0,
+        "exact_output_passed": true,
+        "exception": null,
+        "expected": 0,
+        "index": 0,
+        "input_mutation_passed": true,
+        "mutation_checks": [],
+        "passed": true
+      },
+      {
+        "actual": 2,
+        "exact_output_passed": true,
+        "exception": null,
+        "expected": 2,
+        "index": 1,
+        "input_mutation_passed": true,
+        "mutation_checks": [],
+        "passed": true
+      },
+      {
+        "actual": -1,
+        "exact_output_passed": true,
+        "exception": null,
+        "expected": -1,
+        "index": 2,
+        "input_mutation_passed": true,
+        "mutation_checks": [],
+        "passed": true
+      },
+      {
+        "actual": -1,
+        "exact_output_passed": true,
+        "exception": null,
+        "expected": -1,
+        "index": 3,
+        "input_mutation_passed": true,
+        "mutation_checks": [],
+        "passed": true
+      },
+      {
+        "actual": 7,
+        "exact_output_passed": true,
+        "exception": null,
+        "expected": 7,
+        "index": 4,
+        "input_mutation_passed": true,
+        "mutation_checks": [],
+        "passed": true
+      }
+    ],
+    "tests_passed": 5,
+    "tests_total": 5
+  },
+  "server_error": null,
+  "server_event_count": 69,
+  "task_id": "first_unique_character",
+  "time_to_first_non_whitespace_output_seconds": 0.16474860000016633,
+  "ttft_observation": {
+    "exact_token_boundary": false,
+    "includes_http_queue_and_prompt_prefill": true,
+    "includes_model_load": false,
+    "method": "timestamp of first non-whitespace content in streamed SSE event",
+    "observable": true
+  },
+  "wall_elapsed_seconds": 0.8125021000014385
+}

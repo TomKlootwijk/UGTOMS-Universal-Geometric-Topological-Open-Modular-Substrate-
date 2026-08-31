@@ -63,12 +63,13 @@ resource gate:
 - external GGUF/IQ2_M codec, explicitly attributed to ggml/Bartowski;
 - 4/4 deterministic functional prompts passed;
 - 49/49 model layers offloaded to the GPU;
-- allocated 8K q8 K/V capacity peaked at 10,487 MiB of 12,227 MiB, leaving
-  1,740 MiB headroom;
-- repeated 64-token benchmark averages were 458.525658 prompt tokens/s and
-  102.367894 generation tokens/s;
-- the NHDF manifest, payload, llama.cpp b6014 runtime and evidence are sealed,
-  and execution fails closed on mismatch.
+- allocated 8K q8 K/V capacity peaked at 10,610 MiB of 12,227 MiB, leaving
+  1,617 MiB headroom;
+- repeated 64-token benchmark averages were 870.026857 prompt tokens/s and
+  157.141442 generation tokens/s;
+- the NHDF manifest, payload, llama.cpp build 10720 runtime at commit
+  `f8dbcd61893702976f9ab03be89c2b9f436d532c` and evidence are sealed, and
+  execution fails closed on mismatch.
 
 Canonical evidence:
 `packs/qwen3-30b-a3b-nhdf-v03-iq2m/evidence/functional_gate.json`.
@@ -77,6 +78,39 @@ This is an NHDF substrate success using an external codec. The 8K test
 allocated the full cache capacity but used a short input; it is not a filled-8K
 quality test. Broad accuracy, perplexity, long-context retrieval and confidence
 intervals across a representative task suite remain unmeasured.
+
+## Bounded resident coding and repair probe
+
+The current deployment also has a narrower executable coding probe. Its
+resident runtime profile is fixed at four threads, split mode `none`, priority
+2, one slot, full GPU offload, Flash Attention, 8K q8 K/V and deterministic
+sampling (`temperature=0`, `top_k=1`, `seed=2026`). The server binds only to
+`127.0.0.1` after full artifact verification and GPU/free-VRAM preflight.
+
+Six small Python functions were run twice each against exact machine-scored
+tests. Ten of twelve first-pass launches passed; this means 5/6 tasks passed
+both first repetitions. Both failures were the same nested-input mutation in
+`merge_intervals`. One separately stored machine-feedback repair per failed
+launch corrected both, resulting in 12/12 final launches and 6/6 tasks passing
+both final results. First-pass and final-after-repair accuracy must remain
+separate fields.
+
+Direct resident measurements were 147.139410 median generation tok/s and a
+90.82995 ms median warm cached TTFT proxy. The first streamed content/byte time
+is observable, but is not an exact token callback. It is also not cold startup
+latency: startup to listening was separately measured at 12.644645 seconds.
+Repairs deliberately disabled prefix-cache reuse; their median TTFT was 220.89
+ms and median wall time was 1.178813 seconds.
+
+Canonical optimization evidence:
+
+- `metrics/local/runtime_optimization_20260831.json`;
+- `metrics/local/coding_benchmark/run-20260831T144501Z/evidence.json`.
+
+This probe does not satisfy the broad model-quality suite below. It does not
+establish repository-scale coding, BF16 accuracy preservation, perplexity,
+filled-context quality, or confidence intervals over a representative task
+distribution.
 
 ## NHDF-native bounded codec-development gate
 
@@ -138,6 +172,13 @@ retrieval or language-quality evidence.
 - Power profiles: minimum, balanced and maximum TGP exposed by the laptop.
 - At least five measured runs after warm-up.
 - Report median, p10/p90, not just maximum throughput.
+
+The current coding probe uses two repetitions per task and therefore remains a
+bounded deployment probe, not completion of this broader performance suite.
+Its three-repetition controlled 512-prompt/256-generation A/B run likewise
+does not meet the five-run recommendation. Those sequential runs measured
+149.441046 generation tok/s for build 10720 versus 106.236199 tok/s for the
+previous b6014 profile, with Windows left on the Balanced power plan.
 
 ## Falsification rules
 

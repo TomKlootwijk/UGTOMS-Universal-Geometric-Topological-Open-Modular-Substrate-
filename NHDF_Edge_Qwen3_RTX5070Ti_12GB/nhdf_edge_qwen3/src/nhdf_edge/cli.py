@@ -2,33 +2,25 @@
 from __future__ import annotations
 
 import argparse
-import csv
 import json
 import sys
 from pathlib import Path
 
-import torch
 
-from .checkpoint import pack_checkpoint
-from .config import load_config
-from .format import PACK_VALIDATION_STATUSES, PackReader, set_pack_validation_status
-from .hybrid import (
-    HYBRID_MANIFEST,
-    create_hybrid_artifact,
-    gate_hybrid_artifact,
-    run_hybrid_prompt,
-    verify_hybrid_artifact,
+HYBRID_MANIFEST = "NHDF_HYBRID_MANIFEST.json"
+PACK_VALIDATION_STATUSES = frozenset(
+    {"UNCALIBRATED", "QUALITY_FAILED", "RESOURCE_FAILED", "VALIDATED"}
 )
-from .metrics import context_sweep, estimate, residual_fraction_sweep
-from .quantize import QuantizationPolicy, dequantize_tensor, quantize_tensor, verify_parity
-from .runtime.doctor import run_doctor
 
 
 def _json(data: object) -> None:
-    print(json.dumps(data, indent=2, sort_keys=True))
+    print(json.dumps(data, indent=2, sort_keys=True), flush=True)
 
 
 def command_estimate(args: argparse.Namespace) -> int:
+    from .config import load_config
+    from .metrics import context_sweep, estimate, residual_fraction_sweep
+
     cfg = load_config(args.config)
     result = estimate(cfg, context_tokens=args.context)
     payload = {
@@ -44,6 +36,9 @@ def command_estimate(args: argparse.Namespace) -> int:
 
 
 def command_pack(args: argparse.Namespace) -> int:
+    from .checkpoint import pack_checkpoint
+    from .config import load_config
+
     cfg = load_config(args.config)
     manifest = pack_checkpoint(
         args.source,
@@ -60,6 +55,8 @@ def command_pack(args: argparse.Namespace) -> int:
 
 def command_verify(args: argparse.Namespace) -> int:
     if (Path(args.pack) / HYBRID_MANIFEST).is_file():
+        from .hybrid import verify_hybrid_artifact
+
         result = verify_hybrid_artifact(
             args.pack,
             verify_payload_hash=not args.quick,
@@ -67,6 +64,9 @@ def command_verify(args: argparse.Namespace) -> int:
         )
         _json(result)
         return 0 if result["ok"] else 2
+    from .format import PackReader
+    from .quantize import verify_parity
+
     reader = PackReader(args.pack, verify_crc=True)
     result = reader.verify_all()
     partial = bool(reader.manifest.get("partial_pack", False))
@@ -96,16 +96,22 @@ def command_verify(args: argparse.Namespace) -> int:
 
 
 def command_create_hybrid(args: argparse.Namespace) -> int:
+    from .hybrid import create_hybrid_artifact
+
     manifest = create_hybrid_artifact(
         args.output,
         model=args.model,
         runtime=args.runtime,
         benchmark_runtime=args.benchmark_runtime,
+        server_runtime=args.server_runtime,
         specification=args.specification,
         source_record=args.source_record,
         assurance_evidence=args.assurance_evidence or (),
         model_id=args.model_id,
         source_revision=args.source_revision,
+        runtime_revision=args.runtime_revision,
+        runtime_build_number=args.runtime_build_number,
+        runtime_argument_profile=args.runtime_argument_profile,
         total_parameters=args.total_parameters,
         target_gpu=args.target_gpu,
         target_vram_mib=args.target_vram_mib,
@@ -123,6 +129,8 @@ def command_create_hybrid(args: argparse.Namespace) -> int:
 
 
 def command_gate_hybrid(args: argparse.Namespace) -> int:
+    from .hybrid import gate_hybrid_artifact
+
     evidence = gate_hybrid_artifact(
         args.artifact,
         output=args.output,
@@ -148,6 +156,8 @@ def command_gate_hybrid(args: argparse.Namespace) -> int:
 
 
 def command_run(args: argparse.Namespace) -> int:
+    from .hybrid import run_hybrid_prompt
+
     result = run_hybrid_prompt(
         args.artifact,
         prompt=args.prompt,
@@ -156,6 +166,7 @@ def command_run(args: argparse.Namespace) -> int:
         seed=args.seed,
         allow_unvalidated=args.allow_unvalidated,
         verify_payload_hash=not args.quick,
+        monitor_resources=args.monitor_resources,
     )
     if args.text_only:
         print(result["generated_text"])
@@ -164,7 +175,42 @@ def command_run(args: argparse.Namespace) -> int:
     return 0 if result["exit_code"] == 0 else 2
 
 
+def command_serve(args: argparse.Namespace) -> int:
+    import time
+
+    from .server import HybridServer
+
+    runtime = HybridServer(
+        args.artifact,
+        port=args.port,
+        threads=args.threads,
+        startup_timeout_seconds=args.startup_timeout,
+        request_timeout_seconds=args.request_timeout,
+    )
+    runtime.start()
+    _json(
+        {
+            "status": "ready",
+            "url": runtime.base_url,
+            "artifact": str(Path(args.artifact).resolve()),
+            "preflight": runtime.preflight_result,
+            "command": runtime.command,
+            "note": "Press Ctrl+C to stop the resident model.",
+        }
+    )
+    try:
+        while runtime.is_running:
+            time.sleep(0.5)
+    except KeyboardInterrupt:
+        return 0
+    finally:
+        runtime.stop()
+    raise RuntimeError("resident llama-server exited unexpectedly")
+
+
 def command_set_validation(args: argparse.Namespace) -> int:
+    from .format import PackReader, set_pack_validation_status
+
     evidence = json.loads(Path(args.evidence).read_text(encoding="utf-8"))
     if not isinstance(evidence, dict):
         raise ValueError("validation evidence file must contain a JSON object")
@@ -185,6 +231,9 @@ def command_set_validation(args: argparse.Namespace) -> int:
 
 
 def command_doctor(args: argparse.Namespace) -> int:
+    from .config import load_config
+    from .runtime.doctor import run_doctor
+
     report = run_doctor(load_config(args.config))
     payload = report.to_dict()
     _json(payload)
@@ -196,6 +245,15 @@ def command_doctor(args: argparse.Namespace) -> int:
 
 
 def command_smoke(args: argparse.Namespace) -> int:
+    import torch
+
+    from .quantize import (
+        QuantizationPolicy,
+        dequantize_tensor,
+        quantize_tensor,
+        verify_parity,
+    )
+
     generator = torch.Generator().manual_seed(args.seed)
     weight = torch.randn(args.rows, args.cols, generator=generator)
     base_policy = QuantizationPolicy(
@@ -271,8 +329,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument("output")
     p.add_argument("--model", required=True, help="verified GGUF model payload")
-    p.add_argument("--runtime", required=True, help="pinned llama-cli executable")
+    p.add_argument(
+        "--runtime", required=True, help="pinned llama completion executable"
+    )
     p.add_argument("--benchmark-runtime", help="matching llama-bench executable")
+    p.add_argument("--server-runtime", help="matching llama-server executable")
     p.add_argument("--specification", help="NHDF v0.3 source specification")
     p.add_argument("--source-record", help="immutable upstream provenance JSON")
     p.add_argument(
@@ -284,6 +345,13 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument(
         "--source-revision",
         default="0d7cf23991f47feeb3a57ecb4c9cee8ea4a17bfe",
+    )
+    p.add_argument("--runtime-revision", default="b6014")
+    p.add_argument("--runtime-build-number", type=int, default=6014)
+    p.add_argument(
+        "--runtime-argument-profile",
+        choices=["b6014", "current-2026"],
+        default="b6014",
     )
     p.add_argument("--total-parameters", type=int, default=30_532_122_624)
     p.add_argument("--target-gpu", default="NVIDIA GeForce RTX 5070 Ti Laptop GPU")
@@ -311,6 +379,11 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--max-new-tokens", type=int, default=64)
     p.add_argument("--seed", type=int, default=2026)
     p.add_argument("--text-only", action="store_true")
+    p.add_argument(
+        "--monitor-resources",
+        action="store_true",
+        help="sample GPU telemetry during generation (adds subprocess overhead)",
+    )
     p.add_argument("--quick", action="store_true", help="skip the large-payload rehash")
     p.add_argument(
         "--allow-unvalidated",
@@ -318,6 +391,17 @@ def build_parser() -> argparse.ArgumentParser:
         help="explicit research-only override for an unvalidated hybrid artifact",
     )
     p.set_defaults(func=command_run)
+
+    p = sub.add_parser(
+        "serve",
+        help="verify once and keep a validated NHDF hybrid resident on loopback",
+    )
+    p.add_argument("artifact")
+    p.add_argument("--port", type=int, default=18080)
+    p.add_argument("--threads", type=int)
+    p.add_argument("--startup-timeout", type=float, default=120.0)
+    p.add_argument("--request-timeout", type=float, default=120.0)
+    p.set_defaults(func=command_serve)
 
     p = sub.add_parser(
         "set-validation",

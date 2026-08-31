@@ -1,0 +1,14 @@
+{
+  "cache_prompt": true,
+  "endpoint": "http://127.0.0.1:18080/completion",
+  "n_predict": 384,
+  "prompt": "<|im_start|>system\nYou are a precise coding assistant. Follow the requested Python interface exactly and return only executable source code.<|im_end|>\n<|im_start|>user\nDefine exactly one Python function `def merge_intervals(intervals):`. Each interval is a two-item integer list [start, end] with start <= end. Return new two-item lists sorted by start, merging intervals that overlap or share an endpoint. Do not mutate intervals or any nested interval list.\n\nConstraints:\n- Return only Python source code, with no Markdown fences or explanation.\n- Define exactly the requested one top-level function and no other functions.\n- Do not import modules, read input, print, access files, or use global state.\n- The implementation must be deterministic.<|im_end|>\n<|im_start|>assistant\n",
+  "reasoning_format": "none",
+  "seed": 2026,
+  "stop": [
+    "<|im_end|>"
+  ],
+  "stream": true,
+  "temperature": 0.0,
+  "top_k": 1
+}

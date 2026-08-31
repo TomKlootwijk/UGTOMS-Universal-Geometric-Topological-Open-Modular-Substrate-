@@ -1,0 +1,117 @@
+{
+  "format": "nhdf-runtime-optimization-evidence-0.1",
+  "measured_at_utc": "2026-08-31",
+  "hardware": {
+    "gpu": "NVIDIA GeForce RTX 5070 Ti Laptop GPU",
+    "reported_vram_mib": 12227,
+    "compute_capability": "12.0",
+    "cpu": "Intel Core Ultra 7 255HX",
+    "windows_power_plan": "Balanced"
+  },
+  "model": {
+    "id": "Qwen/Qwen3-30B-A3B-Instruct-2507",
+    "parameters": 30532122624,
+    "payload_bytes": 9870270464,
+    "codec": "GGUF/IQ2_M mixed-bit",
+    "sampling": {"temperature": 0.0, "top_k": 1, "seed": 2026}
+  },
+  "controlled_microbenchmark": {
+    "common": {
+      "prompt_tokens": 512,
+      "generation_tokens": 256,
+      "repetitions": 3,
+      "gpu_layers": 999,
+      "flash_attention": true,
+      "kv_cache_k": "q8_0",
+      "kv_cache_v": "q8_0",
+      "batch": 2048,
+      "ubatch": 512,
+      "speculative_decoding": false
+    },
+    "b6014_previous_profile": {
+      "runtime_revision": "b6014",
+      "threads": 20,
+      "split_mode": "layer",
+      "priority": 0,
+      "prompt_average_tokens_per_second": 1541.754583,
+      "prompt_samples_tokens_per_second": [1152.51, 1721.04, 1751.72],
+      "generation_average_tokens_per_second": 106.236199,
+      "generation_samples_tokens_per_second": [105.302, 107.669, 105.737]
+    },
+    "b6014_tuned_profile": {
+      "runtime_revision": "b6014",
+      "threads": 4,
+      "split_mode": "none",
+      "priority": 2,
+      "prompt_average_tokens_per_second": 1744.104832,
+      "prompt_samples_tokens_per_second": [1655.23, 1775.01, 1802.08],
+      "generation_average_tokens_per_second": 107.761474,
+      "generation_samples_tokens_per_second": [108.74, 108.995, 105.55]
+    },
+    "current_winner": {
+      "runtime_revision": "f8dbcd61893702976f9ab03be89c2b9f436d532c",
+      "build_number": 10720,
+      "threads": 4,
+      "split_mode": "none",
+      "priority": 2,
+      "cuda_architecture": "120a",
+      "prompt_average_tokens_per_second": 2484.170832,
+      "prompt_samples_tokens_per_second": [1896.15, 2493.48, 3062.88],
+      "generation_average_tokens_per_second": 149.441046,
+      "generation_samples_tokens_per_second": [144.506, 151.11, 152.706]
+    },
+    "current_vs_previous_percent": {
+      "generation": 40.668668,
+      "prompt": 61.126217
+    },
+    "current_vs_tuned_b6014_percent": {
+      "generation": 38.677619,
+      "prompt": 42.432426
+    },
+    "limitations": [
+      "The A/B runs were sequential rather than a randomized laboratory benchmark.",
+      "Prompt-processing samples include substantial first-sample variance; generation is the more stable comparison.",
+      "The laptop remained on the Windows Balanced power plan, so these are measured practical results rather than an assumed maximum-power result."
+    ]
+  },
+  "resident_server": {
+    "runtime_revision": "f8dbcd61893702976f9ab03be89c2b9f436d532c",
+    "startup_to_listening_seconds": 12.644645,
+    "context_tokens_allocated": 8192,
+    "kv_cache_k": "q8_0",
+    "kv_cache_v": "q8_0",
+    "flash_attention": true,
+    "slots": 1,
+    "threads": 4,
+    "split_mode": "none",
+    "priority": 2,
+    "observed_gpu_memory_used_mib": 10299,
+    "observed_nvidia_free_mib": 1646,
+    "coding_evidence": "coding_benchmark/run-20260831T144501Z/evidence.json",
+    "coding_evidence_binding": "literal loopback URL, exact build info, exact absolute model path plus sealed SHA-256, one slot, context, GPU, and fixed sampling were checked before measurement",
+    "coding_repetitions": 2,
+    "first_pass_launches_passed": 10,
+    "first_pass_launches_total": 12,
+    "first_pass_tasks_passing_all_repetitions": 5,
+    "first_pass_tasks_total": 6,
+    "final_after_one_repair_launches_passed": 12,
+    "final_after_one_repair_launches_total": 12,
+    "final_after_one_repair_tasks_passing_all_repetitions": 6,
+    "final_after_one_repair_tasks_total": 6,
+    "median_warm_cached_ttft_ms": 90.82995,
+    "median_generation_tokens_per_second": 147.13940967521154,
+    "median_resident_inference_ms": 648.8905,
+    "coding_request_wall_seconds": {"minimum": 0.289027, "median": 0.67661065, "maximum": 1.650242},
+    "median_request_with_evaluation_seconds": 0.8191482,
+    "median_repair_wall_seconds": 1.17881295,
+    "median_repair_ttft_ms": 220.8864,
+    "accuracy_note": "The same merge_intervals nested-input mutation failed both first passes. The failure is preserved. One machine-feedback repair corrected both repetitions and produced identical passing source hashes."
+  },
+  "startup_optimization": {
+    "previous_quick_verify_seconds": 4.32,
+    "optimized_quick_verify_seconds": 0.202,
+    "reduction_percent": 95.324074,
+    "method": "lazy package and CLI imports avoid importing PyTorch for hybrid verification and serving"
+  },
+  "promotion_decision": "Promote build 10720/f8dbcd61 with the persistent 8K q8 full-offload profile; retain deterministic sampling and executable coding plus repair gates."
+}

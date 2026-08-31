@@ -1,0 +1,2242 @@
+[
+  {
+    "decoding": {
+      "cache_prompt": true,
+      "seed": 2026,
+      "temperature": 0.0,
+      "top_k": 1
+    },
+    "end_to_end_with_evaluation_seconds": 1.3580898999935016,
+    "extracted_source_sha256": "e8ea25c7dc71ad34682e2fbc29b0c441aadce55184a239407eacc94b3f128b8d",
+    "format": "nhdf-hybrid-coding-benchmark-0.1",
+    "function": "clamp",
+    "generated_text_exact_after_runtime_marker_cleanup": "```python\ndef clamp(value, low, high):\n    if value < low:\n        return low\n    if value > high:\n        return high\n    return value\n```",
+    "gpu": {
+      "baseline": {
+        "name": "NVIDIA GeForce RTX 5070 Ti Laptop GPU",
+        "total_memory_mib": 12227,
+        "used_memory_mib": 10360,
+        "utilization_percent": 0
+      },
+      "incremental_peak_memory_mib": 46,
+      "peak_used_memory_mib": 10406,
+      "peak_utilization_percent": 57,
+      "sample_count": 4
+    },
+    "http_status": 200,
+    "launch_index": 1,
+    "llama_metrics": {
+      "decode_eval_ms": 258.314,
+      "decode_runs": 37,
+      "decode_tokens_per_second": 139.36526862655526,
+      "load_ms": null,
+      "prompt_eval_ms": 803.118,
+      "prompt_tokens": 128,
+      "prompt_tokens_per_second": 159.3788210449772,
+      "resident_estimate_method": "direct streamed request against already-resident server",
+      "resident_inference_ms_estimate": 1061.432,
+      "resident_ttft_ms_estimate": 880.2119000029052,
+      "server_reported_stop": true,
+      "server_reported_stop_type": "eos",
+      "total_ms": 1061.432
+    },
+    "mode": "resident_server",
+    "passed": true,
+    "process_cache_class": "resident_server_request",
+    "prompt": "Define exactly one Python function `def clamp(value, low, high):`. Assume low <= high. Return low when value is below low, high when it is above high, and value otherwise.\n\nConstraints:\n- Return only Python source code, with no Markdown fences or explanation.\n- Define exactly the requested one top-level function and no other functions.\n- Do not import modules, read input, print, access files, or use global state.\n- The implementation must be deterministic.",
+    "raw_evidence": {
+      "request_bytes": 934,
+      "request_path": "runs/001_r01_clamp_integer/request.json",
+      "request_sha256": "faf53aa9deb80908ebcd3765d3becc6e73dca23a2a17402884668127b6b2582e",
+      "response_bytes": 7031,
+      "response_path": "runs/001_r01_clamp_integer/response.sse",
+      "response_sha256": "afffd99af514caba32c9f1bf45c3464b14d95e4047bbf8c3724bdf81f37232ee",
+      "source_bytes": 132,
+      "source_path": "runs/001_r01_clamp_integer/generated.py",
+      "source_sha256": "5bcf7fac90482cbecc261ef6099c648d6bbb6b8aeec991393446e224b67ca306"
+    },
+    "repetition": 1,
+    "request": {
+      "cache_prompt": true,
+      "endpoint": "http://127.0.0.1:18080/completion",
+      "n_predict": 384,
+      "prompt": "<|im_start|>system\nYou are a precise coding assistant. Follow the requested Python interface exactly and return only executable source code.<|im_end|>\n<|im_start|>user\nDefine exactly one Python function `def clamp(value, low, high):`. Assume low <= high. Return low when value is below low, high when it is above high, and value otherwise.\n\nConstraints:\n- Return only Python source code, with no Markdown fences or explanation.\n- Define exactly the requested one top-level function and no other functions.\n- Do not import modules, read input, print, access files, or use global state.\n- The implementation must be deterministic.<|im_end|>\n<|im_start|>assistant\n",
+      "reasoning_format": "none",
+      "seed": 2026,
+      "stop": [
+        "<|im_end|>"
+      ],
+      "stream": true,
+      "temperature": 0.0,
+      "top_k": 1
+    },
+    "response_headers": {
+      "access-control-allow-origin": "",
+      "connection": "close",
+      "content-type": "text/event-stream",
+      "server": "llama.cpp",
+      "transfer-encoding": "chunked",
+      "x-accel-buffering": "no"
+    },
+    "score": {
+      "evaluation_exit_code": 0,
+      "evaluation_seconds": 0.21369449999474455,
+      "passed": true,
+      "safe_to_execute": true,
+      "tests": [
+        {
+          "actual": 5,
+          "exact_output_passed": true,
+          "exception": null,
+          "expected": 5,
+          "index": 0,
+          "input_mutation_passed": true,
+          "mutation_checks": [],
+          "passed": true
+        },
+        {
+          "actual": 0,
+          "exact_output_passed": true,
+          "exception": null,
+          "expected": 0,
+          "index": 1,
+          "input_mutation_passed": true,
+          "mutation_checks": [],
+          "passed": true
+        },
+        {
+          "actual": 10,
+          "exact_output_passed": true,
+          "exception": null,
+          "expected": 10,
+          "index": 2,
+          "input_mutation_passed": true,
+          "mutation_checks": [],
+          "passed": true
+        },
+        {
+          "actual": 4,
+          "exact_output_passed": true,
+          "exception": null,
+          "expected": 4,
+          "index": 3,
+          "input_mutation_passed": true,
+          "mutation_checks": [],
+          "passed": true
+        }
+      ],
+      "tests_passed": 4,
+      "tests_total": 4
+    },
+    "server_error": null,
+    "server_event_count": 38,
+    "task_id": "clamp_integer",
+    "time_to_first_non_whitespace_output_seconds": 0.8802119000029052,
+    "ttft_observation": {
+      "exact_token_boundary": false,
+      "includes_http_queue_and_prompt_prefill": true,
+      "includes_model_load": false,
+      "method": "timestamp of first non-whitespace content in streamed SSE event",
+      "observable": true
+    },
+    "wall_elapsed_seconds": 1.144395399998757
+  },
+  {
+    "decoding": {
+      "cache_prompt": true,
+      "seed": 2026,
+      "temperature": 0.0,
+      "top_k": 1
+    },
+    "end_to_end_with_evaluation_seconds": 0.6370892000122694,
+    "extracted_source_sha256": "be5425920cfe6f480cec6f038d37ce9c2107852c7e2826438c16242966165b3a",
+    "format": "nhdf-hybrid-coding-benchmark-0.1",
+    "function": "stable_unique",
+    "generated_text_exact_after_runtime_marker_cleanup": "```python\ndef stable_unique(values):\n    seen = set()\n    result = []\n    for value in values:\n        if value not in seen:\n            seen.add(value)\n            result.append(value)\n    return result\n```",
+    "gpu": {
+      "baseline": {
+        "name": "NVIDIA GeForce RTX 5070 Ti Laptop GPU",
+        "total_memory_mib": 12227,
+        "used_memory_mib": 10406,
+        "utilization_percent": 87
+      },
+      "incremental_peak_memory_mib": 0,
+      "peak_used_memory_mib": 10406,
+      "peak_utilization_percent": 87,
+      "sample_count": 2
+    },
+    "http_status": 200,
+    "launch_index": 2,
+    "llama_metrics": {
+      "decode_eval_ms": 344.479,
+      "decode_runs": 46,
+      "decode_tokens_per_second": 130.63205594535518,
+      "load_ms": null,
+      "prompt_eval_ms": 90.108,
+      "prompt_tokens": 87,
+      "prompt_tokens_per_second": 965.5080569982688,
+      "resident_estimate_method": "direct streamed request against already-resident server",
+      "resident_inference_ms_estimate": 434.587,
+      "resident_ttft_ms_estimate": 135.41350000014063,
+      "server_reported_stop": true,
+      "server_reported_stop_type": "eos",
+      "total_ms": 434.587
+    },
+    "mode": "resident_server",
+    "passed": true,
+    "process_cache_class": "resident_server_request",
+    "prompt": "Define exactly one Python function `def stable_unique(values):`. Return a new list containing the first occurrence of each integer, preserving input order. Do not mutate values.\n\nConstraints:\n- Return only Python source code, with no Markdown fences or explanation.\n- Define exactly the requested one top-level function and no other functions.\n- Do not import modules, read input, print, access files, or use global state.\n- The implementation must be deterministic.",
+    "raw_evidence": {
+      "request_bytes": 940,
+      "request_path": "runs/002_r01_stable_deduplication/request.json",
+      "request_sha256": "6f4d4bdaf75e359fb0b87e204edeffc46813fe579528174b0d42f5793852a6c0",
+      "response_bytes": 8185,
+      "response_path": "runs/002_r01_stable_deduplication/response.sse",
+      "response_sha256": "3b54a1071c55ac585efd89575d253023082d0cdaaf70543e6b50b6ce2354a613",
+      "source_bytes": 202,
+      "source_path": "runs/002_r01_stable_deduplication/generated.py",
+      "source_sha256": "cfef97e76ffe8482c5962788edbfec0a72f84139391cc45e625d2e4d81d150f2"
+    },
+    "repetition": 1,
+    "request": {
+      "cache_prompt": true,
+      "endpoint": "http://127.0.0.1:18080/completion",
+      "n_predict": 384,
+      "prompt": "<|im_start|>system\nYou are a precise coding assistant. Follow the requested Python interface exactly and return only executable source code.<|im_end|>\n<|im_start|>user\nDefine exactly one Python function `def stable_unique(values):`. Return a new list containing the first occurrence of each integer, preserving input order. Do not mutate values.\n\nConstraints:\n- Return only Python source code, with no Markdown fences or explanation.\n- Define exactly the requested one top-level function and no other functions.\n- Do not import modules, read input, print, access files, or use global state.\n- The implementation must be deterministic.<|im_end|>\n<|im_start|>assistant\n",
+      "reasoning_format": "none",
+      "seed": 2026,
+      "stop": [
+        "<|im_end|>"
+      ],
+      "stream": true,
+      "temperature": 0.0,
+      "top_k": 1
+    },
+    "response_headers": {
+      "access-control-allow-origin": "",
+      "connection": "close",
+      "content-type": "text/event-stream",
+      "server": "llama.cpp",
+      "transfer-encoding": "chunked",
+      "x-accel-buffering": "no"
+    },
+    "score": {
+      "evaluation_exit_code": 0,
+      "evaluation_seconds": 0.15515350000350736,
+      "passed": true,
+      "safe_to_execute": true,
+      "tests": [
+        {
+          "actual": [
+            3,
+            1,
+            2
+          ],
+          "exact_output_passed": true,
+          "exception": null,
+          "expected": [
+            3,
+            1,
+            2
+          ],
+          "index": 0,
+          "input_mutation_passed": true,
+          "mutation_checks": [
+            {
+              "after": [
+                3,
+                1,
+                3,
+                2,
+                1
+              ],
+              "argument_index": 0,
+              "before": [
+                3,
+                1,
+                3,
+                2,
+                1
+              ],
+              "unchanged": true
+            }
+          ],
+          "passed": true
+        },
+        {
+          "actual": [],
+          "exact_output_passed": true,
+          "exception": null,
+          "expected": [],
+          "index": 1,
+          "input_mutation_passed": true,
+          "mutation_checks": [
+            {
+              "after": [],
+              "argument_index": 0,
+              "before": [],
+              "unchanged": true
+            }
+          ],
+          "passed": true
+        },
+        {
+          "actual": [
+            0,
+            -1,
+            2
+          ],
+          "exact_output_passed": true,
+          "exception": null,
+          "expected": [
+            0,
+            -1,
+            2
+          ],
+          "index": 2,
+          "input_mutation_passed": true,
+          "mutation_checks": [
+            {
+              "after": [
+                0,
+                0,
+                -1,
+                0,
+                -1,
+                2
+              ],
+              "argument_index": 0,
+              "before": [
+                0,
+                0,
+                -1,
+                0,
+                -1,
+                2
+              ],
+              "unchanged": true
+            }
+          ],
+          "passed": true
+        },
+        {
+          "actual": [
+            7
+          ],
+          "exact_output_passed": true,
+          "exception": null,
+          "expected": [
+            7
+          ],
+          "index": 3,
+          "input_mutation_passed": true,
+          "mutation_checks": [
+            {
+              "after": [
+                7
+              ],
+              "argument_index": 0,
+              "before": [
+                7
+              ],
+              "unchanged": true
+            }
+          ],
+          "passed": true
+        }
+      ],
+      "tests_passed": 4,
+      "tests_total": 4
+    },
+    "server_error": null,
+    "server_event_count": 47,
+    "task_id": "stable_deduplication",
+    "time_to_first_non_whitespace_output_seconds": 0.13541350000014063,
+    "ttft_observation": {
+      "exact_token_boundary": false,
+      "includes_http_queue_and_prompt_prefill": true,
+      "includes_model_load": false,
+      "method": "timestamp of first non-whitespace content in streamed SSE event",
+      "observable": true
+    },
+    "wall_elapsed_seconds": 0.48193570000876207
+  },
+  {
+    "decoding": {
+      "cache_prompt": true,
+      "seed": 2026,
+      "temperature": 0.0,
+      "top_k": 1
+    },
+    "end_to_end_with_evaluation_seconds": 0.8578471000073478,
+    "extracted_source_sha256": "0589490a0d49ee7d09b3c2dc6a52a5b8b55e48183e1bde4dd5e47315b53b395a",
+    "format": "nhdf-hybrid-coding-benchmark-0.1",
+    "function": "is_balanced_brackets",
+    "generated_text_exact_after_runtime_marker_cleanup": "```python\ndef is_balanced_brackets(text):\n    stack = []\n    brackets = {')': '(', ']': '[', '}': '{'}\n    \n    for char in text:\n        if char in '([{':\n            stack.append(char)\n        elif char in ')]}':\n            if not stack or stack.pop() != brackets[char]:\n                return False\n        else:\n            continue\n    \n    return len(stack) == 0\n```",
+    "gpu": {
+      "baseline": {
+        "name": "NVIDIA GeForce RTX 5070 Ti Laptop GPU",
+        "total_memory_mib": 12227,
+        "used_memory_mib": 10406,
+        "utilization_percent": 18
+      },
+      "incremental_peak_memory_mib": 0,
+      "peak_used_memory_mib": 10406,
+      "peak_utilization_percent": 84,
+      "sample_count": 3
+    },
+    "http_status": 200,
+    "launch_index": 3,
+    "llama_metrics": {
+      "decode_eval_ms": 602.082,
+      "decode_runs": 91,
+      "decode_tokens_per_second": 149.48129988938385,
+      "load_ms": null,
+      "prompt_eval_ms": 92.418,
+      "prompt_tokens": 94,
+      "prompt_tokens_per_second": 1017.1178774697569,
+      "resident_estimate_method": "direct streamed request against already-resident server",
+      "resident_inference_ms_estimate": 694.5,
+      "resident_ttft_ms_estimate": 111.73190000408795,
+      "server_reported_stop": true,
+      "server_reported_stop_type": "eos",
+      "total_ms": 694.5
+    },
+    "mode": "resident_server",
+    "passed": true,
+    "process_cache_class": "resident_server_request",
+    "prompt": "Define exactly one Python function `def is_balanced_brackets(text):`. The input contains only (), [] and {} characters. Return True exactly when every opening bracket is closed in the correct nested order.\n\nConstraints:\n- Return only Python source code, with no Markdown fences or explanation.\n- Define exactly the requested one top-level function and no other functions.\n- Do not import modules, read input, print, access files, or use global state.\n- The implementation must be deterministic.",
+    "raw_evidence": {
+      "request_bytes": 968,
+      "request_path": "runs/003_r01_balanced_brackets/request.json",
+      "request_sha256": "fddc5d16ea823d8e20a5fbc02ef9e11f7e826be2e3fa0336193af71638a92b17",
+      "response_bytes": 13719,
+      "response_path": "runs/003_r01_balanced_brackets/response.sse",
+      "response_sha256": "6569f14f1fdc2add09587f4a7a9f1f956e78b551b29fd74a5007cc0673e97bb4",
+      "source_bytes": 374,
+      "source_path": "runs/003_r01_balanced_brackets/generated.py",
+      "source_sha256": "8d471ebb0fe6b549f7ab473f2d6d8d3c26ab969a1a6cef6aa9967a5b6ee4d296"
+    },
+    "repetition": 1,
+    "request": {
+      "cache_prompt": true,
+      "endpoint": "http://127.0.0.1:18080/completion",
+      "n_predict": 384,
+      "prompt": "<|im_start|>system\nYou are a precise coding assistant. Follow the requested Python interface exactly and return only executable source code.<|im_end|>\n<|im_start|>user\nDefine exactly one Python function `def is_balanced_brackets(text):`. The input contains only (), [] and {} characters. Return True exactly when every opening bracket is closed in the correct nested order.\n\nConstraints:\n- Return only Python source code, with no Markdown fences or explanation.\n- Define exactly the requested one top-level function and no other functions.\n- Do not import modules, read input, print, access files, or use global state.\n- The implementation must be deterministic.<|im_end|>\n<|im_start|>assistant\n",
+      "reasoning_format": "none",
+      "seed": 2026,
+      "stop": [
+        "<|im_end|>"
+      ],
+      "stream": true,
+      "temperature": 0.0,
+      "top_k": 1
+    },
+    "response_headers": {
+      "access-control-allow-origin": "",
+      "connection": "close",
+      "content-type": "text/event-stream",
+      "server": "llama.cpp",
+      "transfer-encoding": "chunked",
+      "x-accel-buffering": "no"
+    },
+    "score": {
+      "evaluation_exit_code": 0,
+      "evaluation_seconds": 0.1431709000025876,
+      "passed": true,
+      "safe_to_execute": true,
+      "tests": [
+        {
+          "actual": true,
+          "exact_output_passed": true,
+          "exception": null,
+          "expected": true,
+          "index": 0,
+          "input_mutation_passed": true,
+          "mutation_checks": [],
+          "passed": true
+        },
+        {
+          "actual": true,
+          "exact_output_passed": true,
+          "exception": null,
+          "expected": true,
+          "index": 1,
+          "input_mutation_passed": true,
+          "mutation_checks": [],
+          "passed": true
+        },
+        {
+          "actual": true,
+          "exact_output_passed": true,
+          "exception": null,
+          "expected": true,
+          "index": 2,
+          "input_mutation_passed": true,
+          "mutation_checks": [],
+          "passed": true
+        },
+        {
+          "actual": false,
+          "exact_output_passed": true,
+          "exception": null,
+          "expected": false,
+          "index": 3,
+          "input_mutation_passed": true,
+          "mutation_checks": [],
+          "passed": true
+        },
+        {
+          "actual": false,
+          "exact_output_passed": true,
+          "exception": null,
+          "expected": false,
+          "index": 4,
+          "input_mutation_passed": true,
+          "mutation_checks": [],
+          "passed": true
+        },
+        {
+          "actual": false,
+          "exact_output_passed": true,
+          "exception": null,
+          "expected": false,
+          "index": 5,
+          "input_mutation_passed": true,
+          "mutation_checks": [],
+          "passed": true
+        }
+      ],
+      "tests_passed": 6,
+      "tests_total": 6
+    },
+    "server_error": null,
+    "server_event_count": 92,
+    "task_id": "balanced_brackets",
+    "time_to_first_non_whitespace_output_seconds": 0.11173190000408795,
+    "ttft_observation": {
+      "exact_token_boundary": false,
+      "includes_http_queue_and_prompt_prefill": true,
+      "includes_model_load": false,
+      "method": "timestamp of first non-whitespace content in streamed SSE event",
+      "observable": true
+    },
+    "wall_elapsed_seconds": 0.7146762000047602
+  },
+  {
+    "decoding": {
+      "cache_prompt": true,
+      "seed": 2026,
+      "temperature": 0.0,
+      "top_k": 1
+    },
+    "end_to_end_with_evaluation_seconds": 1.0986299999931362,
+    "extracted_source_sha256": "30fb3f2173decc3dedb216a841e65e688b79aa859c8714f2f68cc6957fd897fc",
+    "format": "nhdf-hybrid-coding-benchmark-0.1",
+    "function": "merge_intervals",
+    "generated_text_exact_after_runtime_marker_cleanup": "```python\ndef merge_intervals(intervals):\n    if not intervals:\n        return []\n    \n    # Sort intervals by start time\n    sorted_intervals = sorted(intervals, key=lambda x: x[0])\n    \n    merged = [sorted_intervals[0]]\n    \n    for current in sorted_intervals[1:]:\n        last = merged[-1]\n        if current[0] <= last[1]:  # Overlapping or adjacent intervals\n            merged[-1][1] = max(last[1], current[1])\n        else:\n            merged.append(current)\n    \n    return merged\n```",
+    "gpu": {
+      "baseline": {
+        "name": "NVIDIA GeForce RTX 5070 Ti Laptop GPU",
+        "total_memory_mib": 12227,
+        "used_memory_mib": 10406,
+        "utilization_percent": 0
+      },
+      "incremental_peak_memory_mib": 0,
+      "peak_used_memory_mib": 10406,
+      "peak_utilization_percent": 86,
+      "sample_count": 4
+    },
+    "http_status": 200,
+    "launch_index": 4,
+    "llama_metrics": {
+      "decode_eval_ms": 833.009,
+      "decode_runs": 120,
+      "decode_tokens_per_second": 142.8555993992862,
+      "load_ms": null,
+      "prompt_eval_ms": 107.486,
+      "prompt_tokens": 113,
+      "prompt_tokens_per_second": 1051.2997041475169,
+      "resident_estimate_method": "direct streamed request against already-resident server",
+      "resident_inference_ms_estimate": 940.495,
+      "resident_ttft_ms_estimate": 128.75170000188518,
+      "server_reported_stop": true,
+      "server_reported_stop_type": "eos",
+      "total_ms": 940.495
+    },
+    "mode": "resident_server",
+    "passed": false,
+    "process_cache_class": "resident_server_request",
+    "prompt": "Define exactly one Python function `def merge_intervals(intervals):`. Each interval is a two-item integer list [start, end] with start <= end. Return new two-item lists sorted by start, merging intervals that overlap or share an endpoint. Do not mutate intervals or any nested interval list.\n\nConstraints:\n- Return only Python source code, with no Markdown fences or explanation.\n- Define exactly the requested one top-level function and no other functions.\n- Do not import modules, read input, print, access files, or use global state.\n- The implementation must be deterministic.",
+    "raw_evidence": {
+      "request_bytes": 1054,
+      "request_path": "runs/004_r01_merge_intervals/request.json",
+      "request_sha256": "9b1c8d39813c2b4a64ee6c98ea4ae8bf0f0a5576d32c8150a59ed730987f4f8c",
+      "response_bytes": 17391,
+      "response_path": "runs/004_r01_merge_intervals/response.sse",
+      "response_sha256": "9fa0cc6fda8c69ebab1953192dfe572584bc05e543d74156cc655fa9b79b321c",
+      "source_bytes": 498,
+      "source_path": "runs/004_r01_merge_intervals/generated.py",
+      "source_sha256": "fa0e8a3bfbd0e52818f42a4d41a3baf22728a54f37af6479aa1c88a7d3d20736"
+    },
+    "repetition": 1,
+    "request": {
+      "cache_prompt": true,
+      "endpoint": "http://127.0.0.1:18080/completion",
+      "n_predict": 384,
+      "prompt": "<|im_start|>system\nYou are a precise coding assistant. Follow the requested Python interface exactly and return only executable source code.<|im_end|>\n<|im_start|>user\nDefine exactly one Python function `def merge_intervals(intervals):`. Each interval is a two-item integer list [start, end] with start <= end. Return new two-item lists sorted by start, merging intervals that overlap or share an endpoint. Do not mutate intervals or any nested interval list.\n\nConstraints:\n- Return only Python source code, with no Markdown fences or explanation.\n- Define exactly the requested one top-level function and no other functions.\n- Do not import modules, read input, print, access files, or use global state.\n- The implementation must be deterministic.<|im_end|>\n<|im_start|>assistant\n",
+      "reasoning_format": "none",
+      "seed": 2026,
+      "stop": [
+        "<|im_end|>"
+      ],
+      "stream": true,
+      "temperature": 0.0,
+      "top_k": 1
+    },
+    "response_headers": {
+      "access-control-allow-origin": "",
+      "connection": "close",
+      "content-type": "text/event-stream",
+      "server": "llama.cpp",
+      "transfer-encoding": "chunked",
+      "x-accel-buffering": "no"
+    },
+    "score": {
+      "evaluation_exit_code": 0,
+      "evaluation_seconds": 0.13467459999083076,
+      "passed": false,
+      "safe_to_execute": true,
+      "tests": [
+        {
+          "actual": [
+            [
+              1,
+              6
+            ],
+            [
+              8,
+              12
+            ]
+          ],
+          "exact_output_passed": true,
+          "exception": null,
+          "expected": [
+            [
+              1,
+              6
+            ],
+            [
+              8,
+              12
+            ]
+          ],
+          "index": 0,
+          "input_mutation_passed": false,
+          "mutation_checks": [
+            {
+              "after": [
+                [
+                  1,
+                  6
+                ],
+                [
+                  2,
+                  6
+                ],
+                [
+                  8,
+                  12
+                ],
+                [
+                  10,
+                  12
+                ]
+              ],
+              "argument_index": 0,
+              "before": [
+                [
+                  1,
+                  3
+                ],
+                [
+                  2,
+                  6
+                ],
+                [
+                  8,
+                  10
+                ],
+                [
+                  10,
+                  12
+                ]
+              ],
+              "unchanged": false
+            }
+          ],
+          "passed": false
+        },
+        {
+          "actual": [],
+          "exact_output_passed": true,
+          "exception": null,
+          "expected": [],
+          "index": 1,
+          "input_mutation_passed": true,
+          "mutation_checks": [
+            {
+              "after": [],
+              "argument_index": 0,
+              "before": [],
+              "unchanged": true
+            }
+          ],
+          "passed": true
+        },
+        {
+          "actual": [
+            [
+              5,
+              7
+            ]
+          ],
+          "exact_output_passed": true,
+          "exception": null,
+          "expected": [
+            [
+              5,
+              7
+            ]
+          ],
+          "index": 2,
+          "input_mutation_passed": true,
+          "mutation_checks": [
+            {
+              "after": [
+                [
+                  5,
+                  7
+                ]
+              ],
+              "argument_index": 0,
+              "before": [
+                [
+                  5,
+                  7
+                ]
+              ],
+              "unchanged": true
+            }
+          ],
+          "passed": true
+        },
+        {
+          "actual": [
+            [
+              -3,
+              -1
+            ],
+            [
+              1,
+              4
+            ],
+            [
+              9,
+              11
+            ]
+          ],
+          "exact_output_passed": true,
+          "exception": null,
+          "expected": [
+            [
+              -3,
+              -1
+            ],
+            [
+              1,
+              4
+            ],
+            [
+              9,
+              11
+            ]
+          ],
+          "index": 3,
+          "input_mutation_passed": false,
+          "mutation_checks": [
+            {
+              "after": [
+                [
+                  9,
+                  11
+                ],
+                [
+                  1,
+                  4
+                ],
+                [
+                  2,
+                  4
+                ],
+                [
+                  -3,
+                  -1
+                ]
+              ],
+              "argument_index": 0,
+              "before": [
+                [
+                  9,
+                  11
+                ],
+                [
+                  1,
+                  2
+                ],
+                [
+                  2,
+                  4
+                ],
+                [
+                  -3,
+                  -1
+                ]
+              ],
+              "unchanged": false
+            }
+          ],
+          "passed": false
+        }
+      ],
+      "tests_passed": 2,
+      "tests_total": 4
+    },
+    "server_error": null,
+    "server_event_count": 121,
+    "task_id": "merge_intervals",
+    "time_to_first_non_whitespace_output_seconds": 0.12875170000188518,
+    "ttft_observation": {
+      "exact_token_boundary": false,
+      "includes_http_queue_and_prompt_prefill": true,
+      "includes_model_load": false,
+      "method": "timestamp of first non-whitespace content in streamed SSE event",
+      "observable": true
+    },
+    "wall_elapsed_seconds": 0.9639554000023054
+  },
+  {
+    "decoding": {
+      "cache_prompt": true,
+      "seed": 2026,
+      "temperature": 0.0,
+      "top_k": 1
+    },
+    "end_to_end_with_evaluation_seconds": 0.7237973000010243,
+    "extracted_source_sha256": "bda5d44e3b43f156c4586c3ba392762e5be441606a4d6eaeed255f1f186b26d1",
+    "format": "nhdf-hybrid-coding-benchmark-0.1",
+    "function": "first_unique_index",
+    "generated_text_exact_after_runtime_marker_cleanup": "```python\ndef first_unique_index(text):\n    char_count = {}\n    for char in text:\n        char_count[char] = char_count.get(char, 0) + 1\n    \n    for i, char in enumerate(text):\n        if char_count[char] == 1:\n            return i\n    \n    return -1\n```",
+    "gpu": {
+      "baseline": {
+        "name": "NVIDIA GeForce RTX 5070 Ti Laptop GPU",
+        "total_memory_mib": 12227,
+        "used_memory_mib": 10412,
+        "utilization_percent": 82
+      },
+      "incremental_peak_memory_mib": 0,
+      "peak_used_memory_mib": 10412,
+      "peak_utilization_percent": 89,
+      "sample_count": 3
+    },
+    "http_status": 200,
+    "launch_index": 5,
+    "llama_metrics": {
+      "decode_eval_ms": 446.913,
+      "decode_runs": 68,
+      "decode_tokens_per_second": 149.91732171585966,
+      "load_ms": null,
+      "prompt_eval_ms": 97.823,
+      "prompt_tokens": 100,
+      "prompt_tokens_per_second": 1022.2544800302588,
+      "resident_estimate_method": "direct streamed request against already-resident server",
+      "resident_inference_ms_estimate": 544.736,
+      "resident_ttft_ms_estimate": 144.55549999547657,
+      "server_reported_stop": true,
+      "server_reported_stop_type": "eos",
+      "total_ms": 544.736
+    },
+    "mode": "resident_server",
+    "passed": true,
+    "process_cache_class": "resident_server_request",
+    "prompt": "Define exactly one Python function `def first_unique_index(text):`. Return the zero-based index of the first character that occurs exactly once in text, or -1 when there is no such character.\n\nConstraints:\n- Return only Python source code, with no Markdown fences or explanation.\n- Define exactly the requested one top-level function and no other functions.\n- Do not import modules, read input, print, access files, or use global state.\n- The implementation must be deterministic.",
+    "raw_evidence": {
+      "request_bytes": 954,
+      "request_path": "runs/005_r01_first_unique_character/request.json",
+      "request_sha256": "a8621c48d79310941ede4cf0f403803fd0409e799681fb04be8e9b580df92dfe",
+      "response_bytes": 10846,
+      "response_path": "runs/005_r01_first_unique_character/response.sse",
+      "response_sha256": "911fe364d1cfaa61fc545b83effc9e29d88786847b19420f4e9f2bd53885e836",
+      "source_bytes": 252,
+      "source_path": "runs/005_r01_first_unique_character/generated.py",
+      "source_sha256": "ce804e8ea67c830744da019ece7c66eab1ecff8d6af64c3a9d00bd9f9cf11626"
+    },
+    "repetition": 1,
+    "request": {
+      "cache_prompt": true,
+      "endpoint": "http://127.0.0.1:18080/completion",
+      "n_predict": 384,
+      "prompt": "<|im_start|>system\nYou are a precise coding assistant. Follow the requested Python interface exactly and return only executable source code.<|im_end|>\n<|im_start|>user\nDefine exactly one Python function `def first_unique_index(text):`. Return the zero-based index of the first character that occurs exactly once in text, or -1 when there is no such character.\n\nConstraints:\n- Return only Python source code, with no Markdown fences or explanation.\n- Define exactly the requested one top-level function and no other functions.\n- Do not import modules, read input, print, access files, or use global state.\n- The implementation must be deterministic.<|im_end|>\n<|im_start|>assistant\n",
+      "reasoning_format": "none",
+      "seed": 2026,
+      "stop": [
+        "<|im_end|>"
+      ],
+      "stream": true,
+      "temperature": 0.0,
+      "top_k": 1
+    },
+    "response_headers": {
+      "access-control-allow-origin": "",
+      "connection": "close",
+      "content-type": "text/event-stream",
+      "server": "llama.cpp",
+      "transfer-encoding": "chunked",
+      "x-accel-buffering": "no"
+    },
+    "score": {
+      "evaluation_exit_code": 0,
+      "evaluation_seconds": 0.1321654000057606,
+      "passed": true,
+      "safe_to_execute": true,
+      "tests": [
+        {
+          "actual": 0,
+          "exact_output_passed": true,
+          "exception": null,
+          "expected": 0,
+          "index": 0,
+          "input_mutation_passed": true,
+          "mutation_checks": [],
+          "passed": true
+        },
+        {
+          "actual": 2,
+          "exact_output_passed": true,
+          "exception": null,
+          "expected": 2,
+          "index": 1,
+          "input_mutation_passed": true,
+          "mutation_checks": [],
+          "passed": true
+        },
+        {
+          "actual": -1,
+          "exact_output_passed": true,
+          "exception": null,
+          "expected": -1,
+          "index": 2,
+          "input_mutation_passed": true,
+          "mutation_checks": [],
+          "passed": true
+        },
+        {
+          "actual": -1,
+          "exact_output_passed": true,
+          "exception": null,
+          "expected": -1,
+          "index": 3,
+          "input_mutation_passed": true,
+          "mutation_checks": [],
+          "passed": true
+        },
+        {
+          "actual": 7,
+          "exact_output_passed": true,
+          "exception": null,
+          "expected": 7,
+          "index": 4,
+          "input_mutation_passed": true,
+          "mutation_checks": [],
+          "passed": true
+        }
+      ],
+      "tests_passed": 5,
+      "tests_total": 5
+    },
+    "server_error": null,
+    "server_event_count": 69,
+    "task_id": "first_unique_character",
+    "time_to_first_non_whitespace_output_seconds": 0.14455549999547657,
+    "ttft_observation": {
+      "exact_token_boundary": false,
+      "includes_http_queue_and_prompt_prefill": true,
+      "includes_model_load": false,
+      "method": "timestamp of first non-whitespace content in streamed SSE event",
+      "observable": true
+    },
+    "wall_elapsed_seconds": 0.5916318999952637
+  },
+  {
+    "decoding": {
+      "cache_prompt": true,
+      "seed": 2026,
+      "temperature": 0.0,
+      "top_k": 1
+    },
+    "end_to_end_with_evaluation_seconds": 1.788795000014943,
+    "extracted_source_sha256": "20174827ea305c02aeee74632efe1e063392d6881bb7440d79c97c0f8b826ee6",
+    "format": "nhdf-hybrid-coding-benchmark-0.1",
+    "function": "shortest_grid_path",
+    "generated_text_exact_after_runtime_marker_cleanup": "```python\ndef shortest_grid_path(grid, start, goal):\n    from collections import deque\n    \n    rows, cols = len(grid), len(grid[0])\n    queue = deque([(start[0], start[1], 0)])\n    visited = set()\n    visited.add((start[0], start[1]))\n    \n    directions = [(0, 1), (1, 0), (0, -1), (-1, 0)]\n    \n    while queue:\n        row, col, steps = queue.popleft()\n        \n        if [row, col] == goal:\n            return steps\n        \n        for dr, dc in directions:\n            new_row, new_col = row + dr, col + dc\n            \n            if (0 <= new_row < rows and 0 <= new_col < cols and \n                grid[new_row][new_col] == 0 and \n                (new_row, new_col) not in visited):\n                \n                visited.add((new_row, new_col))\n                queue.append((new_row, new_col, steps + 1))\n    \n    return -1\n```",
+    "gpu": {
+      "baseline": {
+        "name": "NVIDIA GeForce RTX 5070 Ti Laptop GPU",
+        "total_memory_mib": 12227,
+        "used_memory_mib": 10412,
+        "utilization_percent": 89
+      },
+      "incremental_peak_memory_mib": 0,
+      "peak_used_memory_mib": 10412,
+      "peak_utilization_percent": 90,
+      "sample_count": 7
+    },
+    "http_status": 200,
+    "launch_index": 6,
+    "llama_metrics": {
+      "decode_eval_ms": 1515.033,
+      "decode_runs": 225,
+      "decode_tokens_per_second": 147.85156494941035,
+      "load_ms": null,
+      "prompt_eval_ms": 110.901,
+      "prompt_tokens": 121,
+      "prompt_tokens_per_second": 1091.0632005121686,
+      "resident_estimate_method": "direct streamed request against already-resident server",
+      "resident_inference_ms_estimate": 1625.934,
+      "resident_ttft_ms_estimate": 133.9494999992894,
+      "server_reported_stop": true,
+      "server_reported_stop_type": "eos",
+      "total_ms": 1625.934
+    },
+    "mode": "resident_server",
+    "passed": true,
+    "process_cache_class": "resident_server_request",
+    "prompt": "Define exactly one Python function `def shortest_grid_path(grid, start, goal):`. grid is a non-empty rectangular list of lists containing 0 for open and 1 for blocked. start and goal are open [row, column] lists. Return the minimum number of orthogonal moves from start to goal, or -1 if unreachable.\n\nConstraints:\n- Return only Python source code, with no Markdown fences or explanation.\n- Define exactly the requested one top-level function and no other functions.\n- Do not import modules, read input, print, access files, or use global state.\n- The implementation must be deterministic.",
+    "raw_evidence": {
+      "request_bytes": 1063,
+      "request_path": "runs/006_r01_grid_shortest_path/request.json",
+      "request_sha256": "7abf7c738542bff7f9ff962499f97be2e98e835bb54e2a3163790c185e605cad",
+      "response_bytes": 30274,
+      "response_path": "runs/006_r01_grid_shortest_path/response.sse",
+      "response_sha256": "19ab696152086d5dfd48bce74f8cd7106a76e99a21de24d4a31ad082bf37d70c",
+      "source_bytes": 855,
+      "source_path": "runs/006_r01_grid_shortest_path/generated.py",
+      "source_sha256": "eb80802957820f93c670e50349ffa8249ba96097f859e945a57892bfec62459b"
+    },
+    "repetition": 1,
+    "request": {
+      "cache_prompt": true,
+      "endpoint": "http://127.0.0.1:18080/completion",
+      "n_predict": 384,
+      "prompt": "<|im_start|>system\nYou are a precise coding assistant. Follow the requested Python interface exactly and return only executable source code.<|im_end|>\n<|im_start|>user\nDefine exactly one Python function `def shortest_grid_path(grid, start, goal):`. grid is a non-empty rectangular list of lists containing 0 for open and 1 for blocked. start and goal are open [row, column] lists. Return the minimum number of orthogonal moves from start to goal, or -1 if unreachable.\n\nConstraints:\n- Return only Python source code, with no Markdown fences or explanation.\n- Define exactly the requested one top-level function and no other functions.\n- Do not import modules, read input, print, access files, or use global state.\n- The implementation must be deterministic.<|im_end|>\n<|im_start|>assistant\n",
+      "reasoning_format": "none",
+      "seed": 2026,
+      "stop": [
+        "<|im_end|>"
+      ],
+      "stream": true,
+      "temperature": 0.0,
+      "top_k": 1
+    },
+    "response_headers": {
+      "access-control-allow-origin": "",
+      "connection": "close",
+      "content-type": "text/event-stream",
+      "server": "llama.cpp",
+      "transfer-encoding": "chunked",
+      "x-accel-buffering": "no"
+    },
+    "score": {
+      "evaluation_exit_code": 0,
+      "evaluation_seconds": 0.13855300001159776,
+      "passed": true,
+      "safe_to_execute": true,
+      "tests": [
+        {
+          "actual": 0,
+          "exact_output_passed": true,
+          "exception": null,
+          "expected": 0,
+          "index": 0,
+          "input_mutation_passed": true,
+          "mutation_checks": [],
+          "passed": true
+        },
+        {
+          "actual": 4,
+          "exact_output_passed": true,
+          "exception": null,
+          "expected": 4,
+          "index": 1,
+          "input_mutation_passed": true,
+          "mutation_checks": [],
+          "passed": true
+        },
+        {
+          "actual": -1,
+          "exact_output_passed": true,
+          "exception": null,
+          "expected": -1,
+          "index": 2,
+          "input_mutation_passed": true,
+          "mutation_checks": [],
+          "passed": true
+        },
+        {
+          "actual": 5,
+          "exact_output_passed": true,
+          "exception": null,
+          "expected": 5,
+          "index": 3,
+          "input_mutation_passed": true,
+          "mutation_checks": [],
+          "passed": true
+        }
+      ],
+      "tests_passed": 4,
+      "tests_total": 4
+    },
+    "server_error": null,
+    "server_event_count": 226,
+    "task_id": "grid_shortest_path",
+    "time_to_first_non_whitespace_output_seconds": 0.1339494999992894,
+    "ttft_observation": {
+      "exact_token_boundary": false,
+      "includes_http_queue_and_prompt_prefill": true,
+      "includes_model_load": false,
+      "method": "timestamp of first non-whitespace content in streamed SSE event",
+      "observable": true
+    },
+    "wall_elapsed_seconds": 1.6502420000033453
+  },
+  {
+    "decoding": {
+      "cache_prompt": true,
+      "seed": 2026,
+      "temperature": 0.0,
+      "top_k": 1
+    },
+    "end_to_end_with_evaluation_seconds": 0.4311381000006804,
+    "extracted_source_sha256": "e8ea25c7dc71ad34682e2fbc29b0c441aadce55184a239407eacc94b3f128b8d",
+    "format": "nhdf-hybrid-coding-benchmark-0.1",
+    "function": "clamp",
+    "generated_text_exact_after_runtime_marker_cleanup": "```python\ndef clamp(value, low, high):\n    if value < low:\n        return low\n    if value > high:\n        return high\n    return value\n```",
+    "gpu": {
+      "baseline": {
+        "name": "NVIDIA GeForce RTX 5070 Ti Laptop GPU",
+        "total_memory_mib": 12227,
+        "used_memory_mib": 10412,
+        "utilization_percent": 89
+      },
+      "incremental_peak_memory_mib": 0,
+      "peak_used_memory_mib": 10412,
+      "peak_utilization_percent": 89,
+      "sample_count": 2
+    },
+    "http_status": 200,
+    "launch_index": 7,
+    "llama_metrics": {
+      "decode_eval_ms": 253.278,
+      "decode_runs": 37,
+      "decode_tokens_per_second": 142.13630872006254,
+      "load_ms": null,
+      "prompt_eval_ms": 16.436,
+      "prompt_tokens": 1,
+      "prompt_tokens_per_second": 60.84205402774398,
+      "resident_estimate_method": "direct streamed request against already-resident server",
+      "resident_inference_ms_estimate": 269.714,
+      "resident_ttft_ms_estimate": 35.519099998055026,
+      "server_reported_stop": true,
+      "server_reported_stop_type": "eos",
+      "total_ms": 269.714
+    },
+    "mode": "resident_server",
+    "passed": true,
+    "process_cache_class": "resident_server_request",
+    "prompt": "Define exactly one Python function `def clamp(value, low, high):`. Assume low <= high. Return low when value is below low, high when it is above high, and value otherwise.\n\nConstraints:\n- Return only Python source code, with no Markdown fences or explanation.\n- Define exactly the requested one top-level function and no other functions.\n- Do not import modules, read input, print, access files, or use global state.\n- The implementation must be deterministic.",
+    "raw_evidence": {
+      "request_bytes": 934,
+      "request_path": "runs/007_r02_clamp_integer/request.json",
+      "request_sha256": "faf53aa9deb80908ebcd3765d3becc6e73dca23a2a17402884668127b6b2582e",
+      "response_bytes": 7013,
+      "response_path": "runs/007_r02_clamp_integer/response.sse",
+      "response_sha256": "9407e503daaa89e2bdfb8e739f39b02460e106bceaf52d6b3feedff53155f9ac",
+      "source_bytes": 132,
+      "source_path": "runs/007_r02_clamp_integer/generated.py",
+      "source_sha256": "5bcf7fac90482cbecc261ef6099c648d6bbb6b8aeec991393446e224b67ca306"
+    },
+    "repetition": 2,
+    "request": {
+      "cache_prompt": true,
+      "endpoint": "http://127.0.0.1:18080/completion",
+      "n_predict": 384,
+      "prompt": "<|im_start|>system\nYou are a precise coding assistant. Follow the requested Python interface exactly and return only executable source code.<|im_end|>\n<|im_start|>user\nDefine exactly one Python function `def clamp(value, low, high):`. Assume low <= high. Return low when value is below low, high when it is above high, and value otherwise.\n\nConstraints:\n- Return only Python source code, with no Markdown fences or explanation.\n- Define exactly the requested one top-level function and no other functions.\n- Do not import modules, read input, print, access files, or use global state.\n- The implementation must be deterministic.<|im_end|>\n<|im_start|>assistant\n",
+      "reasoning_format": "none",
+      "seed": 2026,
+      "stop": [
+        "<|im_end|>"
+      ],
+      "stream": true,
+      "temperature": 0.0,
+      "top_k": 1
+    },
+    "response_headers": {
+      "access-control-allow-origin": "",
+      "connection": "close",
+      "content-type": "text/event-stream",
+      "server": "llama.cpp",
+      "transfer-encoding": "chunked",
+      "x-accel-buffering": "no"
+    },
+    "score": {
+      "evaluation_exit_code": 0,
+      "evaluation_seconds": 0.14211110000906046,
+      "passed": true,
+      "safe_to_execute": true,
+      "tests": [
+        {
+          "actual": 5,
+          "exact_output_passed": true,
+          "exception": null,
+          "expected": 5,
+          "index": 0,
+          "input_mutation_passed": true,
+          "mutation_checks": [],
+          "passed": true
+        },
+        {
+          "actual": 0,
+          "exact_output_passed": true,
+          "exception": null,
+          "expected": 0,
+          "index": 1,
+          "input_mutation_passed": true,
+          "mutation_checks": [],
+          "passed": true
+        },
+        {
+          "actual": 10,
+          "exact_output_passed": true,
+          "exception": null,
+          "expected": 10,
+          "index": 2,
+          "input_mutation_passed": true,
+          "mutation_checks": [],
+          "passed": true
+        },
+        {
+          "actual": 4,
+          "exact_output_passed": true,
+          "exception": null,
+          "expected": 4,
+          "index": 3,
+          "input_mutation_passed": true,
+          "mutation_checks": [],
+          "passed": true
+        }
+      ],
+      "tests_passed": 4,
+      "tests_total": 4
+    },
+    "server_error": null,
+    "server_event_count": 38,
+    "task_id": "clamp_integer",
+    "time_to_first_non_whitespace_output_seconds": 0.035519099998055026,
+    "ttft_observation": {
+      "exact_token_boundary": false,
+      "includes_http_queue_and_prompt_prefill": true,
+      "includes_model_load": false,
+      "method": "timestamp of first non-whitespace content in streamed SSE event",
+      "observable": true
+    },
+    "wall_elapsed_seconds": 0.28902699999161996
+  },
+  {
+    "decoding": {
+      "cache_prompt": true,
+      "seed": 2026,
+      "temperature": 0.0,
+      "top_k": 1
+    },
+    "end_to_end_with_evaluation_seconds": 0.4637969999894267,
+    "extracted_source_sha256": "be5425920cfe6f480cec6f038d37ce9c2107852c7e2826438c16242966165b3a",
+    "format": "nhdf-hybrid-coding-benchmark-0.1",
+    "function": "stable_unique",
+    "generated_text_exact_after_runtime_marker_cleanup": "```python\ndef stable_unique(values):\n    seen = set()\n    result = []\n    for value in values:\n        if value not in seen:\n            seen.add(value)\n            result.append(value)\n    return result\n```",
+    "gpu": {
+      "baseline": {
+        "name": "NVIDIA GeForce RTX 5070 Ti Laptop GPU",
+        "total_memory_mib": 12227,
+        "used_memory_mib": 10412,
+        "utilization_percent": 2
+      },
+      "incremental_peak_memory_mib": 0,
+      "peak_used_memory_mib": 10412,
+      "peak_utilization_percent": 0,
+      "sample_count": 2
+    },
+    "http_status": 200,
+    "launch_index": 8,
+    "llama_metrics": {
+      "decode_eval_ms": 308.306,
+      "decode_runs": 46,
+      "decode_tokens_per_second": 145.9588850038598,
+      "load_ms": null,
+      "prompt_eval_ms": 8.451,
+      "prompt_tokens": 1,
+      "prompt_tokens_per_second": 118.32919181161992,
+      "resident_estimate_method": "direct streamed request against already-resident server",
+      "resident_inference_ms_estimate": 316.757,
+      "resident_ttft_ms_estimate": 25.511199986794963,
+      "server_reported_stop": true,
+      "server_reported_stop_type": "eos",
+      "total_ms": 316.757
+    },
+    "mode": "resident_server",
+    "passed": true,
+    "process_cache_class": "resident_server_request",
+    "prompt": "Define exactly one Python function `def stable_unique(values):`. Return a new list containing the first occurrence of each integer, preserving input order. Do not mutate values.\n\nConstraints:\n- Return only Python source code, with no Markdown fences or explanation.\n- Define exactly the requested one top-level function and no other functions.\n- Do not import modules, read input, print, access files, or use global state.\n- The implementation must be deterministic.",
+    "raw_evidence": {
+      "request_bytes": 940,
+      "request_path": "runs/008_r02_stable_deduplication/request.json",
+      "request_sha256": "6f4d4bdaf75e359fb0b87e204edeffc46813fe579528174b0d42f5793852a6c0",
+      "response_bytes": 8171,
+      "response_path": "runs/008_r02_stable_deduplication/response.sse",
+      "response_sha256": "380c1db927ec92be09b03a4205f0a865b64a8b37f1875763961a92528cbdf6d1",
+      "source_bytes": 202,
+      "source_path": "runs/008_r02_stable_deduplication/generated.py",
+      "source_sha256": "cfef97e76ffe8482c5962788edbfec0a72f84139391cc45e625d2e4d81d150f2"
+    },
+    "repetition": 2,
+    "request": {
+      "cache_prompt": true,
+      "endpoint": "http://127.0.0.1:18080/completion",
+      "n_predict": 384,
+      "prompt": "<|im_start|>system\nYou are a precise coding assistant. Follow the requested Python interface exactly and return only executable source code.<|im_end|>\n<|im_start|>user\nDefine exactly one Python function `def stable_unique(values):`. Return a new list containing the first occurrence of each integer, preserving input order. Do not mutate values.\n\nConstraints:\n- Return only Python source code, with no Markdown fences or explanation.\n- Define exactly the requested one top-level function and no other functions.\n- Do not import modules, read input, print, access files, or use global state.\n- The implementation must be deterministic.<|im_end|>\n<|im_start|>assistant\n",
+      "reasoning_format": "none",
+      "seed": 2026,
+      "stop": [
+        "<|im_end|>"
+      ],
+      "stream": true,
+      "temperature": 0.0,
+      "top_k": 1
+    },
+    "response_headers": {
+      "access-control-allow-origin": "",
+      "connection": "close",
+      "content-type": "text/event-stream",
+      "server": "llama.cpp",
+      "transfer-encoding": "chunked",
+      "x-accel-buffering": "no"
+    },
+    "score": {
+      "evaluation_exit_code": 0,
+      "evaluation_seconds": 0.129328600000008,
+      "passed": true,
+      "safe_to_execute": true,
+      "tests": [
+        {
+          "actual": [
+            3,
+            1,
+            2
+          ],
+          "exact_output_passed": true,
+          "exception": null,
+          "expected": [
+            3,
+            1,
+            2
+          ],
+          "index": 0,
+          "input_mutation_passed": true,
+          "mutation_checks": [
+            {
+              "after": [
+                3,
+                1,
+                3,
+                2,
+                1
+              ],
+              "argument_index": 0,
+              "before": [
+                3,
+                1,
+                3,
+                2,
+                1
+              ],
+              "unchanged": true
+            }
+          ],
+          "passed": true
+        },
+        {
+          "actual": [],
+          "exact_output_passed": true,
+          "exception": null,
+          "expected": [],
+          "index": 1,
+          "input_mutation_passed": true,
+          "mutation_checks": [
+            {
+              "after": [],
+              "argument_index": 0,
+              "before": [],
+              "unchanged": true
+            }
+          ],
+          "passed": true
+        },
+        {
+          "actual": [
+            0,
+            -1,
+            2
+          ],
+          "exact_output_passed": true,
+          "exception": null,
+          "expected": [
+            0,
+            -1,
+            2
+          ],
+          "index": 2,
+          "input_mutation_passed": true,
+          "mutation_checks": [
+            {
+              "after": [
+                0,
+                0,
+                -1,
+                0,
+                -1,
+                2
+              ],
+              "argument_index": 0,
+              "before": [
+                0,
+                0,
+                -1,
+                0,
+                -1,
+                2
+              ],
+              "unchanged": true
+            }
+          ],
+          "passed": true
+        },
+        {
+          "actual": [
+            7
+          ],
+          "exact_output_passed": true,
+          "exception": null,
+          "expected": [
+            7
+          ],
+          "index": 3,
+          "input_mutation_passed": true,
+          "mutation_checks": [
+            {
+              "after": [
+                7
+              ],
+              "argument_index": 0,
+              "before": [
+                7
+              ],
+              "unchanged": true
+            }
+          ],
+          "passed": true
+        }
+      ],
+      "tests_passed": 4,
+      "tests_total": 4
+    },
+    "server_error": null,
+    "server_event_count": 47,
+    "task_id": "stable_deduplication",
+    "time_to_first_non_whitespace_output_seconds": 0.025511199986794963,
+    "ttft_observation": {
+      "exact_token_boundary": false,
+      "includes_http_queue_and_prompt_prefill": true,
+      "includes_model_load": false,
+      "method": "timestamp of first non-whitespace content in streamed SSE event",
+      "observable": true
+    },
+    "wall_elapsed_seconds": 0.3344683999894187
+  },
+  {
+    "decoding": {
+      "cache_prompt": true,
+      "seed": 2026,
+      "temperature": 0.0,
+      "top_k": 1
+    },
+    "end_to_end_with_evaluation_seconds": 0.7804492999857757,
+    "extracted_source_sha256": "0589490a0d49ee7d09b3c2dc6a52a5b8b55e48183e1bde4dd5e47315b53b395a",
+    "format": "nhdf-hybrid-coding-benchmark-0.1",
+    "function": "is_balanced_brackets",
+    "generated_text_exact_after_runtime_marker_cleanup": "```python\ndef is_balanced_brackets(text):\n    stack = []\n    brackets = {')': '(', ']': '[', '}': '{'}\n    \n    for char in text:\n        if char in '([{':\n            stack.append(char)\n        elif char in ')]}':\n            if not stack or stack.pop() != brackets[char]:\n                return False\n        else:\n            continue\n    \n    return len(stack) == 0\n```",
+    "gpu": {
+      "baseline": {
+        "name": "NVIDIA GeForce RTX 5070 Ti Laptop GPU",
+        "total_memory_mib": 12227,
+        "used_memory_mib": 10412,
+        "utilization_percent": 11
+      },
+      "incremental_peak_memory_mib": 0,
+      "peak_used_memory_mib": 10412,
+      "peak_utilization_percent": 90,
+      "sample_count": 3
+    },
+    "http_status": 200,
+    "launch_index": 9,
+    "llama_metrics": {
+      "decode_eval_ms": 596.43,
+      "decode_runs": 91,
+      "decode_tokens_per_second": 150.89784216085712,
+      "load_ms": null,
+      "prompt_eval_ms": 6.851,
+      "prompt_tokens": 1,
+      "prompt_tokens_per_second": 145.96409283316305,
+      "resident_estimate_method": "direct streamed request against already-resident server",
+      "resident_inference_ms_estimate": 603.281,
+      "resident_ttft_ms_estimate": 41.79709999880288,
+      "server_reported_stop": true,
+      "server_reported_stop_type": "eos",
+      "total_ms": 603.281
+    },
+    "mode": "resident_server",
+    "passed": true,
+    "process_cache_class": "resident_server_request",
+    "prompt": "Define exactly one Python function `def is_balanced_brackets(text):`. The input contains only (), [] and {} characters. Return True exactly when every opening bracket is closed in the correct nested order.\n\nConstraints:\n- Return only Python source code, with no Markdown fences or explanation.\n- Define exactly the requested one top-level function and no other functions.\n- Do not import modules, read input, print, access files, or use global state.\n- The implementation must be deterministic.",
+    "raw_evidence": {
+      "request_bytes": 968,
+      "request_path": "runs/009_r02_balanced_brackets/request.json",
+      "request_sha256": "fddc5d16ea823d8e20a5fbc02ef9e11f7e826be2e3fa0336193af71638a92b17",
+      "response_bytes": 13703,
+      "response_path": "runs/009_r02_balanced_brackets/response.sse",
+      "response_sha256": "1401b2839f9426b87e7f4933b651b2d11da7e6abfe1bb1a1724065beec8371fe",
+      "source_bytes": 374,
+      "source_path": "runs/009_r02_balanced_brackets/generated.py",
+      "source_sha256": "8d471ebb0fe6b549f7ab473f2d6d8d3c26ab969a1a6cef6aa9967a5b6ee4d296"
+    },
+    "repetition": 2,
+    "request": {
+      "cache_prompt": true,
+      "endpoint": "http://127.0.0.1:18080/completion",
+      "n_predict": 384,
+      "prompt": "<|im_start|>system\nYou are a precise coding assistant. Follow the requested Python interface exactly and return only executable source code.<|im_end|>\n<|im_start|>user\nDefine exactly one Python function `def is_balanced_brackets(text):`. The input contains only (), [] and {} characters. Return True exactly when every opening bracket is closed in the correct nested order.\n\nConstraints:\n- Return only Python source code, with no Markdown fences or explanation.\n- Define exactly the requested one top-level function and no other functions.\n- Do not import modules, read input, print, access files, or use global state.\n- The implementation must be deterministic.<|im_end|>\n<|im_start|>assistant\n",
+      "reasoning_format": "none",
+      "seed": 2026,
+      "stop": [
+        "<|im_end|>"
+      ],
+      "stream": true,
+      "temperature": 0.0,
+      "top_k": 1
+    },
+    "response_headers": {
+      "access-control-allow-origin": "",
+      "connection": "close",
+      "content-type": "text/event-stream",
+      "server": "llama.cpp",
+      "transfer-encoding": "chunked",
+      "x-accel-buffering": "no"
+    },
+    "score": {
+      "evaluation_exit_code": 0,
+      "evaluation_seconds": 0.14190419999067672,
+      "passed": true,
+      "safe_to_execute": true,
+      "tests": [
+        {
+          "actual": true,
+          "exact_output_passed": true,
+          "exception": null,
+          "expected": true,
+          "index": 0,
+          "input_mutation_passed": true,
+          "mutation_checks": [],
+          "passed": true
+        },
+        {
+          "actual": true,
+          "exact_output_passed": true,
+          "exception": null,
+          "expected": true,
+          "index": 1,
+          "input_mutation_passed": true,
+          "mutation_checks": [],
+          "passed": true
+        },
+        {
+          "actual": true,
+          "exact_output_passed": true,
+          "exception": null,
+          "expected": true,
+          "index": 2,
+          "input_mutation_passed": true,
+          "mutation_checks": [],
+          "passed": true
+        },
+        {
+          "actual": false,
+          "exact_output_passed": true,
+          "exception": null,
+          "expected": false,
+          "index": 3,
+          "input_mutation_passed": true,
+          "mutation_checks": [],
+          "passed": true
+        },
+        {
+          "actual": false,
+          "exact_output_passed": true,
+          "exception": null,
+          "expected": false,
+          "index": 4,
+          "input_mutation_passed": true,
+          "mutation_checks": [],
+          "passed": true
+        },
+        {
+          "actual": false,
+          "exact_output_passed": true,
+          "exception": null,
+          "expected": false,
+          "index": 5,
+          "input_mutation_passed": true,
+          "mutation_checks": [],
+          "passed": true
+        }
+      ],
+      "tests_passed": 6,
+      "tests_total": 6
+    },
+    "server_error": null,
+    "server_event_count": 92,
+    "task_id": "balanced_brackets",
+    "time_to_first_non_whitespace_output_seconds": 0.04179709999880288,
+    "ttft_observation": {
+      "exact_token_boundary": false,
+      "includes_http_queue_and_prompt_prefill": true,
+      "includes_model_load": false,
+      "method": "timestamp of first non-whitespace content in streamed SSE event",
+      "observable": true
+    },
+    "wall_elapsed_seconds": 0.638545099995099
+  },
+  {
+    "decoding": {
+      "cache_prompt": true,
+      "seed": 2026,
+      "temperature": 0.0,
+      "top_k": 1
+    },
+    "end_to_end_with_evaluation_seconds": 0.9685465000075055,
+    "extracted_source_sha256": "30fb3f2173decc3dedb216a841e65e688b79aa859c8714f2f68cc6957fd897fc",
+    "format": "nhdf-hybrid-coding-benchmark-0.1",
+    "function": "merge_intervals",
+    "generated_text_exact_after_runtime_marker_cleanup": "```python\ndef merge_intervals(intervals):\n    if not intervals:\n        return []\n    \n    # Sort intervals by start time\n    sorted_intervals = sorted(intervals, key=lambda x: x[0])\n    \n    merged = [sorted_intervals[0]]\n    \n    for current in sorted_intervals[1:]:\n        last = merged[-1]\n        if current[0] <= last[1]:  # Overlapping or adjacent intervals\n            merged[-1][1] = max(last[1], current[1])\n        else:\n            merged.append(current)\n    \n    return merged\n```",
+    "gpu": {
+      "baseline": {
+        "name": "NVIDIA GeForce RTX 5070 Ti Laptop GPU",
+        "total_memory_mib": 12227,
+        "used_memory_mib": 10412,
+        "utilization_percent": 90
+      },
+      "incremental_peak_memory_mib": 0,
+      "peak_used_memory_mib": 10412,
+      "peak_utilization_percent": 90,
+      "sample_count": 4
+    },
+    "http_status": 200,
+    "launch_index": 10,
+    "llama_metrics": {
+      "decode_eval_ms": 806.518,
+      "decode_runs": 120,
+      "decode_tokens_per_second": 147.5478538606702,
+      "load_ms": null,
+      "prompt_eval_ms": 7.171,
+      "prompt_tokens": 1,
+      "prompt_tokens_per_second": 139.45056477478732,
+      "resident_estimate_method": "direct streamed request against already-resident server",
+      "resident_inference_ms_estimate": 813.6890000000001,
+      "resident_ttft_ms_estimate": 23.346300004050136,
+      "server_reported_stop": true,
+      "server_reported_stop_type": "eos",
+      "total_ms": 813.6890000000001
+    },
+    "mode": "resident_server",
+    "passed": false,
+    "process_cache_class": "resident_server_request",
+    "prompt": "Define exactly one Python function `def merge_intervals(intervals):`. Each interval is a two-item integer list [start, end] with start <= end. Return new two-item lists sorted by start, merging intervals that overlap or share an endpoint. Do not mutate intervals or any nested interval list.\n\nConstraints:\n- Return only Python source code, with no Markdown fences or explanation.\n- Define exactly the requested one top-level function and no other functions.\n- Do not import modules, read input, print, access files, or use global state.\n- The implementation must be deterministic.",
+    "raw_evidence": {
+      "request_bytes": 1054,
+      "request_path": "runs/010_r02_merge_intervals/request.json",
+      "request_sha256": "9b1c8d39813c2b4a64ee6c98ea4ae8bf0f0a5576d32c8150a59ed730987f4f8c",
+      "response_bytes": 17374,
+      "response_path": "runs/010_r02_merge_intervals/response.sse",
+      "response_sha256": "9b95a24a5c4da43afb7aa5446dda2d8d6ce77577ba6f9ff856180beecc4f814b",
+      "source_bytes": 498,
+      "source_path": "runs/010_r02_merge_intervals/generated.py",
+      "source_sha256": "fa0e8a3bfbd0e52818f42a4d41a3baf22728a54f37af6479aa1c88a7d3d20736"
+    },
+    "repetition": 2,
+    "request": {
+      "cache_prompt": true,
+      "endpoint": "http://127.0.0.1:18080/completion",
+      "n_predict": 384,
+      "prompt": "<|im_start|>system\nYou are a precise coding assistant. Follow the requested Python interface exactly and return only executable source code.<|im_end|>\n<|im_start|>user\nDefine exactly one Python function `def merge_intervals(intervals):`. Each interval is a two-item integer list [start, end] with start <= end. Return new two-item lists sorted by start, merging intervals that overlap or share an endpoint. Do not mutate intervals or any nested interval list.\n\nConstraints:\n- Return only Python source code, with no Markdown fences or explanation.\n- Define exactly the requested one top-level function and no other functions.\n- Do not import modules, read input, print, access files, or use global state.\n- The implementation must be deterministic.<|im_end|>\n<|im_start|>assistant\n",
+      "reasoning_format": "none",
+      "seed": 2026,
+      "stop": [
+        "<|im_end|>"
+      ],
+      "stream": true,
+      "temperature": 0.0,
+      "top_k": 1
+    },
+    "response_headers": {
+      "access-control-allow-origin": "",
+      "connection": "close",
+      "content-type": "text/event-stream",
+      "server": "llama.cpp",
+      "transfer-encoding": "chunked",
+      "x-accel-buffering": "no"
+    },
+    "score": {
+      "evaluation_exit_code": 0,
+      "evaluation_seconds": 0.13846230000490323,
+      "passed": false,
+      "safe_to_execute": true,
+      "tests": [
+        {
+          "actual": [
+            [
+              1,
+              6
+            ],
+            [
+              8,
+              12
+            ]
+          ],
+          "exact_output_passed": true,
+          "exception": null,
+          "expected": [
+            [
+              1,
+              6
+            ],
+            [
+              8,
+              12
+            ]
+          ],
+          "index": 0,
+          "input_mutation_passed": false,
+          "mutation_checks": [
+            {
+              "after": [
+                [
+                  1,
+                  6
+                ],
+                [
+                  2,
+                  6
+                ],
+                [
+                  8,
+                  12
+                ],
+                [
+                  10,
+                  12
+                ]
+              ],
+              "argument_index": 0,
+              "before": [
+                [
+                  1,
+                  3
+                ],
+                [
+                  2,
+                  6
+                ],
+                [
+                  8,
+                  10
+                ],
+                [
+                  10,
+                  12
+                ]
+              ],
+              "unchanged": false
+            }
+          ],
+          "passed": false
+        },
+        {
+          "actual": [],
+          "exact_output_passed": true,
+          "exception": null,
+          "expected": [],
+          "index": 1,
+          "input_mutation_passed": true,
+          "mutation_checks": [
+            {
+              "after": [],
+              "argument_index": 0,
+              "before": [],
+              "unchanged": true
+            }
+          ],
+          "passed": true
+        },
+        {
+          "actual": [
+            [
+              5,
+              7
+            ]
+          ],
+          "exact_output_passed": true,
+          "exception": null,
+          "expected": [
+            [
+              5,
+              7
+            ]
+          ],
+          "index": 2,
+          "input_mutation_passed": true,
+          "mutation_checks": [
+            {
+              "after": [
+                [
+                  5,
+                  7
+                ]
+              ],
+              "argument_index": 0,
+              "before": [
+                [
+                  5,
+                  7
+                ]
+              ],
+              "unchanged": true
+            }
+          ],
+          "passed": true
+        },
+        {
+          "actual": [
+            [
+              -3,
+              -1
+            ],
+            [
+              1,
+              4
+            ],
+            [
+              9,
+              11
+            ]
+          ],
+          "exact_output_passed": true,
+          "exception": null,
+          "expected": [
+            [
+              -3,
+              -1
+            ],
+            [
+              1,
+              4
+            ],
+            [
+              9,
+              11
+            ]
+          ],
+          "index": 3,
+          "input_mutation_passed": false,
+          "mutation_checks": [
+            {
+              "after": [
+                [
+                  9,
+                  11
+                ],
+                [
+                  1,
+                  4
+                ],
+                [
+                  2,
+                  4
+                ],
+                [
+                  -3,
+                  -1
+                ]
+              ],
+              "argument_index": 0,
+              "before": [
+                [
+                  9,
+                  11
+                ],
+                [
+                  1,
+                  2
+                ],
+                [
+                  2,
+                  4
+                ],
+                [
+                  -3,
+                  -1
+                ]
+              ],
+              "unchanged": false
+            }
+          ],
+          "passed": false
+        }
+      ],
+      "tests_passed": 2,
+      "tests_total": 4
+    },
+    "server_error": null,
+    "server_event_count": 121,
+    "task_id": "merge_intervals",
+    "time_to_first_non_whitespace_output_seconds": 0.023346300004050136,
+    "ttft_observation": {
+      "exact_token_boundary": false,
+      "includes_http_queue_and_prompt_prefill": true,
+      "includes_model_load": false,
+      "method": "timestamp of first non-whitespace content in streamed SSE event",
+      "observable": true
+    },
+    "wall_elapsed_seconds": 0.8300842000026023
+  },
+  {
+    "decoding": {
+      "cache_prompt": true,
+      "seed": 2026,
+      "temperature": 0.0,
+      "top_k": 1
+    },
+    "end_to_end_with_evaluation_seconds": 0.662613299995428,
+    "extracted_source_sha256": "bda5d44e3b43f156c4586c3ba392762e5be441606a4d6eaeed255f1f186b26d1",
+    "format": "nhdf-hybrid-coding-benchmark-0.1",
+    "function": "first_unique_index",
+    "generated_text_exact_after_runtime_marker_cleanup": "```python\ndef first_unique_index(text):\n    char_count = {}\n    for char in text:\n        char_count[char] = char_count.get(char, 0) + 1\n    \n    for i, char in enumerate(text):\n        if char_count[char] == 1:\n            return i\n    \n    return -1\n```",
+    "gpu": {
+      "baseline": {
+        "name": "NVIDIA GeForce RTX 5070 Ti Laptop GPU",
+        "total_memory_mib": 12227,
+        "used_memory_mib": 10412,
+        "utilization_percent": 91
+      },
+      "incremental_peak_memory_mib": 0,
+      "peak_used_memory_mib": 10412,
+      "peak_utilization_percent": 91,
+      "sample_count": 2
+    },
+    "http_status": 200,
+    "launch_index": 11,
+    "llama_metrics": {
+      "decode_eval_ms": 456.618,
+      "decode_runs": 68,
+      "decode_tokens_per_second": 146.73096548975292,
+      "load_ms": null,
+      "prompt_eval_ms": 17.807,
+      "prompt_tokens": 1,
+      "prompt_tokens_per_second": 56.15769079575448,
+      "resident_estimate_method": "direct streamed request against already-resident server",
+      "resident_inference_ms_estimate": 474.425,
+      "resident_ttft_ms_estimate": 69.92799999716226,
+      "server_reported_stop": true,
+      "server_reported_stop_type": "eos",
+      "total_ms": 474.425
+    },
+    "mode": "resident_server",
+    "passed": true,
+    "process_cache_class": "resident_server_request",
+    "prompt": "Define exactly one Python function `def first_unique_index(text):`. Return the zero-based index of the first character that occurs exactly once in text, or -1 when there is no such character.\n\nConstraints:\n- Return only Python source code, with no Markdown fences or explanation.\n- Define exactly the requested one top-level function and no other functions.\n- Do not import modules, read input, print, access files, or use global state.\n- The implementation must be deterministic.",
+    "raw_evidence": {
+      "request_bytes": 954,
+      "request_path": "runs/011_r02_first_unique_character/request.json",
+      "request_sha256": "a8621c48d79310941ede4cf0f403803fd0409e799681fb04be8e9b580df92dfe",
+      "response_bytes": 10832,
+      "response_path": "runs/011_r02_first_unique_character/response.sse",
+      "response_sha256": "d4801366d81e588adf8401c8ef4fdcbf861afca9cbffb3f38c8e9c4c3a7c8c36",
+      "source_bytes": 252,
+      "source_path": "runs/011_r02_first_unique_character/generated.py",
+      "source_sha256": "ce804e8ea67c830744da019ece7c66eab1ecff8d6af64c3a9d00bd9f9cf11626"
+    },
+    "repetition": 2,
+    "request": {
+      "cache_prompt": true,
+      "endpoint": "http://127.0.0.1:18080/completion",
+      "n_predict": 384,
+      "prompt": "<|im_start|>system\nYou are a precise coding assistant. Follow the requested Python interface exactly and return only executable source code.<|im_end|>\n<|im_start|>user\nDefine exactly one Python function `def first_unique_index(text):`. Return the zero-based index of the first character that occurs exactly once in text, or -1 when there is no such character.\n\nConstraints:\n- Return only Python source code, with no Markdown fences or explanation.\n- Define exactly the requested one top-level function and no other functions.\n- Do not import modules, read input, print, access files, or use global state.\n- The implementation must be deterministic.<|im_end|>\n<|im_start|>assistant\n",
+      "reasoning_format": "none",
+      "seed": 2026,
+      "stop": [
+        "<|im_end|>"
+      ],
+      "stream": true,
+      "temperature": 0.0,
+      "top_k": 1
+    },
+    "response_headers": {
+      "access-control-allow-origin": "",
+      "connection": "close",
+      "content-type": "text/event-stream",
+      "server": "llama.cpp",
+      "transfer-encoding": "chunked",
+      "x-accel-buffering": "no"
+    },
+    "score": {
+      "evaluation_exit_code": 0,
+      "evaluation_seconds": 0.13589419999334496,
+      "passed": true,
+      "safe_to_execute": true,
+      "tests": [
+        {
+          "actual": 0,
+          "exact_output_passed": true,
+          "exception": null,
+          "expected": 0,
+          "index": 0,
+          "input_mutation_passed": true,
+          "mutation_checks": [],
+          "passed": true
+        },
+        {
+          "actual": 2,
+          "exact_output_passed": true,
+          "exception": null,
+          "expected": 2,
+          "index": 1,
+          "input_mutation_passed": true,
+          "mutation_checks": [],
+          "passed": true
+        },
+        {
+          "actual": -1,
+          "exact_output_passed": true,
+          "exception": null,
+          "expected": -1,
+          "index": 2,
+          "input_mutation_passed": true,
+          "mutation_checks": [],
+          "passed": true
+        },
+        {
+          "actual": -1,
+          "exact_output_passed": true,
+          "exception": null,
+          "expected": -1,
+          "index": 3,
+          "input_mutation_passed": true,
+          "mutation_checks": [],
+          "passed": true
+        },
+        {
+          "actual": 7,
+          "exact_output_passed": true,
+          "exception": null,
+          "expected": 7,
+          "index": 4,
+          "input_mutation_passed": true,
+          "mutation_checks": [],
+          "passed": true
+        }
+      ],
+      "tests_passed": 5,
+      "tests_total": 5
+    },
+    "server_error": null,
+    "server_event_count": 69,
+    "task_id": "first_unique_character",
+    "time_to_first_non_whitespace_output_seconds": 0.06992799999716226,
+    "ttft_observation": {
+      "exact_token_boundary": false,
+      "includes_http_queue_and_prompt_prefill": true,
+      "includes_model_load": false,
+      "method": "timestamp of first non-whitespace content in streamed SSE event",
+      "observable": true
+    },
+    "wall_elapsed_seconds": 0.526719100002083
+  },
+  {
+    "decoding": {
+      "cache_prompt": true,
+      "seed": 2026,
+      "temperature": 0.0,
+      "top_k": 1
+    },
+    "end_to_end_with_evaluation_seconds": 1.6649471999990055,
+    "extracted_source_sha256": "20174827ea305c02aeee74632efe1e063392d6881bb7440d79c97c0f8b826ee6",
+    "format": "nhdf-hybrid-coding-benchmark-0.1",
+    "function": "shortest_grid_path",
+    "generated_text_exact_after_runtime_marker_cleanup": "```python\ndef shortest_grid_path(grid, start, goal):\n    from collections import deque\n    \n    rows, cols = len(grid), len(grid[0])\n    queue = deque([(start[0], start[1], 0)])\n    visited = set()\n    visited.add((start[0], start[1]))\n    \n    directions = [(0, 1), (1, 0), (0, -1), (-1, 0)]\n    \n    while queue:\n        row, col, steps = queue.popleft()\n        \n        if [row, col] == goal:\n            return steps\n        \n        for dr, dc in directions:\n            new_row, new_col = row + dr, col + dc\n            \n            if (0 <= new_row < rows and 0 <= new_col < cols and \n                grid[new_row][new_col] == 0 and \n                (new_row, new_col) not in visited):\n                \n                visited.add((new_row, new_col))\n                queue.append((new_row, new_col, steps + 1))\n    \n    return -1\n```",
+    "gpu": {
+      "baseline": {
+        "name": "NVIDIA GeForce RTX 5070 Ti Laptop GPU",
+        "total_memory_mib": 12227,
+        "used_memory_mib": 10412,
+        "utilization_percent": 88
+      },
+      "incremental_peak_memory_mib": 0,
+      "peak_used_memory_mib": 10412,
+      "peak_utilization_percent": 92,
+      "sample_count": 6
+    },
+    "http_status": 200,
+    "launch_index": 12,
+    "llama_metrics": {
+      "decode_eval_ms": 1505.067,
+      "decode_runs": 225,
+      "decode_tokens_per_second": 148.8305836218587,
+      "load_ms": null,
+      "prompt_eval_ms": 7.961,
+      "prompt_tokens": 1,
+      "prompt_tokens_per_second": 125.6123602562492,
+      "resident_estimate_method": "direct streamed request against already-resident server",
+      "resident_inference_ms_estimate": 1513.028,
+      "resident_ttft_ms_estimate": 23.869399999966845,
+      "server_reported_stop": true,
+      "server_reported_stop_type": "eos",
+      "total_ms": 1513.028
+    },
+    "mode": "resident_server",
+    "passed": true,
+    "process_cache_class": "resident_server_request",
+    "prompt": "Define exactly one Python function `def shortest_grid_path(grid, start, goal):`. grid is a non-empty rectangular list of lists containing 0 for open and 1 for blocked. start and goal are open [row, column] lists. Return the minimum number of orthogonal moves from start to goal, or -1 if unreachable.\n\nConstraints:\n- Return only Python source code, with no Markdown fences or explanation.\n- Define exactly the requested one top-level function and no other functions.\n- Do not import modules, read input, print, access files, or use global state.\n- The implementation must be deterministic.",
+    "raw_evidence": {
+      "request_bytes": 1063,
+      "request_path": "runs/012_r02_grid_shortest_path/request.json",
+      "request_sha256": "7abf7c738542bff7f9ff962499f97be2e98e835bb54e2a3163790c185e605cad",
+      "response_bytes": 30256,
+      "response_path": "runs/012_r02_grid_shortest_path/response.sse",
+      "response_sha256": "f044281e1ec3eabd8017d00941187e99c98c3bd3c058be60272b002409a49a61",
+      "source_bytes": 855,
+      "source_path": "runs/012_r02_grid_shortest_path/generated.py",
+      "source_sha256": "eb80802957820f93c670e50349ffa8249ba96097f859e945a57892bfec62459b"
+    },
+    "repetition": 2,
+    "request": {
+      "cache_prompt": true,
+      "endpoint": "http://127.0.0.1:18080/completion",
+      "n_predict": 384,
+      "prompt": "<|im_start|>system\nYou are a precise coding assistant. Follow the requested Python interface exactly and return only executable source code.<|im_end|>\n<|im_start|>user\nDefine exactly one Python function `def shortest_grid_path(grid, start, goal):`. grid is a non-empty rectangular list of lists containing 0 for open and 1 for blocked. start and goal are open [row, column] lists. Return the minimum number of orthogonal moves from start to goal, or -1 if unreachable.\n\nConstraints:\n- Return only Python source code, with no Markdown fences or explanation.\n- Define exactly the requested one top-level function and no other functions.\n- Do not import modules, read input, print, access files, or use global state.\n- The implementation must be deterministic.<|im_end|>\n<|im_start|>assistant\n",
+      "reasoning_format": "none",
+      "seed": 2026,
+      "stop": [
+        "<|im_end|>"
+      ],
+      "stream": true,
+      "temperature": 0.0,
+      "top_k": 1
+    },
+    "response_headers": {
+      "access-control-allow-origin": "",
+      "connection": "close",
+      "content-type": "text/event-stream",
+      "server": "llama.cpp",
+      "transfer-encoding": "chunked",
+      "x-accel-buffering": "no"
+    },
+    "score": {
+      "evaluation_exit_code": 0,
+      "evaluation_seconds": 0.13511440000729635,
+      "passed": true,
+      "safe_to_execute": true,
+      "tests": [
+        {
+          "actual": 0,
+          "exact_output_passed": true,
+          "exception": null,
+          "expected": 0,
+          "index": 0,
+          "input_mutation_passed": true,
+          "mutation_checks": [],
+          "passed": true
+        },
+        {
+          "actual": 4,
+          "exact_output_passed": true,
+          "exception": null,
+          "expected": 4,
+          "index": 1,
+          "input_mutation_passed": true,
+          "mutation_checks": [],
+          "passed": true
+        },
+        {
+          "actual": -1,
+          "exact_output_passed": true,
+          "exception": null,
+          "expected": -1,
+          "index": 2,
+          "input_mutation_passed": true,
+          "mutation_checks": [],
+          "passed": true
+        },
+        {
+          "actual": 5,
+          "exact_output_passed": true,
+          "exception": null,
+          "expected": 5,
+          "index": 3,
+          "input_mutation_passed": true,
+          "mutation_checks": [],
+          "passed": true
+        }
+      ],
+      "tests_passed": 4,
+      "tests_total": 4
+    },
+    "server_error": null,
+    "server_event_count": 226,
+    "task_id": "grid_shortest_path",
+    "time_to_first_non_whitespace_output_seconds": 0.023869399999966845,
+    "ttft_observation": {
+      "exact_token_boundary": false,
+      "includes_http_queue_and_prompt_prefill": true,
+      "includes_model_load": false,
+      "method": "timestamp of first non-whitespace content in streamed SSE event",
+      "observable": true
+    },
+    "wall_elapsed_seconds": 1.5298327999917092
+  }
+]

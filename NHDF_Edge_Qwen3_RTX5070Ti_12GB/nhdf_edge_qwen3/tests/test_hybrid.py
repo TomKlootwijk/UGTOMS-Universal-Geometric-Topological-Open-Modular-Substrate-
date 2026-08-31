@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -51,6 +52,29 @@ def test_hybrid_create_is_zero_copy_and_verifies(tmp_path) -> None:
     assert not result["deployment_loadable"]
 
 
+def test_hybrid_create_seals_optional_server_entrypoint(tmp_path) -> None:
+    root, model = _artifact(tmp_path)
+    components = tmp_path / "components"
+    server = components / "llama-server.exe"
+    server.write_bytes(b"server")
+
+    hybrid.create_hybrid_artifact(
+        root,
+        model=model,
+        runtime=components / "llama-cli.exe",
+        benchmark_runtime=components / "llama-bench.exe",
+        server_runtime=server,
+        total_parameters=100,
+        target_vram_mib=12_227,
+    )
+    manifest = hybrid.load_hybrid_manifest(root)
+
+    assert manifest["runtime"]["server_entrypoint"].endswith("llama-server.exe")
+    sealed = {Path(record["path"]).name for record in manifest["runtime"]["files"]}
+    assert "llama-server.exe" in sealed
+    assert hybrid.verify_hybrid_artifact(root)["ok"]
+
+
 def test_hybrid_payload_tampering_fails_integrity(tmp_path) -> None:
     root, model = _artifact(tmp_path)
     model.write_bytes(model.read_bytes() + b"tamper")
@@ -91,6 +115,18 @@ def test_hybrid_validation_is_evidence_gated_and_fail_closed(tmp_path) -> None:
                 "artifact_format": hybrid.HYBRID_FORMAT,
                 "passed": True,
                 "payload": hybrid.load_hybrid_manifest(root)["payload"],
+                "runtime_revision": hybrid.load_hybrid_manifest(root)["runtime"][
+                    "revision"
+                ],
+                "runtime_build_number": hybrid.load_hybrid_manifest(root)["runtime"][
+                    "build_number"
+                ],
+                "runtime_argument_profile": hybrid.load_hybrid_manifest(root)[
+                    "runtime"
+                ]["argument_profile"],
+                "execution_profile_sha256": hybrid._execution_profile_sha256(
+                    hybrid.load_hybrid_manifest(root)
+                ),
                 "aggregate": {
                     "functional_prompts_passed": 4,
                     "functional_prompts_total": 4,
@@ -113,6 +149,13 @@ def test_hybrid_validation_is_evidence_gated_and_fail_closed(tmp_path) -> None:
     assert result["ok"]
     assert result["deployment_loadable"]
 
+    stale = json.loads(passed.read_text(encoding="utf-8"))
+    stale["runtime_revision"] = "different-runtime"
+    stale_path = tmp_path / "stale-runtime.json"
+    stale_path.write_text(json.dumps(stale), encoding="utf-8")
+    with pytest.raises(ValueError, match="runtime_revision"):
+        hybrid.set_hybrid_validation(root, "VALIDATED", evidence_path=stale_path)
+
 
 def test_hybrid_run_uses_fixed_profile(monkeypatch, tmp_path) -> None:
     root, _ = _artifact(tmp_path)
@@ -125,6 +168,10 @@ def test_hybrid_run_uses_fixed_profile(monkeypatch, tmp_path) -> None:
                 "artifact_format": hybrid.HYBRID_FORMAT,
                 "passed": True,
                 "payload": manifest["payload"],
+                "runtime_revision": manifest["runtime"]["revision"],
+                "runtime_build_number": manifest["runtime"]["build_number"],
+                "runtime_argument_profile": manifest["runtime"]["argument_profile"],
+                "execution_profile_sha256": hybrid._execution_profile_sha256(manifest),
                 "aggregate": {
                     "functional_prompts_passed": 4,
                     "functional_prompts_total": 4,
@@ -177,8 +224,71 @@ def test_hybrid_run_uses_fixed_profile(monkeypatch, tmp_path) -> None:
     )
 
     assert result["passed"]
+    assert result["resource_monitoring_enabled"] is False
+    assert result["samples"] == 0
     command = observed["command"]
     assert command[command.index("-ngl") + 1] == "999"
     assert command[command.index("-ctk") + 1] == "q8_0"
     assert command[command.index("-ctv") + 1] == "q8_0"
     assert "--temp" in command and command[command.index("--temp") + 1] == "0"
+
+
+def test_current_runtime_requests_trace_logs_only_for_monitored_evidence(
+    tmp_path: Path, monkeypatch
+):
+    root, _ = _artifact(tmp_path)
+    manifest = hybrid.load_hybrid_manifest(root)
+    manifest["runtime"]["argument_profile"] = "current-2026"
+    hybrid._write_manifest(root, manifest)
+    evidence = root / "evidence" / "gate.json"
+    evidence.parent.mkdir(parents=True)
+    evidence.write_text(
+        json.dumps(
+            {
+                "experiment": "nhdf_hybrid_full_model_functional_gate",
+                "artifact_format": hybrid.HYBRID_FORMAT,
+                "passed": True,
+                "payload": manifest["payload"],
+                "runtime_revision": manifest["runtime"]["revision"],
+                "runtime_build_number": manifest["runtime"]["build_number"],
+                "runtime_argument_profile": manifest["runtime"]["argument_profile"],
+                "execution_profile_sha256": hybrid._execution_profile_sha256(manifest),
+                "aggregate": {
+                    "functional_prompts_passed": 4,
+                    "functional_prompts_total": 4,
+                    "allocated_8k_passed": True,
+                    "full_offload_passed": True,
+                    "resource_gate_passed": True,
+                    "throughput_gate_passed": True,
+                },
+                "benchmark": {
+                    "generation": {"average_tokens_per_second": 101.7}
+                },
+                "thresholds": {"minimum_generation_tokens_per_second": 80.0},
+            }
+        ),
+        encoding="utf-8",
+    )
+    hybrid.set_hybrid_validation(root, "VALIDATED", evidence_path=evidence)
+    monkeypatch.setattr(hybrid, "_gpu_sample", lambda: (12_227, 287, 0))
+    monkeypatch.setattr(
+        hybrid, "_gpu_name", lambda: "NVIDIA GeForce RTX 5070 Ti Laptop GPU"
+    )
+    commands = []
+
+    def fake_run(command, **kwargs):
+        commands.append(command)
+        return SimpleNamespace(returncode=0, stdout="OK\n", stderr="")
+
+    monkeypatch.setattr(hybrid.subprocess, "run", fake_run)
+    for monitored in (False, True):
+        hybrid.run_hybrid_prompt(
+            root,
+            prompt="Reply with OK.",
+            acceptance_rule={"kind": "exact", "value": "OK"},
+            verify_payload_hash=False,
+            monitor_resources=monitored,
+        )
+
+    assert "-lv" not in commands[0]
+    assert commands[1][commands[1].index("-lv") + 1] == "4"

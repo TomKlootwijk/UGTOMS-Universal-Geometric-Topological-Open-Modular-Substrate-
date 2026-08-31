@@ -83,6 +83,12 @@ def _canonical_bytes(value: object) -> bytes:
     return json.dumps(value, sort_keys=True, separators=(",", ":")).encode("utf-8")
 
 
+def _execution_profile_sha256(manifest: dict[str, Any]) -> str:
+    """Bind gate evidence to the exact execution policy it exercised."""
+
+    return hashlib.sha256(_canonical_bytes(manifest["execution_profile"])).hexdigest()
+
+
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
@@ -135,11 +141,15 @@ def create_hybrid_artifact(
     model: str | Path,
     runtime: str | Path,
     benchmark_runtime: str | Path | None = None,
+    server_runtime: str | Path | None = None,
     specification: str | Path | None = None,
     source_record: str | Path | None = None,
     assurance_evidence: Iterable[str | Path] = (),
     model_id: str = "Qwen/Qwen3-30B-A3B-Instruct-2507",
     source_revision: str = "0d7cf23991f47feeb3a57ecb4c9cee8ea4a17bfe",
+    runtime_revision: str = "b6014",
+    runtime_build_number: int = 6014,
+    runtime_argument_profile: str = "b6014",
     total_parameters: int = 30_532_122_624,
     target_gpu: str = "NVIDIA GeForce RTX 5070 Ti Laptop GPU",
     target_vram_mib: int = 12_227,
@@ -151,10 +161,15 @@ def create_hybrid_artifact(
     model_path = Path(model).resolve()
     runtime_path = Path(runtime).resolve()
     benchmark_path = Path(benchmark_runtime).resolve() if benchmark_runtime else None
+    server_path = Path(server_runtime).resolve() if server_runtime else None
     specification_path = Path(specification).resolve() if specification else None
     source_record_path = Path(source_record).resolve() if source_record else None
     required = [model_path, runtime_path]
-    required.extend(path for path in (benchmark_path, specification_path, source_record_path) if path)
+    required.extend(
+        path
+        for path in (benchmark_path, server_path, specification_path, source_record_path)
+        if path
+    )
     missing = [str(path) for path in required if not path.is_file()]
     if missing:
         raise FileNotFoundError(f"hybrid component(s) not found: {missing}")
@@ -166,6 +181,8 @@ def create_hybrid_artifact(
     runtime_files = [runtime_path]
     if benchmark_path is not None and benchmark_path != runtime_path:
         runtime_files.append(benchmark_path)
+    if server_path is not None and server_path not in runtime_files:
+        runtime_files.append(server_path)
     for dll in sorted(runtime_path.parent.glob("*.dll")):
         if dll not in runtime_files:
             runtime_files.append(dll)
@@ -208,11 +225,16 @@ def create_hybrid_artifact(
         "payload": payload,
         "runtime": {
             "implementation": "llama.cpp",
-            "revision": "b6014",
+            "revision": runtime_revision,
+            "build_number": runtime_build_number,
+            "argument_profile": runtime_argument_profile,
             "files": [_sealed_file(root, path) for path in runtime_files],
             "entrypoint": _relative_reference(root, runtime_path),
             "benchmark_entrypoint": (
                 _relative_reference(root, benchmark_path) if benchmark_path else None
+            ),
+            "server_entrypoint": (
+                _relative_reference(root, server_path) if server_path else None
             ),
         },
         "substrate": {
@@ -233,6 +255,14 @@ def create_hybrid_artifact(
         "execution_profile": {
             "model_family": "qwen3moe",
             "gpu_layers": 999,
+            "split_mode": "none",
+            "threads": 4,
+            "threads_batch": 4,
+            "batch": 2048,
+            "ubatch": 512,
+            "priority": 2,
+            "priority_batch": 2,
+            "poll": 50,
             "expected_offloaded_layers": [49, 49],
             "maximum_context_tokens": maximum_context_tokens,
             "kv_cache_k": "q8_0",
@@ -544,6 +574,7 @@ def run_hybrid_prompt(
     acceptance_rule: dict[str, Any] | None = None,
     allow_unvalidated: bool = False,
     verify_payload_hash: bool = True,
+    monitor_resources: bool = False,
 ) -> dict[str, Any]:
     root = Path(artifact_dir).resolve()
     verification = verify_hybrid_artifact(
@@ -556,12 +587,29 @@ def run_hybrid_prompt(
     preflight = _preflight(manifest, context=context)
     runtime = _resolve_reference(root, manifest["runtime"]["entrypoint"])
     model = _resolve_reference(root, manifest["payload"]["path"])
+    runtime_profile = manifest["runtime"].get("argument_profile", "b6014")
+    if runtime_profile == "b6014":
+        flash_arguments = ["-fa"]
+        single_turn_arguments = ["--no-conversation"]
+        evidence_log_arguments: list[str] = []
+    elif runtime_profile == "current-2026":
+        flash_arguments = ["-fa", "on"]
+        single_turn_arguments = ["--no-conversation"]
+        # Current llama.cpp moved tensor-placement details from INFO to TRACE.
+        # Request TRACE only for monitored evidence runs so the validation gate
+        # can prove the declared 49/49 GPU offload without adding noise to normal
+        # inference.
+        evidence_log_arguments = ["-lv", "4"] if monitor_resources else []
+    else:
+        raise ValueError(f"unsupported llama.cpp argument profile: {runtime_profile!r}")
     command = [
         str(runtime),
         "-m",
         str(model),
         "-ngl",
         str(manifest["execution_profile"]["gpu_layers"]),
+        "-sm",
+        str(manifest["execution_profile"].get("split_mode", "none")),
         "-c",
         str(context),
         "-n",
@@ -570,7 +618,21 @@ def run_hybrid_prompt(
         manifest["execution_profile"]["kv_cache_k"],
         "-ctv",
         manifest["execution_profile"]["kv_cache_v"],
-        "-fa",
+        *flash_arguments,
+        "-t",
+        str(manifest["execution_profile"].get("threads", 4)),
+        "-tb",
+        str(manifest["execution_profile"].get("threads_batch", 4)),
+        "-b",
+        str(manifest["execution_profile"].get("batch", 2048)),
+        "-ub",
+        str(manifest["execution_profile"].get("ubatch", 512)),
+        "--prio",
+        str(manifest["execution_profile"].get("priority", 2)),
+        "--prio-batch",
+        str(manifest["execution_profile"].get("priority_batch", 2)),
+        "--poll",
+        str(manifest["execution_profile"].get("poll", 50)),
         "--temp",
         "0",
         "--top-k",
@@ -579,16 +641,22 @@ def run_hybrid_prompt(
         str(seed),
         "--no-display-prompt",
         "--simple-io",
-        "--no-conversation",
+        *single_turn_arguments,
+        *evidence_log_arguments,
         "--no-warmup",
         "-p",
         _chatml(prompt),
     ]
     samples: list[dict[str, float | int]] = []
     stop = threading.Event()
-    sampler = threading.Thread(target=_sample_until, args=(stop, samples), daemon=True)
+    sampler = (
+        threading.Thread(target=_sample_until, args=(stop, samples), daemon=True)
+        if monitor_resources
+        else None
+    )
     start = time.perf_counter()
-    sampler.start()
+    if sampler is not None:
+        sampler.start()
     process = subprocess.run(
         command,
         capture_output=True,
@@ -599,8 +667,9 @@ def run_hybrid_prompt(
         creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
     )
     elapsed = time.perf_counter() - start
-    stop.set()
-    sampler.join(timeout=2)
+    if sampler is not None:
+        stop.set()
+        sampler.join(timeout=2)
     generated = _clean_generation(process.stdout)
     peak = max((int(sample["used_memory_mib"]) for sample in samples), default=None)
     peak_utilization = max(
@@ -624,6 +693,7 @@ def run_hybrid_prompt(
         "peak_gpu_memory_mib": peak,
         "incremental_peak_gpu_memory_mib": peak - baseline if peak is not None else None,
         "peak_gpu_utilization_percent": peak_utilization,
+        "resource_monitoring_enabled": monitor_resources,
         "samples": len(samples),
         "llama_metrics": {
             "load_ms": _metric(r"load time\s*=\s*([0-9.]+) ms", process.stderr),
@@ -683,7 +753,19 @@ def _run_benchmark(
             "-fa",
             "1",
             "-ngl",
-            "999",
+            str(manifest["execution_profile"]["gpu_layers"]),
+            "-sm",
+            str(manifest["execution_profile"].get("split_mode", "none")),
+            "-b",
+            str(manifest["execution_profile"].get("batch", 2048)),
+            "-ub",
+            str(manifest["execution_profile"].get("ubatch", 512)),
+            "-t",
+            str(manifest["execution_profile"].get("threads", 4)),
+            "--prio",
+            str(manifest["execution_profile"].get("priority", 2)),
+            "--poll",
+            str(manifest["execution_profile"].get("poll", 50)),
             "-o",
             "json",
         ],
@@ -744,6 +826,14 @@ def set_hybrid_validation(
             "artifact_format": evidence.get("artifact_format") == HYBRID_FORMAT,
             "payload": evidence.get("payload", {}).get("sha256")
             == manifest["payload"]["sha256"],
+            "runtime_revision": evidence.get("runtime_revision")
+            == manifest["runtime"]["revision"],
+            "runtime_build_number": evidence.get("runtime_build_number")
+            == manifest["runtime"].get("build_number"),
+            "runtime_argument_profile": evidence.get("runtime_argument_profile")
+            == manifest["runtime"].get("argument_profile"),
+            "execution_profile": evidence.get("execution_profile_sha256")
+            == _execution_profile_sha256(manifest),
             "functional_prompts": int(aggregate.get("functional_prompts_passed", -1))
             == int(aggregate.get("functional_prompts_total", -2))
             and int(aggregate.get("functional_prompts_total", 0)) > 0,
@@ -837,6 +927,7 @@ def gate_hybrid_artifact(
             acceptance_rule=prompt["accept"],
             allow_unvalidated=True,
             verify_payload_hash=False,
+            monitor_resources=True,
         )
         result["id"] = prompt["id"]
         results.append(result)
@@ -849,6 +940,7 @@ def gate_hybrid_artifact(
         acceptance_rule=FUNCTIONAL_PROMPTS[0]["accept"],
         allow_unvalidated=True,
         verify_payload_hash=False,
+        monitor_resources=True,
     )
     residency["id"] = "allocated_8k_exact_ok"
     benchmark = _run_benchmark(
@@ -896,6 +988,9 @@ def gate_hybrid_artifact(
         "payload": manifest["payload"],
         "codec": manifest["weight_codec"],
         "runtime_revision": manifest["runtime"]["revision"],
+        "runtime_build_number": manifest["runtime"].get("build_number"),
+        "runtime_argument_profile": manifest["runtime"].get("argument_profile"),
+        "execution_profile_sha256": _execution_profile_sha256(manifest),
         "functional_results": results,
         "allocated_8k_residency_result": residency,
         "benchmark": benchmark,

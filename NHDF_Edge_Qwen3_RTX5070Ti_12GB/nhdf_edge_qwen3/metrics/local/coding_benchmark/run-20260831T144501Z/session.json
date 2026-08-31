@@ -1,0 +1,293 @@
+{
+  "artifact": "C:\\UGTOMS(Universal Geometric Topological Open Modular Substrate)\\NHDF_Edge_Qwen3_RTX5070Ti_12GB\\nhdf_edge_qwen3\\packs\\qwen3-30b-a3b-nhdf-v03-iq2m",
+  "artifact_verification": {
+    "artifact": "C:\\UGTOMS(Universal Geometric Topological Open Modular Substrate)\\NHDF_Edge_Qwen3_RTX5070Ti_12GB\\nhdf_edge_qwen3\\packs\\qwen3-30b-a3b-nhdf-v03-iq2m",
+    "artifact_kind": "external-codec-reference",
+    "checks": [
+      {
+        "component": "model payload",
+        "ok": true,
+        "path": "C:\\UGTOMS(Universal Geometric Topological Open Modular Substrate)\\NHDF_Edge_Qwen3_RTX5070Ti_12GB\\nhdf_edge_qwen3\\models\\Qwen3-30B-A3B-Instruct-2507-IQ2_M\\Qwen_Qwen3-30B-A3B-Instruct-2507-IQ2_M.gguf"
+      },
+      {
+        "component": "event_chain",
+        "events": 3,
+        "ok": true
+      },
+      {
+        "component": "runtime:0",
+        "ok": true,
+        "path": "C:\\UGTOMS(Universal Geometric Topological Open Modular Substrate)\\NHDF_Edge_Qwen3_RTX5070Ti_12GB\\nhdf_edge_qwen3\\tools\\llama.cpp-f8dbcd61\\bin\\llama-completion.exe"
+      },
+      {
+        "component": "runtime:1",
+        "ok": true,
+        "path": "C:\\UGTOMS(Universal Geometric Topological Open Modular Substrate)\\NHDF_Edge_Qwen3_RTX5070Ti_12GB\\nhdf_edge_qwen3\\tools\\llama.cpp-f8dbcd61\\bin\\llama-bench.exe"
+      },
+      {
+        "component": "runtime:2",
+        "ok": true,
+        "path": "C:\\UGTOMS(Universal Geometric Topological Open Modular Substrate)\\NHDF_Edge_Qwen3_RTX5070Ti_12GB\\nhdf_edge_qwen3\\tools\\llama.cpp-f8dbcd61\\bin\\llama-server.exe"
+      },
+      {
+        "component": "runtime:3",
+        "ok": true,
+        "path": "C:\\UGTOMS(Universal Geometric Topological Open Modular Substrate)\\NHDF_Edge_Qwen3_RTX5070Ti_12GB\\nhdf_edge_qwen3\\tools\\llama.cpp-f8dbcd61\\bin\\ggml-base.dll"
+      },
+      {
+        "component": "runtime:4",
+        "ok": true,
+        "path": "C:\\UGTOMS(Universal Geometric Topological Open Modular Substrate)\\NHDF_Edge_Qwen3_RTX5070Ti_12GB\\nhdf_edge_qwen3\\tools\\llama.cpp-f8dbcd61\\bin\\ggml-cpu.dll"
+      },
+      {
+        "component": "runtime:5",
+        "ok": true,
+        "path": "C:\\UGTOMS(Universal Geometric Topological Open Modular Substrate)\\NHDF_Edge_Qwen3_RTX5070Ti_12GB\\nhdf_edge_qwen3\\tools\\llama.cpp-f8dbcd61\\bin\\ggml-cuda.dll"
+      },
+      {
+        "component": "runtime:6",
+        "ok": true,
+        "path": "C:\\UGTOMS(Universal Geometric Topological Open Modular Substrate)\\NHDF_Edge_Qwen3_RTX5070Ti_12GB\\nhdf_edge_qwen3\\tools\\llama.cpp-f8dbcd61\\bin\\ggml.dll"
+      },
+      {
+        "component": "runtime:7",
+        "ok": true,
+        "path": "C:\\UGTOMS(Universal Geometric Topological Open Modular Substrate)\\NHDF_Edge_Qwen3_RTX5070Ti_12GB\\nhdf_edge_qwen3\\tools\\llama.cpp-f8dbcd61\\bin\\llama-bench-impl.dll"
+      },
+      {
+        "component": "runtime:8",
+        "ok": true,
+        "path": "C:\\UGTOMS(Universal Geometric Topological Open Modular Substrate)\\NHDF_Edge_Qwen3_RTX5070Ti_12GB\\nhdf_edge_qwen3\\tools\\llama.cpp-f8dbcd61\\bin\\llama-cli-impl.dll"
+      },
+      {
+        "component": "runtime:9",
+        "ok": true,
+        "path": "C:\\UGTOMS(Universal Geometric Topological Open Modular Substrate)\\NHDF_Edge_Qwen3_RTX5070Ti_12GB\\nhdf_edge_qwen3\\tools\\llama.cpp-f8dbcd61\\bin\\llama-common.dll"
+      },
+      {
+        "component": "runtime:10",
+        "ok": true,
+        "path": "C:\\UGTOMS(Universal Geometric Topological Open Modular Substrate)\\NHDF_Edge_Qwen3_RTX5070Ti_12GB\\nhdf_edge_qwen3\\tools\\llama.cpp-f8dbcd61\\bin\\llama-completion-impl.dll"
+      },
+      {
+        "component": "runtime:11",
+        "ok": true,
+        "path": "C:\\UGTOMS(Universal Geometric Topological Open Modular Substrate)\\NHDF_Edge_Qwen3_RTX5070Ti_12GB\\nhdf_edge_qwen3\\tools\\llama.cpp-f8dbcd61\\bin\\llama-server-impl.dll"
+      },
+      {
+        "component": "runtime:12",
+        "ok": true,
+        "path": "C:\\UGTOMS(Universal Geometric Topological Open Modular Substrate)\\NHDF_Edge_Qwen3_RTX5070Ti_12GB\\nhdf_edge_qwen3\\tools\\llama.cpp-f8dbcd61\\bin\\llama.dll"
+      },
+      {
+        "component": "runtime:13",
+        "ok": true,
+        "path": "C:\\UGTOMS(Universal Geometric Topological Open Modular Substrate)\\NHDF_Edge_Qwen3_RTX5070Ti_12GB\\nhdf_edge_qwen3\\tools\\llama.cpp-f8dbcd61\\bin\\mtmd.dll"
+      },
+      {
+        "component": "specification",
+        "ok": true,
+        "path": "C:\\UGTOMS(Universal Geometric Topological Open Modular Substrate)\\NHDF_Edge_Qwen3_RTX5070Ti_12GB\\nhdf_edge_qwen3\\sources\\NHDF_Formal_Specification_v0.3_General_Purpose_CCD_Tom_Klootwijk.pdf"
+      },
+      {
+        "component": "source_record",
+        "ok": true,
+        "path": "C:\\UGTOMS(Universal Geometric Topological Open Modular Substrate)\\NHDF_Edge_Qwen3_RTX5070Ti_12GB\\nhdf_edge_qwen3\\models\\Qwen3-30B-A3B-Instruct-2507-IQ2_M\\CONTROL_SOURCE.json"
+      },
+      {
+        "component": "assurance_evidence:0",
+        "ok": true,
+        "path": "C:\\UGTOMS(Universal Geometric Topological Open Modular Substrate)\\NHDF_Edge_Qwen3_RTX5070Ti_12GB\\nhdf_edge_qwen3\\metrics\\local\\gguf_backend_ops.json"
+      },
+      {
+        "component": "assurance_evidence:1",
+        "ok": true,
+        "path": "C:\\UGTOMS(Universal Geometric Topological Open Modular Substrate)\\NHDF_Edge_Qwen3_RTX5070Ti_12GB\\nhdf_edge_qwen3\\tools\\llama.cpp-f8dbcd61\\SOURCE.json"
+      },
+      {
+        "component": "assurance_evidence:2",
+        "ok": true,
+        "path": "C:\\UGTOMS(Universal Geometric Topological Open Modular Substrate)\\NHDF_Edge_Qwen3_RTX5070Ti_12GB\\nhdf_edge_qwen3\\tools\\llama.cpp-f8dbcd61\\LICENSE"
+      },
+      {
+        "component": "assurance_evidence:3",
+        "ok": true,
+        "path": "C:\\UGTOMS(Universal Geometric Topological Open Modular Substrate)\\NHDF_Edge_Qwen3_RTX5070Ti_12GB\\nhdf_edge_qwen3\\metrics\\local\\runtime_optimization_20260831.json"
+      },
+      {
+        "component": "assurance_evidence:4",
+        "ok": true,
+        "path": "C:\\UGTOMS(Universal Geometric Topological Open Modular Substrate)\\NHDF_Edge_Qwen3_RTX5070Ti_12GB\\nhdf_edge_qwen3\\metrics\\local\\coding_benchmark\\run-20260831T134814Z\\evidence.json"
+      },
+      {
+        "component": "validation_evidence",
+        "ok": true,
+        "path": "C:\\UGTOMS(Universal Geometric Topological Open Modular Substrate)\\NHDF_Edge_Qwen3_RTX5070Ti_12GB\\nhdf_edge_qwen3\\packs\\qwen3-30b-a3b-nhdf-v03-iq2m\\evidence\\functional_gate.json"
+      }
+    ],
+    "codec": {
+      "attribution": "The low-bit tensor encoding is GGUF/IQ2_M. NHDF does not claim authorship of this codec.",
+      "container": "GGUF",
+      "nhdf_native_codec": false,
+      "owner": "ggml/Bartowski",
+      "profile": "IQ2_M mixed-bit"
+    },
+    "deployment_loadable": true,
+    "failures": [],
+    "format": "nhdf-edge-hybrid-0.1",
+    "ok": true,
+    "payload_hash_checked": false,
+    "validation_status": "VALIDATED"
+  },
+  "cache_precondition_note": "build 10720/f8dbcd61; sealed serve path; exact absolute model binding; t4, split none, priority 2; 8K q8 KV; cached first pass and uncached repair",
+  "cache_semantics": "The endpoint is already resident, so streamed TTFT is directly measured warm. Cold model-load latency exists only when separately supplied as server load evidence.",
+  "completed_launches": 12,
+  "completed_repairs": 2,
+  "context_tokens": 2048,
+  "environment": {
+    "executable": "C:\\Users\\Tom\\miniconda3\\python.exe",
+    "platform": "Windows-11-10.0.26200-SP0",
+    "python": "3.13.11 | packaged by Anaconda, Inc. | (main, Dec 10 2025, 21:21:58) [MSC v.1929 64 bit (AMD64)]"
+  },
+  "finished_at_utc": "2026-08-31T14:45:16.836346Z",
+  "first_run_cache_state": "unknown",
+  "format": "nhdf-hybrid-coding-benchmark-0.1",
+  "manifest_sha256": "7848b05481d0197e7abe0f7f1e1f023a976a307009490cb106968e89289dc594",
+  "maximum_new_tokens": 384,
+  "measurement_mode": "resident_server",
+  "model": "C:\\UGTOMS(Universal Geometric Topological Open Modular Substrate)\\NHDF_Edge_Qwen3_RTX5070Ti_12GB\\nhdf_edge_qwen3\\models\\Qwen3-30B-A3B-Instruct-2507-IQ2_M\\Qwen_Qwen3-30B-A3B-Instruct-2507-IQ2_M.gguf",
+  "model_bytes": 9870270464,
+  "preflight": {
+    "binding": {
+      "model_path": "C:\\UGTOMS(Universal Geometric Topological Open Modular Substrate)\\NHDF_Edge_Qwen3_RTX5070Ti_12GB\\nhdf_edge_qwen3\\models\\Qwen3-30B-A3B-Instruct-2507-IQ2_M\\Qwen_Qwen3-30B-A3B-Instruct-2507-IQ2_M.gguf",
+      "model_sha256": "f2dc78edd3ec0171904f1945d8c05a948131b1103172b1710b763db2eb65f52a",
+      "runtime_build_info": "b10720-f8dbcd61",
+      "sampling": {
+        "seed": 2026,
+        "temperature": 0.0,
+        "top_k": 1
+      },
+      "server_url": "http://127.0.0.1:18080",
+      "slots": 1
+    },
+    "gpu": {
+      "name": "NVIDIA GeForce RTX 5070 Ti Laptop GPU",
+      "total_memory_mib": 12227,
+      "used_memory_mib": 10360,
+      "utilization_percent": 0
+    },
+    "health": {
+      "status": "ok"
+    },
+    "props": {
+      "bos_token": "<|endoftext|>",
+      "build_info": "b10720-f8dbcd61",
+      "chat_template": "{%- if tools %}\n    {{- '<|im_start|>system\\n' }}\n    {%- if messages[0].role == 'system' %}\n        {{- messages[0].content + '\\n\\n' }}\n    {%- endif %}\n    {{- \"# Tools\\n\\nYou may call one or more functions to assist with the user query.\\n\\nYou are provided with function signatures within <tools></tools> XML tags:\\n<tools>\" }}\n    {%- for tool in tools %}\n        {{- \"\\n\" }}\n        {{- tool | tojson }}\n    {%- endfor %}\n    {{- \"\\n</tools>\\n\\nFor each function call, return a json object with function name and arguments within <tool_call></tool_call> XML tags:\\n<tool_call>\\n{\\\"name\\\": <function-name>, \\\"arguments\\\": <args-json-object>}\\n</tool_call><|im_end|>\\n\" }}\n{%- else %}\n    {%- if messages[0].role == 'system' %}\n        {{- '<|im_start|>system\\n' + messages[0].content + '<|im_end|>\\n' }}\n    {%- endif %}\n{%- endif %}\n{%- set ns = namespace(multi_step_tool=true, last_query_index=messages|length - 1) %}\n{%- for message in messages[::-1] %}\n    {%- set index = (messages|length - 1) - loop.index0 %}\n    {%- if ns.multi_step_tool and message.role == \"user\" and message.content is string and not(message.content.startswith('<tool_response>') and message.content.endswith('</tool_response>')) %}\n        {%- set ns.multi_step_tool = false %}\n        {%- set ns.last_query_index = index %}\n    {%- endif %}\n{%- endfor %}\n{%- for message in messages %}\n    {%- if message.content is string %}\n        {%- set content = message.content %}\n    {%- else %}\n        {%- set content = '' %}\n    {%- endif %}\n    {%- if (message.role == \"user\") or (message.role == \"system\" and not loop.first) %}\n        {{- '<|im_start|>' + message.role + '\\n' + content + '<|im_end|>' + '\\n' }}\n    {%- elif message.role == \"assistant\" %}\n        {%- set reasoning_content = '' %}\n        {%- if message.reasoning_content is string %}\n            {%- set reasoning_content = message.reasoning_content %}\n        {%- else %}\n            {%- if '</think>' in content %}\n                {%- set reasoning_content = content.split('</think>')[0].rstrip('\\n').split('<think>')[-1].lstrip('\\n') %}\n                {%- set content = content.split('</think>')[-1].lstrip('\\n') %}\n            {%- endif %}\n        {%- endif %}\n        {%- if loop.index0 > ns.last_query_index %}\n            {%- if loop.last or (not loop.last and reasoning_content) %}\n                {{- '<|im_start|>' + message.role + '\\n<think>\\n' + reasoning_content.strip('\\n') + '\\n</think>\\n\\n' + content.lstrip('\\n') }}\n            {%- else %}\n                {{- '<|im_start|>' + message.role + '\\n' + content }}\n            {%- endif %}\n        {%- else %}\n            {{- '<|im_start|>' + message.role + '\\n' + content }}\n        {%- endif %}\n        {%- if message.tool_calls %}\n            {%- for tool_call in message.tool_calls %}\n                {%- if (loop.first and content) or (not loop.first) %}\n                    {{- '\\n' }}\n                {%- endif %}\n                {%- if tool_call.function %}\n                    {%- set tool_call = tool_call.function %}\n                {%- endif %}\n                {{- '<tool_call>\\n{\"name\": \"' }}\n                {{- tool_call.name }}\n                {{- '\", \"arguments\": ' }}\n                {%- if tool_call.arguments is string %}\n                    {{- tool_call.arguments }}\n                {%- else %}\n                    {{- tool_call.arguments | tojson }}\n                {%- endif %}\n                {{- '}\\n</tool_call>' }}\n            {%- endfor %}\n        {%- endif %}\n        {{- '<|im_end|>\\n' }}\n    {%- elif message.role == \"tool\" %}\n        {%- if loop.first or (messages[loop.index0 - 1].role != \"tool\") %}\n            {{- '<|im_start|>user' }}\n        {%- endif %}\n        {{- '\\n<tool_response>\\n' }}\n        {{- content }}\n        {{- '\\n</tool_response>' }}\n        {%- if loop.last or (messages[loop.index0 + 1].role != \"tool\") %}\n            {{- '<|im_end|>\\n' }}\n        {%- endif %}\n    {%- endif %}\n{%- endfor %}\n{%- if add_generation_prompt %}\n    {{- '<|im_start|>assistant\\n' }}\n{%- endif %}",
+      "chat_template_caps": {
+        "supports_object_arguments": true,
+        "supports_parallel_tool_calls": true,
+        "supports_preserve_reasoning": false,
+        "supports_reasoning_effort": false,
+        "supports_string_content": true,
+        "supports_system_role": true,
+        "supports_tool_calls": true,
+        "supports_tools": true,
+        "supports_typed_content": false
+      },
+      "cors_proxy_enabled": false,
+      "default_generation_settings": {
+        "n_ctx": 8192,
+        "params": {
+          "adaptive_decay": 0.8999999761581421,
+          "adaptive_target": -1.0,
+          "backend_sampling": false,
+          "chat_format": "Content-only",
+          "dry_allowed_length": 2,
+          "dry_base": 1.75,
+          "dry_multiplier": 0.0,
+          "dry_penalty_last_n": 64,
+          "dynatemp_exponent": 1.0,
+          "dynatemp_range": 0.0,
+          "frequency_penalty": 0.0,
+          "generation_prompt": "",
+          "ignore_eos": false,
+          "lora": [],
+          "max_tokens": -1,
+          "min_keep": 0,
+          "min_p": 0.05000000074505806,
+          "mirostat": 0,
+          "mirostat_eta": 0.10000000149011612,
+          "mirostat_tau": 5.0,
+          "n_discard": 0,
+          "n_keep": 0,
+          "n_predict": -1,
+          "n_probs": 0,
+          "post_sampling_probs": false,
+          "presence_penalty": 0.0,
+          "reasoning_format": "none",
+          "reasoning_in_content": false,
+          "repeat_last_n": 64,
+          "repeat_penalty": 1.0,
+          "samplers": [
+            "penalties",
+            "dry",
+            "top_n_sigma",
+            "top_k",
+            "typ_p",
+            "top_p",
+            "min_p",
+            "xtc",
+            "temperature"
+          ],
+          "seed": 2026,
+          "speculative.types": "none",
+          "stream": false,
+          "temperature": 0.0,
+          "timings_per_token": false,
+          "top_k": 1,
+          "top_n_sigma": -1.0,
+          "top_p": 0.949999988079071,
+          "typical_p": 1.0,
+          "xtc_probability": 0.0,
+          "xtc_threshold": 0.10000000149011612
+        }
+      },
+      "endpoint_metrics": true,
+      "endpoint_props": false,
+      "endpoint_slots": true,
+      "eos_token": "<|im_end|>",
+      "is_sleeping": false,
+      "media_marker": "<__media_e9LfNoHUKixWDntl0bqefGZ4fDxVSbDu__>",
+      "modalities": {
+        "audio": false,
+        "video": false,
+        "vision": false
+      },
+      "model_alias": "C:\\UGTOMS(Universal Geometric Topological Open Modular Substrate)\\NHDF_Edge_Qwen3_RTX5070Ti_12GB\\nhdf_edge_qwen3\\models\\Qwen3-30B-A3B-Instruct-2507-IQ2_M\\Qwen_Qwen3-30B-A3B-Instruct-2507-IQ2_M.gguf",
+      "model_ftype": "IQ2_M - 2.7 bpw",
+      "model_path": "C:\\UGTOMS(Universal Geometric Topological Open Modular Substrate)\\NHDF_Edge_Qwen3_RTX5070Ti_12GB\\nhdf_edge_qwen3\\models\\Qwen3-30B-A3B-Instruct-2507-IQ2_M\\Qwen_Qwen3-30B-A3B-Instruct-2507-IQ2_M.gguf",
+      "total_slots": 1,
+      "ui": false,
+      "ui_settings": {}
+    }
+  },
+  "repair_attempts": 1,
+  "repair_policy": "First-pass result files and timings remain unchanged. One separately stored repair may use concise machine feedback; aggregate reports first and final accuracy.",
+  "repetitions": 2,
+  "runtime": "C:\\UGTOMS(Universal Geometric Topological Open Modular Substrate)\\NHDF_Edge_Qwen3_RTX5070Ti_12GB\\nhdf_edge_qwen3\\tools\\llama.cpp-f8dbcd61\\bin\\llama-completion.exe",
+  "seed": 2026,
+  "selected_tasks": [
+    "clamp_integer",
+    "stable_deduplication",
+    "balanced_brackets",
+    "merge_intervals",
+    "first_unique_character",
+    "grid_shortest_path"
+  ],
+  "server_cache_prompt": true,
+  "server_load_evidence": null,
+  "server_url": "http://127.0.0.1:18080",
+  "started_at_utc": "2026-08-31T14:45:01.149940Z",
+  "status": "passed-after-repair",
+  "suite_sha256": "c75bea66b98300508b3dc9c63ebb4977f75d4be8e519a5b9c8836a536af77523"
+}

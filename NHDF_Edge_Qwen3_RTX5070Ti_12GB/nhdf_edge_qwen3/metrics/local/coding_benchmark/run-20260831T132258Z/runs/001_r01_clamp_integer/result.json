@@ -1,0 +1,141 @@
+{
+  "decoding": {
+    "cache_prompt": true,
+    "seed": 2026,
+    "temperature": 0.0,
+    "top_k": 1
+  },
+  "end_to_end_with_evaluation_seconds": 0.8591423999896506,
+  "extracted_source_sha256": "e8ea25c7dc71ad34682e2fbc29b0c441aadce55184a239407eacc94b3f128b8d",
+  "format": "nhdf-hybrid-coding-benchmark-0.1",
+  "function": "clamp",
+  "generated_text_exact_after_runtime_marker_cleanup": "```python\ndef clamp(value, low, high):\n    if value < low:\n        return low\n    if value > high:\n        return high\n    return value\n```",
+  "gpu": {
+    "baseline": {
+      "name": "NVIDIA GeForce RTX 5070 Ti Laptop GPU",
+      "total_memory_mib": 12227,
+      "used_memory_mib": 10493,
+      "utilization_percent": 0
+    },
+    "incremental_peak_memory_mib": 0,
+    "peak_used_memory_mib": 10493,
+    "peak_utilization_percent": 86,
+    "sample_count": 3
+  },
+  "http_status": 200,
+  "launch_index": 1,
+  "llama_metrics": {
+    "decode_eval_ms": 328.368,
+    "decode_runs": 37,
+    "decode_tokens_per_second": 112.67845831506115,
+    "load_ms": null,
+    "prompt_eval_ms": 363.256,
+    "prompt_tokens": 93,
+    "prompt_tokens_per_second": 256.0177946131654,
+    "resident_estimate_method": "direct streamed request against already-resident server",
+    "resident_inference_ms_estimate": 691.624,
+    "resident_ttft_ms_estimate": 384.7332000004826,
+    "server_reported_stop": true,
+    "server_reported_stop_type": "eos",
+    "total_ms": 691.624
+  },
+  "mode": "resident_server",
+  "passed": true,
+  "process_cache_class": "resident_server_request",
+  "prompt": "Define exactly one Python function `def clamp(value, low, high):`. Assume low <= high. Return low when value is below low, high when it is above high, and value otherwise.\n\nConstraints:\n- Return only Python source code, with no Markdown fences or explanation.\n- Define exactly the requested one top-level function and no other functions.\n- Do not import modules, read input, print, access files, or use global state.\n- The implementation must be deterministic.",
+  "raw_evidence": {
+    "request_bytes": 934,
+    "request_path": "runs/001_r01_clamp_integer/request.json",
+    "request_sha256": "faf53aa9deb80908ebcd3765d3becc6e73dca23a2a17402884668127b6b2582e",
+    "response_bytes": 6804,
+    "response_path": "runs/001_r01_clamp_integer/response.sse",
+    "response_sha256": "f87f5f8647d6400ae3edfab2f9125631c4e7f5ec5b0eef6a23516ea63c1e248d",
+    "source_bytes": 132,
+    "source_path": "runs/001_r01_clamp_integer/generated.py",
+    "source_sha256": "5bcf7fac90482cbecc261ef6099c648d6bbb6b8aeec991393446e224b67ca306"
+  },
+  "repetition": 1,
+  "request": {
+    "cache_prompt": true,
+    "endpoint": "http://127.0.0.1:18080/completion",
+    "n_predict": 384,
+    "prompt": "<|im_start|>system\nYou are a precise coding assistant. Follow the requested Python interface exactly and return only executable source code.<|im_end|>\n<|im_start|>user\nDefine exactly one Python function `def clamp(value, low, high):`. Assume low <= high. Return low when value is below low, high when it is above high, and value otherwise.\n\nConstraints:\n- Return only Python source code, with no Markdown fences or explanation.\n- Define exactly the requested one top-level function and no other functions.\n- Do not import modules, read input, print, access files, or use global state.\n- The implementation must be deterministic.<|im_end|>\n<|im_start|>assistant\n",
+    "reasoning_format": "none",
+    "seed": 2026,
+    "stop": [
+      "<|im_end|>"
+    ],
+    "stream": true,
+    "temperature": 0.0,
+    "top_k": 1
+  },
+  "response_headers": {
+    "access-control-allow-origin": "",
+    "connection": "close",
+    "content-type": "text/event-stream",
+    "server": "llama.cpp",
+    "transfer-encoding": "chunked"
+  },
+  "score": {
+    "evaluation_exit_code": 0,
+    "evaluation_seconds": 0.14586989999224897,
+    "passed": true,
+    "safe_to_execute": true,
+    "tests": [
+      {
+        "actual": 5,
+        "exact_output_passed": true,
+        "exception": null,
+        "expected": 5,
+        "index": 0,
+        "input_mutation_passed": true,
+        "mutation_checks": [],
+        "passed": true
+      },
+      {
+        "actual": 0,
+        "exact_output_passed": true,
+        "exception": null,
+        "expected": 0,
+        "index": 1,
+        "input_mutation_passed": true,
+        "mutation_checks": [],
+        "passed": true
+      },
+      {
+        "actual": 10,
+        "exact_output_passed": true,
+        "exception": null,
+        "expected": 10,
+        "index": 2,
+        "input_mutation_passed": true,
+        "mutation_checks": [],
+        "passed": true
+      },
+      {
+        "actual": 4,
+        "exact_output_passed": true,
+        "exception": null,
+        "expected": 4,
+        "index": 3,
+        "input_mutation_passed": true,
+        "mutation_checks": [],
+        "passed": true
+      }
+    ],
+    "tests_passed": 4,
+    "tests_total": 4
+  },
+  "server_error": null,
+  "server_event_count": 38,
+  "task_id": "clamp_integer",
+  "time_to_first_non_whitespace_output_seconds": 0.3847332000004826,
+  "ttft_observation": {
+    "exact_token_boundary": false,
+    "includes_http_queue_and_prompt_prefill": true,
+    "includes_model_load": false,
+    "method": "timestamp of first non-whitespace content in streamed SSE event",
+    "observable": true
+  },
+  "wall_elapsed_seconds": 0.7132724999974016
+}

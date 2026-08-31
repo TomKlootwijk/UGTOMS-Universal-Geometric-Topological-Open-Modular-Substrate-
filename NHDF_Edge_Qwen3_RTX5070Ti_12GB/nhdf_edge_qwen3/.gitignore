@@ -13,5 +13,6 @@ benchmarks/local/
 tmp/
 tools/
 metrics/local/*.ncu-rep
+metrics/local/coding_benchmark/
 *.zip
 .pytest_cache/

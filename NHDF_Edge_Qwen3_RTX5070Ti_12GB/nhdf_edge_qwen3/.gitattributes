@@ -23,3 +23,8 @@
 *.safetensors binary
 *.ncu-rep binary
 *.zip binary
+
+# Curated benchmark evidence contains its own byte-level SHA256SUMS. Preserve
+# the generated CRLF/LF mix exactly instead of normalizing it on checkout.
+metrics/local/coding_benchmark/** -text -eol whitespace=-trailing-space
+tools/llama.cpp-f8dbcd61/** -text -eol whitespace=-trailing-space

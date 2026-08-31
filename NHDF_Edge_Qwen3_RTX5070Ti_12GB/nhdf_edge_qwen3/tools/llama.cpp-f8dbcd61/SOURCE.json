@@ -1,0 +1,47 @@
+{
+  "project": "ggml-org/llama.cpp",
+  "repository": "https://github.com/ggml-org/llama.cpp",
+  "commit": "f8dbcd61893702976f9ab03be89c2b9f436d532c",
+  "commit_url": "https://github.com/ggml-org/llama.cpp/commit/f8dbcd61893702976f9ab03be89c2b9f436d532c",
+  "nearest_tag": "b10717",
+  "build_number": 10720,
+  "resolved_at_utc": "2026-08-31T13:37:14Z",
+  "license": {
+    "path": "LICENSE",
+    "bytes": 1099,
+    "sha256": "bcd8ec749126d45cb06737d0690295d73df4b6e7e194205bcf91190368f27285"
+  },
+  "build": {
+    "generator": "Ninja",
+    "build_type": "Release",
+    "shared_libraries": true,
+    "cuda_toolkit": "12.8.61",
+    "requested_cuda_architecture": "120",
+    "compiled_cuda_architecture": "120a",
+    "compiler": "MSVC 19.44.35221.0",
+    "cmake": "4.3.2",
+    "ggml_cuda": true,
+    "ggml_cuda_flash_attention": true,
+    "ggml_cuda_graphs": true,
+    "ggml_native": true,
+    "llama_curl": false,
+    "reported_version": "0.3.0-dev (build 10720, commit f8dbcd61)"
+  },
+  "binaries": {
+    "bin/ggml-base.dll": {"bytes": 671744, "sha256": "5debdf44b6a8a30cbc9e733b41712bac29b9dbc68c94b6f9ecfde9a5cce82acb"},
+    "bin/ggml-cpu.dll": {"bytes": 907264, "sha256": "9230df69ab901f24fd6742949bf04c8f725bebacae189aac54d349c773c7ad1d"},
+    "bin/ggml-cuda.dll": {"bytes": 52752896, "sha256": "734b80b60afeb373e91ad876f03698a713324102c63f0e755a417d56147e4536"},
+    "bin/ggml.dll": {"bytes": 67072, "sha256": "bfa741c63302c8051b80a717749ca796c2e65d8ae6267b776d512391b51f1cf9"},
+    "bin/llama-bench-impl.dll": {"bytes": 904704, "sha256": "08d8e3a0a03e4d4d3d48c6315385ee312653109c575e9c0ef11cf466838243ac"},
+    "bin/llama-bench.exe": {"bytes": 10752, "sha256": "48b29766bdb58bbec86804589decf2b12049a3eb8ca62899a57d063cb989280a"},
+    "bin/llama-cli-impl.dll": {"bytes": 873472, "sha256": "25cc56a47561d5c153731a6f783b512fac3c9cb0222a70321d06c9cbc31bde64"},
+    "bin/llama-cli.exe": {"bytes": 10752, "sha256": "433e5dcbe37f2c4493df67b1d9dbb3d8a284787f431b63cde55ded914bebb753"},
+    "bin/llama-completion-impl.dll": {"bytes": 247808, "sha256": "a2539189c876a5f31afa4066650476b31800f0bdb494ed527808e396ce3777b5"},
+    "bin/llama-completion.exe": {"bytes": 10752, "sha256": "d687544bc1e82d3fc18e4da0d64dc5a94f08e8a8bd358bc96a3243d00df38f31"},
+    "bin/llama-common.dll": {"bytes": 8201216, "sha256": "4ed30d4d551f42c4b5f8dc761a06172402922bab01e2fce03d34f489d6a65cf8"},
+    "bin/llama-server-impl.dll": {"bytes": 13089280, "sha256": "666adac5159f65338a897a1bb3e404ab207796f6653f25ee24fb1ee4220876a2"},
+    "bin/llama-server.exe": {"bytes": 10752, "sha256": "3f1041dcc2e797a05b80324e0b04a20021cd14fba272f6e2945d16b2ead2364c"},
+    "bin/llama.dll": {"bytes": 2567680, "sha256": "216dc4e66b6505766f531d1539d87f6a66d018cdb82d5955c65cc130b19c916d"},
+    "bin/mtmd.dll": {"bytes": 2377728, "sha256": "b816fd936992b81e3ce29a170ad4983cbf7d6db3ea71ebb55119e3c6c1c3224b"}
+  }
+}
